@@ -111,7 +111,11 @@ struct LibraryCellView: View {
 				selectedInstallAppPresenting = AnyApp(base: app)
 			}
 			if let update = _signedUpdateConfirmation {
-				Button(.localized("Download Update"), systemImage: "arrow.down.circle") {
+				// Accretion: download, sign with this app's recipe and open the install screen
+				Button(.localized("Update and Install"), systemImage: "arrow.down.circle") {
+					AutoSignPipeline.shared.update([update])
+				}
+				Button(.localized("Download Update Only"), systemImage: "arrow.down.to.line") {
 					_startUpdateDownload(update)
 				}
 			}

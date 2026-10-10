@@ -13,6 +13,7 @@ import NimbleViews
 struct LibraryView: View {
 	@StateObject var downloadManager = DownloadManager.shared
 	@StateObject var updateManager = UpdateManager.shared
+	@ObservedObject private var _pipeline = AutoSignPipeline.shared // Accretion
 	
 	@State private var _selectedInfoAppPresenting: AnyApp?
 	@State private var _selectedSigningAppPresenting: AnyApp?
@@ -174,6 +175,28 @@ struct LibraryView: View {
 						.accessibilityLabel(.localized("Check for Updates"))
 					}
 					
+					// Accretion: update everything, or re-sign everything after a certificate change
+					ToolbarItem(placement: .topBarTrailing) {
+						Menu {
+							Button {
+								AutoSignPipeline.shared.update(Array(updateManager.updates.values))
+							} label: {
+								Label(.localized("Update All (%@)", arguments: String(updateManager.updates.count)), systemImage: "arrow.down.circle")
+							}
+							.disabled(updateManager.updates.isEmpty)
+							Button {
+								AutoSignPipeline.shared.resignAll()
+							} label: {
+								Label(.localized("Re-sign All"), systemImage: "signature")
+							}
+							.disabled(_signedApps.isEmpty)
+						} label: {
+							Image(systemName: "wand.and.stars")
+						}
+						.disabled(_pipeline.isRunning)
+						.accessibilityLabel(.localized("Update or Re-sign All"))
+					}
+
 					NBToolbarMenu(
 						systemImage: "plus",
 						style: .icon,
@@ -184,6 +207,21 @@ struct LibraryView: View {
 				}
 			}
 			.environment(\.editMode, $_editMode)
+			// Accretion: progress of Update / Update All / Re-sign All
+			.safeAreaInset(edge: .bottom) {
+				if let status = _pipeline.status {
+					HStack(spacing: 10) {
+						ProgressView()
+						Text(verbatim: status)
+							.font(.footnote)
+							.lineLimit(2)
+					}
+					.padding(.horizontal, 16)
+					.padding(.vertical, 10)
+					.background(.regularMaterial, in: Capsule())
+					.padding(.bottom, 8)
+				}
+			}
 			.sheet(item: $_selectedInfoAppPresenting) { app in
 				LibraryInfoView(app: app.base)
 			}

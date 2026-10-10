@@ -107,6 +107,21 @@ extension UpdateManager {
 
 		await checkForUpdates(sources: sources, localApps: localApps)
 		_alertNewUpdates()
+		_recheckSelectedCertificate()
+	}
+
+	/// Re-asks OCSP about the certificate used for signing; warns once when it becomes revoked,
+	/// and clears the flag again when a check says it's good.
+	private func _recheckSelectedCertificate() {
+		guard let cert = Storage.shared.getCertificate(for: UserDefaults.standard.integer(forKey: "feather.selectedCert")) else { return }
+		let wasRevoked = cert.revoked
+		Storage.shared.recheckRevocation(for: cert) { revoked in
+			guard revoked, !wasRevoked, UIApplication.topViewController() != nil else { return }
+			UIAlertController.showAlertWithOk(
+				title: String.localized("Certificate revoked"),
+				message: String.localized("Apple has revoked the certificate you sign with, so apps signed with it will stop opening. Import or pick another certificate in Settings → Certificates, then use Re-sign All from the ✨ menu in Library.")
+			)
+		}
 	}
 
 	private func _alertNewUpdates() {

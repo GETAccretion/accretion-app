@@ -182,7 +182,9 @@ extension LibraryCellView {
 					_signedUpdateConfirmation = update
 					_isSignedUpdateConfirmationPresented = true
 				} else {
-					_startUpdateDownload(update)
+					// Accretion: the new IPA replaces this one in Library (and is signed in place
+					// if the app also has a signed copy)
+					AutoSignPipeline.shared.update([update])
 				}
 			}
 		}

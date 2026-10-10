@@ -54,8 +54,10 @@ jobs:
 
       - name: Get Version
         id: get_version
+        # read it from the .ipa: the Mac Catalyst build runs last and replaces _build
         run: |
-          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" _build/Payload/*.app/Info.plist)
+          unzip -p packages/Accretion.ipa Payload/Accretion.app/Info.plist > "$RUNNER_TEMP/Info.plist"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$RUNNER_TEMP/Info.plist")
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Upload build

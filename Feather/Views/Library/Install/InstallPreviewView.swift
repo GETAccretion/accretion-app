@@ -194,7 +194,8 @@ struct InstallPreviewView: View {
 				await MainActor.run {
 					UIAlertController.showAlertWithOk(
 						title: .localized("Install"),
-						message: String(describing: error),
+						message: InstallErrorText.describe(error), // Accretion: readable reasons
+
 						action: {
 							HeartbeatManager.shared.start(true)
 							dismiss()

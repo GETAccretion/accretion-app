@@ -21,7 +21,14 @@ extension Storage {
 		completion: @escaping (Error?) -> Void
 	) {
 		let generator = UIImpactFeedbackGenerator(style: .light)
-		
+
+		// Accretion: the selection is an index into the newest-first list, and the new certificate
+		// goes in at index 0, so move the selection along to keep the same certificate selected
+		if !getAllCertificates().isEmpty {
+			let selected = UserDefaults.standard.integer(forKey: "feather.selectedCert")
+			UserDefaults.standard.set(selected + 1, forKey: "feather.selectedCert")
+		}
+
 		let new = CertificatePair(context: context)
 		new.uuid = uuid
 		new.date = Date()
@@ -37,6 +44,16 @@ extension Storage {
 	}
 	
 	func deleteCertificate(for cert: CertificatePair) {
+		// Accretion: keep the same certificate selected when one before it in the list goes away
+		if let index = getAllCertificates().firstIndex(of: cert) {
+			let selected = UserDefaults.standard.integer(forKey: "feather.selectedCert")
+			if index < selected {
+				UserDefaults.standard.set(selected - 1, forKey: "feather.selectedCert")
+			} else if index == selected {
+				UserDefaults.standard.set(0, forKey: "feather.selectedCert")
+			}
+		}
+
 		if let url = getUuidDirectory(for: cert) {
 			try? FileManager.default.removeItem(at: url)
 		}

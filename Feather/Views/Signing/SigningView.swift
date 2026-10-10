@@ -22,6 +22,9 @@ struct SigningView: View {
 	@State private var _isSigning = false
 	@State private var _selectedPhoto: PhotosPickerItem? = nil
 	@State var appIcon: UIImage?
+	// Accretion: what the selected certificate's profile allows, and who holds a single-app slot
+	@State private var _slotKind: AppIDKind?
+	@State private var _slotOccupant: String?
 	
 	// MARK: Fetch
 	@FetchRequest(
@@ -47,6 +50,7 @@ struct SigningView: View {
 	var body: some View {
 		NBNavigationView("", displayMode: .inline) {
 			Form {
+				_slotNotice()
 				_customizationOptions(for: app)
 				_cert()
 				_customizationProperties(for: app)
@@ -143,6 +147,25 @@ struct SigningView: View {
 			{
 				_temporaryOptions.appName = newName
 			}
+
+			_applyCertificateSlot()
+		}
+		.onChange(of: _temporaryCertificate) { _ in
+			_applyCertificateSlot()
+		}
+	}
+
+	/// Accretion: fit the bundle ID to what the selected certificate's profile allows.
+	private func _applyCertificateSlot() {
+		let cert = _selectedCert()
+		_slotKind = CertificateSlots.kind(of: cert)
+		_slotOccupant = CertificateSlots.occupant(of: cert)?.name
+
+		guard let original = app.identifier else { return }
+		let wanted = _temporaryOptions.appIdentifier ?? original
+		let fitted = CertificateSlots.bundleID(wanted, for: _slotKind)
+		if fitted != wanted {
+			_temporaryOptions.appIdentifier = fitted
 		}
 	}
 }
@@ -189,6 +212,25 @@ extension SigningView {
 		}
 	}
 	
+	/// Accretion: explain single-app certificates up front instead of failing at install
+	@ViewBuilder
+	private func _slotNotice() -> some View {
+		if case .explicit(let id) = _slotKind {
+			Section {
+				Label {
+					Text(verbatim: .localized(
+						"This certificate covers one app at a time, so this app is signed as %@ and replaces %@ on your device.",
+						arguments: id,
+						_slotOccupant ?? String.localized("the last app signed with it")
+					))
+					.font(.footnote)
+				} icon: {
+					Image(systemName: "1.circle")
+				}
+			}
+		}
+	}
+
 	@ViewBuilder
 	private func _cert() -> some View {
 		NBSection(.localized("Signing")) {
@@ -275,6 +317,15 @@ extension SigningView {
 			return
 		}
 
+		// Accretion: explain problems before signing; blocking ones stop here
+		Preflight.confirm(
+			Preflight.problems(for: app, certificate: _selectedCert(), options: _temporaryOptions)
+		) {
+			_sign()
+		}
+	}
+
+	private func _sign() {
 		let generator = UIImpactFeedbackGenerator(style: .light)
 		generator.impactOccurred()
 		_isSigning = true

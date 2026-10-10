@@ -14,6 +14,7 @@ import IDeviceSwift
 // MARK: - View
 struct SettingsView: View {
 	@AppStorage("feather.selectedCert") private var _storedSelectedCert: Int = 0
+	@AppStorage(UpdateManager.autoCheckKey) private var _autoUpdateCheck: Bool = true
 	@State private var _currentIcon: String? = UIApplication.shared.alternateIconName
 	
 	// MARK: Fetch
@@ -86,6 +87,8 @@ struct SettingsView: View {
 				} footer: {
 					Text(.localized("Configure the apps way of installing, its zip compression levels, and custom modifications to apps."))
 				}
+
+				_accretion()
                 
 				_directories()
                 
@@ -103,6 +106,33 @@ struct SettingsView: View {
 
 // MARK: - View extension
 extension SettingsView {
+	/// Accretion: update checks and the web store, guide and mods in one place
+	@ViewBuilder
+	private func _accretion() -> some View {
+		NBSection(.localized("Accretion")) {
+			Toggle(isOn: $_autoUpdateCheck) {
+				Label(.localized("Check for Updates Automatically"), systemImage: "arrow.triangle.2.circlepath")
+			}
+			Button {
+				UIApplication.open("https://getaccretion.github.io")
+			} label: {
+				Label(.localized("Accretion Store"), systemImage: "storefront")
+			}
+			Button {
+				UIApplication.open("https://getaccretion.github.io/#/sign")
+			} label: {
+				Label(.localized("Sign Your Own Apps Guide"), systemImage: "signature")
+			}
+			Button {
+				UIApplication.open("https://github.com/AccretionMods/mods")
+			} label: {
+				Label(.localized("Accretion Mods"), systemImage: "wand.and.stars")
+			}
+		} footer: {
+			Text(.localized("Checks every source when the app opens, at most once an hour, and shows new updates on the Library tab."))
+		}
+	}
+
 	@ViewBuilder
 	private func _feedback() -> some View {
 		Section {

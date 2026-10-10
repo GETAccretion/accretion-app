@@ -14,7 +14,8 @@ struct ExtendedTabbarView: View {
 	@Environment(\.horizontalSizeClass) var horizontalSizeClass
 	@AppStorage("Feather.tabCustomization") var customization = TabViewCustomization()
 	@StateObject var viewModel = SourcesViewModel.shared
-	
+	@ObservedObject private var _updateManager = UpdateManager.shared
+
 	@State private var _isAddingPresenting = false
 	
 	@FetchRequest(
@@ -29,6 +30,8 @@ struct ExtendedTabbarView: View {
 				Tab(tab.title, systemImage: tab.icon) {
 					TabEnum.view(for: tab)
 				}
+				// Accretion: number of apps with an update waiting (0 hides the badge)
+				.badge(tab == .library ? _updateManager.updates.count : 0)
 			}
 			
 			ForEach(TabEnum.customizableTabs, id: \.hashValue) { tab in

@@ -203,8 +203,14 @@ final class UpdateManager: ObservableObject {
 				break
 			}
 		}
-		
-		return foundUpdates
+
+		// Accretion: apps with no update in their own source can still get one from any other source
+		return addingCrossSourceUpdates(
+			to: foundUpdates,
+			repositories: repositories,
+			localApps: localApps,
+			metadataByUUID: metadataByUUID
+		)
 	}
 	
 	private func _matchesStoredRepository(

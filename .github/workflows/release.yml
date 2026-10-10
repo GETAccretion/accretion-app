@@ -30,6 +30,23 @@ jobs:
         run: |
           sudo xcode-select -s /Applications/Xcode_26.3.0.app
 
+      # Xcode 26 sometimes crashes while registering the ~30 Swift packages ("count of array (32)
+      # differs from count of index set (31)"). Resolve them up front, retrying, into the same
+      # derived data paths the Makefile builds from.
+      - name: Resolve Swift packages
+        run: |
+          for platform in iphoneos maccatalyst; do
+            for attempt in 1 2 3; do
+              if xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather \
+                   -derivedDataPath "$TMPDIR/Feather/$platform" -skipPackagePluginValidation; then
+                break
+              fi
+              echo "::warning::Package resolution for $platform failed (attempt $attempt), retrying"
+              [ "$attempt" = 3 ] && exit 1
+              sleep 10
+            done
+          done
+
       - name: Build
         run: |
           agvtool new-version -all $(git rev-parse HEAD)

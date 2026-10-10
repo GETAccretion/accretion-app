@@ -181,7 +181,7 @@ struct LibraryView: View {
 							Button {
 								AutoSignPipeline.shared.update(Array(updateManager.updates.values))
 							} label: {
-								Label(.localized("Update All (%@)", arguments: String(updateManager.updates.count)), systemImage: "arrow.down.circle")
+								Label(String.localized("Update All (%@)", arguments: String(updateManager.updates.count)), systemImage: "arrow.down.circle")
 							}
 							.disabled(updateManager.updates.isEmpty)
 							Button {

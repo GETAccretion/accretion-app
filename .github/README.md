@@ -4,17 +4,64 @@ The iPhone app for [Accretion](https://getaccretion.github.io): sign and install
 
 Accretion is a fork of [Feather](https://github.com/claration/Feather) by claration, and is licensed under GPL-3.0 like Feather. Everything below this section is Feather's original README and still applies.
 
-**What Accretion changes so far**
+## What Accretion adds to Feather
 
-- Its own name, icon and bundle ID (`io.github.getaccretion.Accretion`), so it installs next to Feather.
-- Its own link format, `accretion://`, which the Accretion web store's Install button uses:
+### Identity and store
+- **Its own app:** own name, icon and bundle ID (`io.github.getaccretion.Accretion`), so it installs next to Feather. Version numbering starts at 1.0.0.
+- **Its own link format, `accretion://`**, used by the Accretion web store's Install button. It only registers `accretion://`, so it never fights Feather over `feather://` links.
   - `accretion://install/<https link to .ipa>`
   - `accretion://source/<https link to source>`
   - `accretion://import-certificate?p12=…&mobileprovision=…&password=…` (same format as Feather)
-- Accretion Core, the full Accretion list and Accretion Mods at the top of the recommended sources.
-- Builds on every push to `main` (Actions → Release → artifact). Tags named `accretion-v*` publish a release and update `app-repo.json`, the app's own source.
+- **Recommended sources:** Accretion Core, the full Accretion list and Accretion Mods come first.
+- **"Made by Accretion"** on the Sources tab lists every Accretion Mod across your sources. Mods (bundle IDs under `io.github.accretionmods.`) are labelled "Accretion Mod" wherever apps are listed.
+- **Settings → Accretion** has the automatic update check switch, the Tweak Library, and links to the web store, the signing guide and the mods repo.
 
-**Pulling in Feather updates:** `git fetch upstream && git merge upstream/main`, then fix any conflicts in the files listed above.
+### Certificates
+- **Single-app profiles are understood.** Profiles that cover one App ID set the bundle ID automatically, and the signing screen says which installed app will be replaced. Prefix wildcards (`com.example.*`) adapt bundle IDs that don't fit.
+- **Several profiles per certificate.** Add extra profiles under certificate details → Profiles; each app gets its own: a wildcard first, then the one already assigned, then a free one. Single-App-ID certificates can then keep several apps installed and update each in place.
+- **Selection stays put.** Importing or deleting a certificate no longer changes which one is selected.
+- **Revocation re-checks.** The selected certificate is re-checked automatically (at most hourly). You get one warning when it's revoked, and the flag clears when OCSP says it's good again.
+
+### Signing
+- **Preflight checks before signing**, each with a plain explanation:
+  - **blocks signing:** revoked or expired certificate, expired profile, or an App Store-encrypted (FairPlay) app;
+  - **warns, with "Sign Anyway":** encrypted extensions, or a minimum iOS newer than the device.
+- **Recipes:** each app's name, icon, injected tweaks and properties are saved under `Documents/Recipes/<original bundle ID>/` and reapplied on every re-sign and update. Control it with "Remember for This App" while signing; Library shows "Recipe" on those apps and offers "Forget Recipe".
+- **Tweak library:** the signing screen's Tweaks page shows "Suggested for This App" from [`tweaks.json`](https://github.com/AccretionMods/mods/blob/main/tweaks.json). One tap downloads a tweak (and anything it needs) from its own project, and it's kept in the recipe. The full catalog is in Settings → Accretion → Tweak Library.
+- **Readable install errors:** common iOS failures are explained, with the raw details underneath.
+
+### Updates
+- **Updates from every source:** if an app's own source has nothing newer, every other source is checked for the same bundle ID. The newest higher version wins; there are no downgrades.
+- **Automatic checks** at launch and whenever the app returns to the front (at most hourly), with a count badge on the Library tab and one "Updates available" alert per new version.
+- **Update and Install:** one tap downloads, signs with the app's recipe and opens the install screen.
+- **Updates in place:**
+  - **Same app on the device:** the new version keeps the installed copy's bundle ID and certificate, so iOS replaces the app and keeps its data.
+  - **Different certificate team:** the update is refused with an explanation instead of creating a copy.
+  - **One Library entry per app:** the new download and the new signed copy replace the old ones.
+- **Library ✨ menu:**
+  - **Update All** updates every app with an update.
+  - **Re-sign All** re-signs every app with the selected certificate after a revocation or replacement, keeping recipes, and lists any apps iOS needs deleted first.
+  - A progress banner shows at the bottom of Library while either runs.
+
+### LiveContainer
+- **Source app pages:** a 📦 button sends the IPA link to LiveContainer (`livecontainer://install?url=…`), which runs many apps under one signature. That's a way around single-App-ID certificates.
+- **Library apps:** "Open in LiveContainer…" packs the IPA and opens the share sheet.
+
+### Building and releasing
+- **Every push to `main` builds** `Accretion.ipa` and the Mac Catalyst zip (Actions → Release → artifact).
+- **Tags named `accretion-v*`** publish a release and point `app-repo.json` (the app's own source) at it.
+- **The build sets up Swift packages first, with retries,** to get past an intermittent Xcode 26 crash.
+
+### Where the code lives
+Accretion code sits in its own files where possible, so merging Feather updates stays manageable:
+- `Feather/Backend/Signing/`: `CertificateSlots`, `Preflight`, `RecipeStore`, `AutoSignPipeline`, `ProfileStore`, `TweakCatalog`, `LiveContainer`
+- `Feather/Backend/Observable/UpdateManager+Accretion.swift`
+- `Feather/Views/Sources/Accretion/`, `Feather/Views/Signing/Tweaks/`
+- `Feather/Views/Settings/Certificates/Info/CertificateProfilesSection.swift`
+
+Changes inside Feather's own files are marked `// Accretion:`.
+
+**Pulling in Feather updates:** `git fetch upstream && git merge upstream/main`, then fix any conflicts in the `// Accretion:` blocks.
 
 ---
 

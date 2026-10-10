@@ -298,7 +298,8 @@ extension SigningView {
 				
 				NavigationLink(.localized("Tweaks")) {
 					SigningTweaksView(
-						options: $_temporaryOptions
+						options: $_temporaryOptions,
+						appIdentifier: app.identifier // Accretion: tweak suggestions
 					)
 				}
 			}

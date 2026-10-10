@@ -11,12 +11,17 @@ import NimbleViews
 // MARK: - View
 struct SigningTweaksView: View {
 	@State private var _isAddingPresenting = false
-	
+	@ObservedObject private var _catalog = TweakCatalog.shared // Accretion
+
 	@Binding var options: Options
-	
+	/// Accretion: the app being signed, to suggest tweaks made for it
+	var appIdentifier: String? = nil
+
 	// MARK: Body
 	var body: some View {
 		NBList(.localized("Tweaks")) {
+			_suggested()
+
 			NBSection(.localized("Injection")) {
 				SigningOptionsView.picker(
 					.localized("Injection Path"),
@@ -74,6 +79,70 @@ struct SigningTweaksView: View {
 			.ignoresSafeArea()
 		}
 		.animation(.smooth, value: options.injectionFiles)
+		.task { await _catalog.load() }
+	}
+}
+
+// MARK: - Extension: View (Accretion tweak library)
+extension SigningTweaksView {
+	@ViewBuilder
+	private func _suggested() -> some View {
+		let suggested = _catalog.suggested(for: appIdentifier)
+		if !suggested.isEmpty {
+			NBSection(.localized("Suggested for This App")) {
+				ForEach(suggested) { tweak in
+					TweakRowView(tweak: tweak) {
+						if _catalog.downloading.contains(tweak.id) {
+							ProgressView()
+						} else if TweakCatalog.isAdded(tweak, to: options) {
+							Image(systemName: "checkmark.circle.fill")
+								.foregroundStyle(.green)
+								.accessibilityLabel(.localized("Added"))
+						} else {
+							Button(.localized("Add")) {
+								Task {
+									do {
+										options.injectionFiles.append(contentsOf: try await _catalog.download(tweak))
+									} catch {
+										UIAlertController.showAlertWithOk(
+											title: String.localized("Couldn't download %@", arguments: tweak.name),
+											message: error.localizedDescription
+										)
+									}
+								}
+							}
+							.buttonStyle(.borderless)
+						}
+					}
+				}
+			} footer: {
+				Text(.localized("From the Accretion tweak library. Files download from each tweak's own project."))
+			}
+		}
+	}
+}
+
+// MARK: - Row
+/// One tweak: name, what it does, version, licence and author, with a trailing control.
+struct TweakRowView<Trailing: View>: View {
+	let tweak: CatalogTweak
+	@ViewBuilder var trailing: () -> Trailing
+
+	var body: some View {
+		HStack(alignment: .top, spacing: 12) {
+			VStack(alignment: .leading, spacing: 3) {
+				Text(verbatim: tweak.name)
+					.font(.headline)
+				Text(verbatim: tweak.description)
+					.font(.footnote)
+					.foregroundStyle(.secondary)
+				Text(verbatim: [tweak.version, tweak.license, tweak.author].compactMap { $0 }.joined(separator: " · "))
+					.font(.caption)
+					.foregroundStyle(.tertiary)
+			}
+			.frame(maxWidth: .infinity, alignment: .leading)
+			trailing()
+		}
 	}
 }
 

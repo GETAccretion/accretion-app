@@ -113,6 +113,9 @@ extension SettingsView {
 			Toggle(isOn: $_autoUpdateCheck) {
 				Label(.localized("Check for Updates Automatically"), systemImage: "arrow.triangle.2.circlepath")
 			}
+			NavigationLink(destination: TweakLibraryView()) {
+				Label(.localized("Tweak Library"), systemImage: "puzzlepiece.extension")
+			}
 			Button {
 				UIApplication.open("https://getaccretion.github.io")
 			} label: {

@@ -25,6 +25,9 @@ struct SigningView: View {
 	// Accretion: what the selected certificate's profile allows, and who holds a single-app slot
 	@State private var _slotKind: AppIDKind?
 	@State private var _slotOccupant: String?
+	// Accretion: per-app recipe (options, icon, tweaks) re-applied on every re-sign and update
+	@State private var _rememberRecipe = true
+	@State private var _usingRecipe = false
 	
 	// MARK: Fetch
 	@FetchRequest(
@@ -96,6 +99,9 @@ struct SigningView: View {
 				) {
 					_temporaryOptions = OptionsManager.shared.options
 					appIcon = nil
+					// Accretion: back to defaults, still fitted to the certificate
+					_usingRecipe = false
+					_applyCertificateSlot()
 				}
 			}
 			.sheet(isPresented: $_isAltPickerPresenting) { SigningAlternativeIconView(app: app, appIcon: $appIcon, isModifing: .constant(true)) }
@@ -124,6 +130,13 @@ struct SigningView: View {
 			.animation(.smooth, value: _isSigning)
 		}
 		.onAppear {
+			// Accretion: start from this app's recipe when it has one
+			if let recipe = RecipeStore.load(for: app, base: _optionsManager.options) {
+				_temporaryOptions = recipe.options
+				if let icon = recipe.icon { appIcon = icon }
+				_usingRecipe = true
+			}
+
 			// ppq protection
 			if
 				_optionsManager.options.ppqProtection,
@@ -247,6 +260,15 @@ extension SigningView {
 					.font(.footnote)
 					.foregroundColor(.disabled())
 			}
+
+			// Accretion: recipes
+			Toggle(isOn: $_rememberRecipe) {
+				Label(.localized("Remember for This App"), systemImage: "wand.and.stars")
+			}
+		} footer: {
+			Text(verbatim: _usingRecipe
+				? String.localized("Using the name, icon, tweaks and properties saved for this app. Tap Reset to start from your defaults.")
+				: String.localized("Saves the name, icon, tweaks and properties so updates and re-signs keep them."))
 		}
 	}
 	
@@ -347,6 +369,11 @@ extension SigningView {
 					actions: [ok]
 				)
 			} else {
+				// Accretion: remember this app's choices (before the imported copy may be deleted)
+				if _rememberRecipe {
+					RecipeStore.save(options: _temporaryOptions, icon: appIcon, for: app)
+				}
+
 				if
 					_temporaryOptions.post_deleteAppAfterSigned,
 					!app.isSigned

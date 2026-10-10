@@ -125,7 +125,9 @@ struct LibraryCellView: View {
 	
 	private var _desc: String {
 		if let version = app.version, let id = app.identifier {
-			return "\(version) • \(id)"
+			// Accretion: show when signing will re-apply a saved recipe
+			let recipe = RecipeStore.hasRecipe(for: app) ? " • " + String.localized("Recipe") : ""
+			return "\(version) • \(id)\(recipe)"
 		} else {
 			return .localized("Unknown")
 		}
@@ -202,6 +204,13 @@ extension LibraryCellView {
 			}
 			Button(.localized("Sign"), systemImage: "signature") {
 				selectedSigningAppPresenting = AnyApp(base: app)
+			}
+		}
+
+		// Accretion: drop the saved name, icon, tweaks and properties for this app
+		if RecipeStore.hasRecipe(for: app) {
+			Button(.localized("Forget Recipe"), systemImage: "wand.and.stars.inverse") {
+				RecipeStore.forget(for: app)
 			}
 		}
 	}

@@ -58,7 +58,9 @@ struct SourcesView: View {
 						}
 						.buttonStyle(.plain)
 					}
-					
+
+					AccretionShelfView(viewModel: viewModel)
+
 					NBSection(
 						.localized("Repositories"),
 						secondary: _filteredSources.count.description
@@ -118,7 +120,7 @@ struct SourcesView: View {
 				guard _shouldStar == 6 else { return }
 			
 				let github = UIAlertAction(title: "GitHub", style: .default) { _ in
-					UIApplication.open("https://github.com/khcrysalis/Feather")
+					UIApplication.open("https://github.com/GETAccretion/accretion-app")
 				}
 			
 				let cancel = UIAlertAction(title: .localized("Dismiss"), style: .cancel)

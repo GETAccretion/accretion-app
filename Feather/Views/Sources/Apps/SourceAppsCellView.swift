@@ -56,6 +56,7 @@ struct SourceAppsCellView: View {
 	
 	static func appDescription(app: ASRepository.App) -> String {
 		let optionalComponents: [String?] = [
+			Accretion.isMod(app) ? String.localized("Accretion Mod") : nil,
 			app.currentVersion,
 			app.currentDescription ?? .localized("An awesome application")
 		]

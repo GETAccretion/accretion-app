@@ -50,8 +50,10 @@ struct FeatherApp: App {
 	}
 	
 	private func _handleURL(_ url: URL) {
-		if url.scheme == "feather" {
-			/// feather://import-certificate?p12=<base64>&mobileprovision=<base64>&password=<base64>
+		/// Accretion registers only `accretion://`, so it never fights Feather over `feather://` links;
+		/// both prefixes are accepted here so links written for Feather work when handed to Accretion.
+		if url.scheme == "accretion" || url.scheme == "feather" {
+			/// accretion://import-certificate?p12=<base64>&mobileprovision=<base64>&password=<base64>
 			if url.host == "import-certificate" {
 				guard
 					let components = URLComponents(url: url, resolvingAgainstBaseURL: false),

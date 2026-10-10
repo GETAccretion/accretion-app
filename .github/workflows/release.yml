@@ -1,10 +1,21 @@
 name: Release
 
+# Every push to main builds Accretion.ipa and keeps it as a downloadable artifact.
+# Pushing a tag like accretion-v1.0.0 also publishes a release and points app-repo.json at it.
 on:
   push:
+    branches:
+      - main
     tags:
-      - v*
+      - accretion-v*
   workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -20,7 +31,7 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.3.0.app
 
       - name: Build
-        run: | 
+        run: |
           agvtool new-version -all $(git rev-parse HEAD)
           make
 
@@ -30,16 +41,42 @@ jobs:
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" _build/Payload/*.app/Info.plist)
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
+      - name: Upload build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Accretion-${{ env.VERSION }}-${{ github.sha }}
+          path: packages/*
+          if-no-files-found: error
+
       - name: Create Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v3.0.2
         with:
-          name: Feather v${{ env.VERSION }}
-          tag_name: v${{ env.VERSION }}
+          name: Accretion v${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
           files: |
             packages/*
           generate_release_notes: true
           fail_on_unmatched_files: true
-          draft: true
-        env:
-          GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+
+      # Releases made with GITHUB_TOKEN don't trigger other workflows, so the app source is updated here.
+      - name: Update app-repo.json
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
+        run: |
+          git fetch --quiet origin main
+          git checkout --quiet main
+          SIZE=$(stat -f%z packages/Accretion.ipa)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Accretion.ipa"
+          jq --arg version "$VERSION" --arg date "$DATE" --arg url "$URL" --argjson size "$SIZE" '
+            .apps[0].version = $version | .apps[0].versionDate = $date |
+            .apps[0].downloadURL = $url | .apps[0].size = $size |
+            .apps[0].versions = [{version: $version, date: $date, size: $size, downloadURL: $url, minOSVersion: "16.0"}]
+          ' app-repo.json > tmp.json
+          mv tmp.json app-repo.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app-repo.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Point app-repo.json at ${{ github.ref_name }}"
+          git push origin main

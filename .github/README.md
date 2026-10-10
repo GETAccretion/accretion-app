@@ -1,7 +1,25 @@
-[![GitHub Release](https://img.shields.io/github/v/release/claration/Feather?include_prereleases)](https://github.com/claration/Feather/releases)
-[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/claration/Feather/total)](https://github.com/claration/Feather/releases)
+# Accretion app
+
+The iPhone app for [Accretion](https://getaccretion.github.io): sign and install apps on your device with your own certificate, straight from the Accretion store.
+
+Accretion is a fork of [Feather](https://github.com/claration/Feather) by claration, and is licensed under GPL-3.0 like Feather. Everything below this section is Feather's original README and still applies.
+
+**What Accretion changes so far**
+
+- Its own name, icon and bundle ID (`io.github.getaccretion.Accretion`), so it installs next to Feather.
+- Its own link format, `accretion://`, which the Accretion web store's Install button uses:
+  - `accretion://install/<https link to .ipa>`
+  - `accretion://source/<https link to source>`
+  - `accretion://import-certificate?p12=…&mobileprovision=…&password=…` (same format as Feather)
+- Accretion Core, the full Accretion list and Accretion Mods at the top of the recommended sources.
+- Builds on every push to `main` (Actions → Release → artifact). Tags named `accretion-v*` publish a release and update `app-repo.json`, the app's own source.
+
+**Pulling in Feather updates:** `git fetch upstream && git merge upstream/main`, then fix any conflicts in the files listed above.
+
+---
+
 [![GitHub License](https://img.shields.io/github/license/claration/Feather?color=%23C96FAD)](https://github.com/claration/Feather/blob/main/LICENSE)
-[![Sponsor Me](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/khcrysalis)
+[![Sponsor Feather](https://img.shields.io/static/v1?label=Sponsor%20Feather&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/khcrysalis)
 
 <div align="center">
 

@@ -36,6 +36,9 @@ struct SourcesAddView: View {
 	
 	@State var recommendedSourcesData: [(url: URL, data: ASRepository)] = []
 	let recommendedSources: [URL] = [
+		"https://getaccretion.github.io/curated.json",
+		"https://getaccretion.github.io/source.json",
+		"https://raw.githubusercontent.com/AccretionMods/mods/main/mods.json",
 		"https://raw.githubusercontent.com/claration/Feather/refs/heads/main/app-repo.json",
 		"https://raw.githubusercontent.com/Aidoku/Aidoku/altstore/apps.json",
 		"https://github.com/chachillie/Flycast-iOS/raw/main/flycast-ios.json",

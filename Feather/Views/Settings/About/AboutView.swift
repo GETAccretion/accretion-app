@@ -20,8 +20,10 @@ extension AboutView {
 
 // MARK: - View
 struct AboutView: View {
+	// Accretion is built on Feather (GPL-3.0); its authors stay credited here.
 	@State private var _credits: [CreditsModel] = [
-		.init(name: "C", desc: "Developer", github: "claration"),
+		.init(name: "Accretion", desc: "Accretion app and store", github: "GETAccretion"),
+		.init(name: "C", desc: "Feather developer (Accretion is based on Feather)", github: "claration"),
 		.init(name: "Asami", desc: "Developer", github: "Nyasami"),
 		.init(name: "Lakhan Lothiyi", desc: "AltStore Repositories", github: "llsc12"),
 	]

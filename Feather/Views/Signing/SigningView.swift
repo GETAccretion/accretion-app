@@ -25,6 +25,7 @@ struct SigningView: View {
 	// Accretion: what the selected certificate's profile allows, and who holds a single-app slot
 	@State private var _slotKind: AppIDKind?
 	@State private var _slotOccupant: String?
+	@State private var _hasOwnSlot = false
 	// Accretion: per-app recipe (options, icon, tweaks) re-applied on every re-sign and update
 	@State private var _rememberRecipe = true
 	@State private var _usingRecipe = false
@@ -173,6 +174,15 @@ struct SigningView: View {
 		let cert = _selectedCert()
 		_slotKind = CertificateSlots.kind(of: cert)
 		_slotOccupant = CertificateSlots.occupant(of: cert)?.name
+		_hasOwnSlot = false
+		// with several profiles, this app gets the profile assigned to it (or a free one)
+		if let cert, let key = RecipeStore.key(for: app) ?? app.identifier,
+		   ProfileStore.profiles(for: cert).count > 1,
+		   let choice = ProfileStore.choose(for: key, cert: cert, assign: false) {
+			_slotKind = choice.profile.kind
+			_slotOccupant = choice.replaces
+			_hasOwnSlot = choice.replaces == nil
+		}
 
 		guard let original = app.identifier else { return }
 		let wanted = _temporaryOptions.appIdentifier ?? original
@@ -231,11 +241,13 @@ extension SigningView {
 		if case .explicit(let id) = _slotKind {
 			Section {
 				Label {
-					Text(verbatim: .localized(
-						"This certificate covers one app at a time, so this app is signed as %@ and replaces %@ on your device.",
-						arguments: id,
-						_slotOccupant ?? String.localized("the last app signed with it")
-					))
+					Text(verbatim: _hasOwnSlot
+						? String.localized("This app gets its own profile, so it's signed as %@ and installs next to your other apps.", arguments: id)
+						: String.localized(
+							"This certificate covers one app at a time, so this app is signed as %@ and replaces %@ on your device. Add more profiles in Settings → Certificates to give each app its own slot.",
+							arguments: id,
+							_slotOccupant ?? String.localized("the last app signed with it")
+						))
 					.font(.footnote)
 				} icon: {
 					Image(systemName: "1.circle")
@@ -352,13 +364,20 @@ extension SigningView {
 		let generator = UIImpactFeedbackGenerator(style: .light)
 		generator.impactOccurred()
 		_isSigning = true
-		
+
+		// Accretion: sign with this app's own profile when the certificate has several
+		let cert = _selectedCert()
+		if let cert, let key = RecipeStore.key(for: app) ?? app.identifier, ProfileStore.profiles(for: cert).count > 1 {
+			ProfileOverride.set(ProfileStore.choose(for: key, cert: cert, assign: true)?.profile.url, for: cert)
+		}
+
 		FR.signPackageFile(
 			app,
 			using: _temporaryOptions,
 			icon: appIcon,
-			certificate: _selectedCert()
+			certificate: cert
 		) { error in
+			ProfileOverride.set(nil, for: cert)
 			if let error {
 				let ok = UIAlertAction(title: .localized("Dismiss"), style: .cancel) { _ in
 					dismiss()

@@ -33,6 +33,8 @@ struct CertificatesInfoView: View {
 					_entitlementsSection(data: data)
 					_miscSection(data: data)
 				}
+
+				CertificateProfilesSection(cert: cert) // Accretion: one profile per app
 				
 				Section {
 					Button(.localized("Open in Files"), systemImage: "folder") {

@@ -124,6 +124,7 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>localdevvpn</string>
+		<string>livecontainer</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

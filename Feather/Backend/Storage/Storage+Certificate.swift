@@ -97,7 +97,11 @@ extension Storage {
 		case provision = "mobileprovision"
 	}
 	
-	func getFile(_ type: FileRequest, from cert: CertificatePair) -> URL? {
+	func getFile(_ type: FileRequest, from cert: CertificatePair, allowOverride: Bool = true) -> URL? {
+		// Accretion: while an app is being signed, its own profile (ProfileStore) replaces the main one
+		if type == .provision, allowOverride, let override = ProfileOverride.url(for: cert) {
+			return override
+		}
 		guard let url = getUuidDirectory(for: cert) else {
 			return nil
 		}

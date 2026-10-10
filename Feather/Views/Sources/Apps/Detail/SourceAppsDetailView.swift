@@ -194,6 +194,15 @@ struct SourceAppsDetailView: View {
 		.flexibleHeaderScrollView()
 		.shouldSetInset()
 		.toolbar {
+			// Accretion: run it inside LiveContainer instead of taking a certificate slot
+			if let ipa = app.currentDownloadUrl {
+				NBToolbarButton(
+					systemImage: "shippingbox",
+					placement: .topBarTrailing
+				) {
+					LiveContainer.install(from: ipa)
+				}
+			}
 			NBToolbarButton(
 				systemImage: "square.and.arrow.up",
 				placement: .topBarTrailing

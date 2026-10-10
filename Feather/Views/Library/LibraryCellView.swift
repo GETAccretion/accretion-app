@@ -213,6 +213,11 @@ extension LibraryCellView {
 			}
 		}
 
+		// Accretion: hand the IPA to LiveContainer, which runs many apps under one signature
+		Button(.localized("Open in LiveContainer…"), systemImage: "shippingbox") {
+			LiveContainer.share(app)
+		}
+
 		// Accretion: drop the saved name, icon, tweaks and properties for this app
 		if RecipeStore.hasRecipe(for: app) {
 			Button(.localized("Forget Recipe"), systemImage: "wand.and.stars.inverse") {

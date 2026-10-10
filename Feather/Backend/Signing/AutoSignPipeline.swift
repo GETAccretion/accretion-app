@@ -215,7 +215,15 @@ final class AutoSignPipeline: ObservableObject {
 		let recipe = RecipeStore.load(for: app, base: base)
 		var options = recipe?.options ?? base
 		let icon = recipe?.icon
-		let kind = CertificateSlots.kind(of: cert)
+		var kind = CertificateSlots.kind(of: cert)
+		// several profiles: this app keeps its own, so its bundle ID (and in-place updates) stay stable
+		if let key = RecipeStore.key(for: app) ?? app.identifier,
+		   ProfileStore.profiles(for: cert).count > 1,
+		   let choice = ProfileStore.choose(for: key, cert: cert, assign: true) {
+			ProfileOverride.set(choice.profile.url, for: cert)
+			kind = choice.profile.kind
+		}
+		defer { ProfileOverride.set(nil, for: cert) }
 
 		if let original = app.identifier {
 			if let renamed = options.identifiers[original] { options.appIdentifier = renamed }

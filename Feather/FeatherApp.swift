@@ -17,6 +17,7 @@ struct FeatherApp: App {
 	let heartbeat = HeartbeatManager.shared
 	
 	@StateObject var downloadManager = DownloadManager.shared
+	@StateObject var pipeline = AutoSignPipeline.shared // Accretion: install screen from any tab
 	let storage = Storage.shared
 	
 	var body: some Scene {
@@ -30,6 +31,11 @@ struct FeatherApp: App {
 					.transition(.move(edge: .top).combined(with: .opacity))
 			}
 			.animation(.smooth, value: downloadManager.manualDownloads.description)
+			.sheet(item: $pipeline.pendingInstall) { app in
+				InstallPreviewView(app: app.base, isSharing: false)
+					.presentationDetents([.height(200)])
+					.presentationDragIndicator(.visible)
+			}
 			// Accretion: check every source for updates at launch and when the app comes back (hourly at most)
 			.onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
 				Task { await UpdateManager.shared.checkAutomatically() }

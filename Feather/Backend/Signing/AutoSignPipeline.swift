@@ -19,6 +19,8 @@ final class AutoSignPipeline: ObservableObject {
 
 	/// What's happening now, for the Library banner; nil when idle
 	@Published private(set) var status: String?
+	/// A signed app ready for its install screen; the app root presents it from any tab
+	@Published var pendingInstall: AnyApp?
 	var isRunning: Bool { status != nil }
 
 	private init() {}
@@ -73,27 +75,66 @@ final class AutoSignPipeline: ObservableObject {
 
 	/// Returns whether a signed copy was produced (false when the app was only ever imported).
 	private func _update(_ update: AppUpdate) async throws -> Bool {
-		let installed = _installedCopy(uuid: update.localUUID, bundleID: update.bundleIdentifier)
-		let oldImported = _imported(uuid: update.localUUID)
-		if installed != nil, _usableCertificate(installed?.certificate) == nil, _selectedCertificate == nil {
+		try await _fetchAndSign(
+			bundleID: update.bundleIdentifier,
+			downloadURL: update.downloadURL,
+			provenance: update.sourceProvenance,
+			localUUID: update.localUUID,
+			signNew: false
+		)
+	}
+	
+	// MARK: Install from the store
+	/// Installs an app from the Accretion store: download, sign with its recipe (if it has one)
+	/// and open the install screen. Already installed? Then this is an in-place update.
+	func install(name: String, bundleID: String, downloadURL: URL) {
+		guard !isRunning else { return }
+		Task {
+			status = String.localized("Getting %@…", arguments: name)
+			do {
+				_ = try await _fetchAndSign(bundleID: bundleID, downloadURL: downloadURL, provenance: nil, localUUID: nil, signNew: true)
+				status = nil
+				_finish(done: [name], failures: [], verb: String.localized("installed"), installSingle: true)
+			} catch {
+				status = nil
+				_finish(done: [], failures: ["\(name): \(error.localizedDescription)"], verb: "", installSingle: false)
+			}
+		}
+	}
+	
+	/// Download → import (replacing the old imported copy) → sign in place over the installed
+	/// copy, or as a new app when `signNew`. Returns whether a signed copy was produced.
+	private func _fetchAndSign(
+		bundleID: String,
+		downloadURL: URL,
+		provenance: SourceAppProvenance?,
+		localUUID: String?,
+		signNew: Bool
+	) async throws -> Bool {
+		let installed = _installedCopy(uuid: localUUID, bundleID: bundleID)
+		let oldImported = localUUID.flatMap { _imported(uuid: $0) }
+		if installed != nil || signNew, _usableCertificate(installed?.certificate) == nil, _selectedCertificate == nil {
 			throw PipelineError.noCertificate
 		}
-
-		let ipa = try await _download(update.downloadURL)
+		
+		let ipa = try await _download(downloadURL)
 		defer { try? FileManager.default.removeItem(at: ipa) }
-
+		
 		let started = Date().addingTimeInterval(-1)
-		try await _import(ipa, provenance: update.sourceProvenance)
-		guard let imported = _newestImported(identifier: update.bundleIdentifier, since: started) else {
+		try await _import(ipa, provenance: provenance)
+		guard let imported = _newestImported(identifier: bundleID, since: started) else {
 			throw PipelineError.importNotFound
 		}
 		// the new download replaces the old unsigned copy instead of sitting next to it
 		if let oldImported { Storage.shared.deleteApp(for: oldImported) }
-
-		// never signed: the updated IPA in Library is the whole update
-		guard let installed else { return false }
-		// the download only exists to be signed; the new signed copy replaces the old one
-		try await _sign(imported, replacing: [imported, installed], updating: installed, preferInstalledCertificate: true)
+		
+		if let installed {
+			// the download only exists to be signed; the new signed copy replaces the old one
+			try await _sign(imported, replacing: [imported, installed], updating: installed, preferInstalledCertificate: true)
+			return true
+		}
+		guard signNew else { return false } // never signed: the updated IPA in Library is the update
+		try await _sign(imported, replacing: [imported], updating: nil)
 		return true
 	}
 
@@ -135,11 +176,11 @@ final class AutoSignPipeline: ObservableObject {
 	// MARK: Lookups
 	/// The signed copy of an app, which is what's installed on the device: the update's own entry
 	/// if it is one, otherwise the newest signed app with that original bundle ID.
-	private func _installedCopy(uuid: String, bundleID: String) -> Signed? {
+	private func _installedCopy(uuid: String?, bundleID: String) -> Signed? {
 		let request: NSFetchRequest<Signed> = Signed.fetchRequest()
 		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
 		let signed = (try? Storage.shared.context.fetch(request)) ?? []
-		return signed.first { $0.uuid == uuid }
+		return signed.first { uuid != nil && $0.uuid == uuid }
 			?? signed.first { $0.identifier == bundleID || RecipeStore.key(for: $0) == bundleID }
 	}
 
@@ -261,8 +302,13 @@ final class AutoSignPipeline: ObservableObject {
 
 	private func _finish(done: [String], failures: [String], verb: String, installSingle: Bool) {
 		if installSingle, done.count == 1, failures.isEmpty {
-			// LibraryView opens the install screen for the newest signed app
-			NotificationCenter.default.post(name: Notification.Name("Feather.installApp"), object: nil)
+			// the root view opens the install screen for the newest signed app, whichever tab is showing
+			let request: NSFetchRequest<Signed> = Signed.fetchRequest()
+			request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+			request.fetchLimit = 1
+			if let newest = (try? Storage.shared.context.fetch(request))?.first {
+				pendingInstall = AnyApp(base: newest)
+			}
 			return
 		}
 		var lines: [String] = []

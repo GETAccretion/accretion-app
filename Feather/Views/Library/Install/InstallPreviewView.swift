@@ -59,6 +59,18 @@ struct InstallPreviewView: View {
 		.onReceive(viewModel.$status) { newStatus in
 			if _installationMethod == 0 {
 				if case .ready = newStatus {
+					// Accretion: if iOS never asks to install, say why instead of waiting forever
+					let link = installer.iTunesLink
+					DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+						guard case .ready = viewModel.status else { return }
+						UIAlertController.showAlertWithCancel(
+							title: String.localized("iOS didn't ask to install"),
+							message: String.localized("iOS couldn't reach Accretion's local install server. Usually:\n\n• iCloud Private Relay, a VPN or ad-blocking DNS blocks local addresses: turn it off and try again.\n• Or switch Settings → Installation → Server to Semi Local.\n• Or this app uses the same bundle ID as Accretion itself."),
+							actions: [UIAlertAction(title: String.localized("Try Again"), style: .default) { _ in
+								if let url = URL(string: link) { UIApplication.shared.open(url) }
+							}]
+						)
+					}
 					if _serverMethod == 0 {
 						UIApplication.shared.open(URL(string: installer.iTunesLink)!)
 					} else if _serverMethod == 1 {

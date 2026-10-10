@@ -17,7 +17,7 @@ extension UpdateManager {
 		to found: [String: AppUpdate],
 		repositories: [(AltSource, ASRepository)],
 		localApps: [AppInfoPresentable],
-		metadataByUUID: [String: AppSourceMetadata]
+		metadataByUUID: [String?: AppSourceMetadata] // keyed by the optional appUUID, as UpdateManager builds it
 	) -> [String: AppUpdate] {
 		var updates = found
 

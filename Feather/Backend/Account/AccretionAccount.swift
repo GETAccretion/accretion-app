@@ -332,6 +332,15 @@ final class AccretionAccount: ObservableObject {
 		_ = try await _rest("posts", method: "POST", body: row, prefer: "return=minimal")
 	}
 
+	// MARK: Store counts
+	/// The website's anonymous view and install counts, which feed "Most popular" (public.track:
+	/// once per visitor per app per day, no account or IP stored). Fire and forget.
+	nonisolated func track(_ kind: String, app bundleID: String) {
+		Task { @MainActor in
+			_ = try? await _rest("rpc/track", method: "POST", body: ["p_kind": kind, "p_app": bundleID], anonymous: true)
+		}
+	}
+
 	// MARK: Downloads
 	private var _downloadKey: String?
 

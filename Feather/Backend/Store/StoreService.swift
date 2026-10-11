@@ -196,6 +196,17 @@ final class StoreService: ObservableObject {
 		UserDefaults.standard.set(saved, forKey: "accretion.saved")
 	}
 
+	/// Saved apps still in the store, and how many of them have an update (the web's Saved pill)
+	func savedSummary() -> (count: Int, updates: Int) {
+		guard !saved.isEmpty, let apps = index?.apps else { return (0, 0) }
+		var count = 0, updates = 0
+		for app in apps where saved[app.i] != nil {
+			count += 1
+			if saved[app.i] != app.v { updates += 1 }
+		}
+		return (count, updates)
+	}
+
 	/// A saved app whose version moved on since it was saved
 	func hasUpdate(_ app: StoreApp) -> Bool {
 		guard let version = saved[app.i] else { return false }

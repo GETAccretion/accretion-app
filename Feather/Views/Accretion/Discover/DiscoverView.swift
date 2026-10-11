@@ -131,7 +131,7 @@ struct DiscoverView: View {
 	private func _nav() -> some View {
 		HStack(spacing: 4) {
 			_navItem(String.localized("Discover"), on: !_isBrowsing) { _query = ""; _category = nil }
-			_navItem(String.localized("Saved"), badge: _store.saved.isEmpty ? nil : _store.saved.count) {
+			_navItem(String.localized("Saved"), badge: _savedBadge.text, hot: _savedBadge.hot) {
 				_path.append(StoreListRoute(title: String.localized("Saved"), saved: true))
 			}
 			_navItem(String.localized("Feed")) { _openURL(URL(string: "https://getaccretion.github.io/#/feed")!) }
@@ -147,17 +147,25 @@ struct DiscoverView: View {
 		}
 	}
 
-	private func _navItem(_ title: String, on: Bool = false, badge: Int? = nil, action: @escaping () -> Void) -> some View {
+	/// "3", or "2 new" in green when saved apps have updates, like the website's Saved pill
+	private var _savedBadge: (text: String?, hot: Bool) {
+		let summary = _store.savedSummary()
+		if summary.updates > 0 { return (String.localized("%@ new", arguments: String(summary.updates)), true) }
+		return (summary.count > 0 ? String(summary.count) : nil, false)
+	}
+
+	private func _navItem(_ title: String, on: Bool = false, badge: String? = nil, hot: Bool = false, action: @escaping () -> Void) -> some View {
 		Button(action: action) {
 			HStack(spacing: 6) {
 				Text(verbatim: title)
 				if let badge {
-					Text(verbatim: "\(badge)")
+					Text(verbatim: badge)
 						.font(.accretionMono(11))
+						.foregroundStyle(hot ? AccretionTheme.good : AccretionTheme.muted)
 						.padding(.horizontal, 6)
 						.padding(.vertical, 1)
-						.background(AccretionTheme.raised, in: Capsule())
-						.overlay(Capsule().stroke(AccretionTheme.line, lineWidth: 1))
+						.background(hot ? AccretionTheme.good.opacity(0.2) : AccretionTheme.raised, in: Capsule())
+						.overlay(Capsule().stroke(hot ? Color.clear : AccretionTheme.line, lineWidth: 1))
 				}
 			}
 			.font(.system(size: 14, weight: .semibold))

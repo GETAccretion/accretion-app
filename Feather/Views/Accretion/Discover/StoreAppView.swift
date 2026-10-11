@@ -34,6 +34,9 @@ struct StoreAppView: View {
 	@State private var _replies: [Int: [AccretionAccount.Post]] = [:]
 	@State private var _threadError: String?
 	@State private var _toast: String?
+	/// The installer the Install button uses, remembered like the website's choice
+	@AppStorage("accretion.installer") private var _installerID = "accretion"
+	@State private var _isChoosingInstaller = false
 
 	private var _latest: StoreAppDetail.Version? { _detail?.versions.first }
 	private var _ipa: URL? { _latest.flatMap { URL(string: $0.url) } }
@@ -65,6 +68,7 @@ struct StoreAppView: View {
 		.toolbar(.hidden, for: .navigationBar)
 		.overlay(alignment: .bottom) { _toastView() }
 		.task {
+			_account.track("view", app: app.i)
 			_store.markSeen(app)
 			let others = _store.index?.apps ?? []
 			_sameDeveloper = Array(others.filter { $0.d == app.d && $0.i != app.i }.sorted { $0.t > $1.t }.prefix(20))
@@ -140,12 +144,26 @@ struct StoreAppView: View {
 	private func _actions() -> some View {
 		AccretionFlow(spacing: 8) {
 			if let ipa = _ipa {
-				Button(String.localized("Install")) {
+				let installer = _Installer.all.first { $0.id == _installerID } ?? _Installer.all[0]
+				Button(installer.id == "accretion" ? String.localized("Install") : String.localized("Install with %@", arguments: installer.name)) {
 					guard _needsAccount() else { return }
-					_pipeline.install(name: app.n, bundleID: app.i, downloadURL: ipa)
+					_install(ipa, with: installer)
 				}
 				.buttonStyle(AccretionButtonStyle())
-				.disabled(_pipeline.isRunning)
+				.disabled(installer.id == "accretion" && _pipeline.isRunning)
+
+				Button(String.localized("Change")) { _isChoosingInstaller = true }
+					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
+					.confirmationDialog(String.localized("Install button uses…"), isPresented: $_isChoosingInstaller, titleVisibility: .visible) {
+						ForEach(_Installer.all) { option in
+							Button(option.name + (option.id == _installerID ? " ✓" : "")) {
+								_installerID = option.id
+								_show(String.localized("Install uses %@", arguments: option.name))
+							}
+						}
+					} message: {
+						Text(verbatim: String.localized("Accretion signs and installs here with your certificate. The others open the app in that installer."))
+					}
 
 				Button(String.localized("Download IPA")) {
 					guard _needsAccount() else { return }
@@ -156,20 +174,11 @@ struct StoreAppView: View {
 				}
 				.buttonStyle(AccretionButtonStyle(prominent: false))
 
-				ForEach(_Installer.all) { installer in
-					Button(installer.name) {
-						guard _needsAccount() else { return }
-						Task {
-							let url = await _resolved(ipa)
-							if installer.id == "livecontainer" { LiveContainer.install(from: url) } else if let link = installer.link(url) { _openURL(link) }
-						}
-					}
-					.buttonStyle(AccretionButtonStyle(prominent: false))
-				}
 			}
 
 			Button(_store.isSaved(app) ? String.localized("Saved") : String.localized("Save")) {
 				_store.toggleSaved(app)
+				_show(_store.isSaved(app) ? String.localized("Saved. You'll see when it updates.") : String.localized("Removed from saved"))
 			}
 			.buttonStyle(AccretionButtonStyle(prominent: false, on: _store.isSaved(app)))
 
@@ -198,6 +207,7 @@ struct StoreAppView: View {
 		let link: (URL) -> URL?
 
 		static let all: [_Installer] = [
+			_Installer(id: "accretion", name: "Accretion") { _ in nil },
 			_Installer(id: "livecontainer", name: "LiveContainer") { _ in nil },
 			_Installer(id: "feather", name: "Feather") { URL(string: "feather://install/\($0.absoluteString)") },
 			_Installer(id: "altstore", name: "AltStore") { _Installer._query("altstore://install", $0) },
@@ -209,6 +219,19 @@ struct StoreAppView: View {
 			var components = URLComponents(string: base)
 			components?.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
 			return components?.url
+		}
+	}
+
+	private func _install(_ ipa: URL, with installer: _Installer) {
+		_account.track("install", app: app.i)
+		switch installer.id {
+		case "accretion":
+			_pipeline.install(name: app.n, bundleID: app.i, downloadURL: ipa)
+		default:
+			Task {
+				let url = await _resolved(ipa)
+				if installer.id == "livecontainer" { LiveContainer.install(from: url) } else if let link = installer.link(url) { _openURL(link) }
+			}
 		}
 	}
 
@@ -682,13 +705,16 @@ struct StoreListView: View {
 			let byID = Dictionary(all.map { ($0.i, $0) }, uniquingKeysWith: { first, _ in first })
 			return ids.compactMap { byID[$0] }
 		}
-		return _store.sorted(
+		let list = _store.sorted(
 			all
 				.filter { route.category == nil || $0.c == route.category }
 				.filter { route.developer == nil || $0.d == route.developer }
 				.filter { !route.saved || _store.isSaved($0) },
 			by: .updated
 		)
+		// Saved: apps with an update first, like the website
+		guard route.saved else { return list }
+		return list.filter(_store.hasUpdate) + list.filter { !_store.hasUpdate($0) }
 	}
 
 	var body: some View {

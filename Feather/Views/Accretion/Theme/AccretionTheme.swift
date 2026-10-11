@@ -347,3 +347,29 @@ struct AccretionEmptyState<Actions: View>: View {
 		.frame(maxWidth: .infinity)
 	}
 }
+
+/// The store's "live" dot: green, with a ring that pulses outward every 2.4 s like the website's
+/// .live animation. Still when Reduce Motion is on.
+struct LiveDot: View {
+	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
+	@State private var _pulse = false
+
+	var body: some View {
+		Circle()
+			.fill(AccretionTheme.good)
+			.frame(width: 8, height: 8)
+			.background {
+				if !_reduceMotion {
+					Circle()
+						.fill(AccretionTheme.good.opacity(_pulse ? 0 : 0.55))
+						.frame(width: 8, height: 8)
+						.scaleEffect(_pulse ? 3.2 : 1)
+				}
+			}
+			.onAppear {
+				guard !_reduceMotion else { return }
+				withAnimation(.easeOut(duration: 1.7).repeatForever(autoreverses: false)) { _pulse = true }
+			}
+			.accessibilityHidden(true)
+	}
+}

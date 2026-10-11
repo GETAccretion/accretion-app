@@ -84,7 +84,7 @@ struct StatusView: View {
 		let down = (s.sources_failed ?? 0) + (s.sources_cached ?? 0)
 		let total = s.sources_total ?? 0
 		HStack(spacing: 8) {
-			Circle().fill(AccretionTheme.good).frame(width: 8, height: 8)
+			LiveDot()
 			Text(verbatim: (String.localized("Live index") + " · " + String.localized("build %@", arguments: s.updated ?? "")).uppercased())
 				.font(.accretionMono(12, weight: .regular))
 				.tracking(1)

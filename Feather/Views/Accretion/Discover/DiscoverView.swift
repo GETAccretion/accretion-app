@@ -57,6 +57,7 @@ struct DiscoverView: View {
 			.refreshable { await _store.load(force: true) }
 			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
 			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
+			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)
@@ -203,7 +204,7 @@ struct DiscoverView: View {
 			 + Text(verbatim: " " + String.localized("public AltStore and SideStore sources, merged and cleaned. One entry per app, always the newest version.")))
 				.foregroundStyle(AccretionTheme.muted)
 				.fixedSize(horizontal: false, vertical: true)
-			Button { _openURL(URL(string: "https://getaccretion.github.io/#/sign")!) } label: {
+			NavigationLink(value: SignGuideRoute()) {
 				Text(verbatim: "✍️ " + String.localized("Sign your own apps"))
 			}
 			.buttonStyle(AccretionButtonStyle(prominent: false))

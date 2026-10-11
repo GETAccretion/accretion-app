@@ -67,6 +67,7 @@ struct StoreAppView: View {
 		.accretionBackground()
 		.toolbar(.hidden, for: .navigationBar)
 		.overlay(alignment: .bottom) { _toastView() }
+		.task { await SupportLinks.shared.load() }
 		.task {
 			_account.track("view", app: app.i)
 			_store.markSeen(app)
@@ -114,9 +115,11 @@ struct StoreAppView: View {
 						Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted).padding(.top, 8)
 					}
 					if _ipa != nil {
-						Button { _openURL(URL(string: "https://getaccretion.github.io/#/sign")!) } label: {
+						CertificateLine().padding(.top, 10)
+						NavigationLink(value: SignGuideRoute()) {
 							Text(verbatim: String.localized("How to sign your own apps →")).underline()
 						}
+						.buttonStyle(.plain)
 						.font(.system(size: 13))
 						.foregroundStyle(AccretionTheme.accent2)
 						.padding(.top, 10)

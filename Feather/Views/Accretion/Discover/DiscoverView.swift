@@ -40,6 +40,8 @@ struct DiscoverView: View {
 					} else {
 						if !_isBrowsing {
 							_hero()
+							WhatsNewSection(onNeedsAccount: { _isSigningIn = true })
+								.padding(.bottom, 18)
 							// the website's order: store shelves, the community ones, then Utilities
 							let shelves = _store.shelves(onlyFitting: _onlyFitting)
 							ForEach(shelves.filter { $0.id != "utilities" } + _community + shelves.filter { $0.id == "utilities" }) { shelf in
@@ -59,15 +61,20 @@ struct DiscoverView: View {
 			// shows through the status bar
 			.safeAreaInset(edge: .top, spacing: 0) { _topBar() }
 			.accretionBackground()
-			.refreshable { await _store.load(force: true) }
+			.refreshable {
+				await _store.load(force: true)
+				await WhatsNewFeed.shared.load(force: true)
+			}
 			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
 			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
 			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
+			.navigationDestination(for: WhatsNewRoute.self) { _ in WhatsNewView() }
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)
 		.task {
 			await _store.load()
+			await WhatsNewFeed.shared.load()
 			await _loadCommunity()
 		}
 		.task(id: _query) {

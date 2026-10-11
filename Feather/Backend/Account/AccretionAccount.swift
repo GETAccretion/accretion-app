@@ -343,6 +343,43 @@ final class AccretionAccount: ObservableObject {
 		return try JSONDecoder().decode([Post].self, from: data)
 	}
 
+	// MARK: What's new (Accretion's own updates, posted automatically when a build is published)
+	struct Announcement: Decodable, Identifiable, Hashable {
+		let id: Int
+		let kind: String
+		let title: String
+		let body: String
+		let app_id: String?
+		let version: String?
+		let link: String?
+		let created_at: String
+		let likes: Int?
+	}
+
+	func announcements(limit: Int = 30, offset: Int = 0) async throws -> [Announcement] {
+		let data = try await _rest("announcement_feed?select=*&order=created_at.desc&limit=\(limit)&offset=\(offset)", anonymous: true)
+		return try JSONDecoder().decode([Announcement].self, from: data)
+	}
+
+	func likedAnnouncements(_ ids: [Int]) async -> Set<Int> {
+		guard isSignedIn, !ids.isEmpty, let uid = try? await _uid() else { return [] }
+		let list = ids.map(String.init).joined(separator: ",")
+		guard
+			let data = try? await _rest("announcement_likes?select=announcement_id&user_id=eq.\(uid)&announcement_id=in.(\(list))"),
+			let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+		else { return [] }
+		return Set(rows.compactMap { $0["announcement_id"] as? Int })
+	}
+
+	func likeAnnouncement(_ id: Int, _ on: Bool) async throws {
+		let uid = try await _uid()
+		if on {
+			_ = try await _rest("announcement_likes", method: "POST", body: ["announcement_id": id], prefer: "return=minimal")
+		} else {
+			_ = try await _rest("announcement_likes?announcement_id=eq.\(id)&user_id=eq.\(uid)", method: "DELETE")
+		}
+	}
+
 	/// Every app's likes, ratings and comments (public), for Discover's community shelves
 	func allAppStats() async -> [(app: String, likes: Int, ratings: Int, average: Double, comments: Int)] {
 		guard

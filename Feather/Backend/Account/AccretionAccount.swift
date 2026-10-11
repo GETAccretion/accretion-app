@@ -330,6 +330,19 @@ final class AccretionAccount: ObservableObject {
 		return try JSONDecoder().decode([Post].self, from: data)
 	}
 
+	/// Every app's likes, ratings and comments (public), for Discover's community shelves
+	func allAppStats() async -> [(app: String, likes: Int, ratings: Int, average: Double, comments: Int)] {
+		guard
+			let data = try? await _rest("app_stats?select=*&limit=5000", anonymous: true),
+			let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+		else { return [] }
+		return rows.compactMap { row in
+			guard let app = row["app_id"] as? String else { return nil }
+			let average = (row["avg_rating"] as? Double) ?? (row["avg_rating"] as? String).flatMap(Double.init) ?? 0
+			return (app, row["likes"] as? Int ?? 0, row["ratings"] as? Int ?? 0, average, row["comments"] as? Int ?? 0)
+		}
+	}
+
 	/// Unread notifications (likes, replies, follows), for the bell; RLS shows only your own
 	func unreadNotifications() async -> Int {
 		guard isSignedIn,

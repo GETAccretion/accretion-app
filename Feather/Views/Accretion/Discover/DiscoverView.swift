@@ -25,6 +25,8 @@ struct DiscoverView: View {
 	@State private var _isSigningIn = false
 	@State private var _isAddingSource = false
 	@State private var _unread = 0
+	/// Most liked, Top rated, Most discussed (the website's community shelves)
+	@State private var _community: [StoreService.Shelf] = []
 	@State private var _path = NavigationPath()
 
 	private var _isBrowsing: Bool { !_search.isEmpty || _category != nil }
@@ -38,7 +40,9 @@ struct DiscoverView: View {
 					} else {
 						if !_isBrowsing {
 							_hero()
-							ForEach(_store.shelves(onlyFitting: _onlyFitting)) { shelf in
+							// the website's order: store shelves, the community ones, then Utilities
+							let shelves = _store.shelves(onlyFitting: _onlyFitting)
+							ForEach(shelves.filter { $0.id != "utilities" } + _community + shelves.filter { $0.id == "utilities" }) { shelf in
 								StoreShelfView(shelf: shelf)
 									.padding(.top, 8)
 									.padding(.bottom, 18)
@@ -62,7 +66,10 @@ struct DiscoverView: View {
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)
-		.task { await _store.load() }
+		.task {
+			await _store.load()
+			await _loadCommunity()
+		}
 		.task(id: _query) {
 			if !_query.isEmpty { try? await Task.sleep(nanoseconds: 150_000_000) }
 			guard !Task.isCancelled else { return }
@@ -71,6 +78,22 @@ struct DiscoverView: View {
 		}
 		.sheet(isPresented: $_isSigningIn) { NavigationStack { AccretionAccountView() } }
 		.sheet(isPresented: $_isAddingSource) { SourcesAddView() }
+	}
+
+	private func _loadCommunity() async {
+		let stats = await _account.allAppStats()
+		guard !stats.isEmpty, let apps = _store.index?.apps else { return }
+		let byID = Dictionary(apps.map { ($0.i, $0) }, uniquingKeysWith: { first, _ in first })
+		let known = stats.filter { byID[$0.app] != nil }
+		func shelf(_ id: String, _ title: String, _ note: String, _ rows: [(app: String, likes: Int, ratings: Int, average: Double, comments: Int)]) -> StoreService.Shelf? {
+			let list = rows.prefix(20).compactMap { byID[$0.app] }
+			return list.isEmpty ? nil : StoreService.Shelf(id: id, title: title, note: note, apps: list, ranked: true)
+		}
+		_community = [
+			shelf("liked", String.localized("Most liked"), String.localized("by the community"), known.filter { $0.likes > 0 }.sorted { $0.likes > $1.likes }),
+			shelf("rated", String.localized("Top rated"), String.localized("3+ ratings"), known.filter { $0.ratings >= 3 }.sorted { ($0.average, $0.ratings) > ($1.average, $1.ratings) }),
+			shelf("discussed", String.localized("Most discussed"), String.localized("comments"), known.filter { $0.comments > 0 }.sorted { $0.comments > $1.comments }),
+		].compactMap { $0 }
 	}
 
 	// MARK: Top bar (.top): logo, Sign in, Add source, search, nav

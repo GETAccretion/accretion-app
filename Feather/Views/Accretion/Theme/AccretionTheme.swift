@@ -40,6 +40,26 @@ enum AccretionTheme {
 		}
 	}
 
+	/// One 32-pt grid cell: a faint line on the top and left edges, adapting to light and dark.
+	static let gridTile: UIImage = {
+		let size = CGSize(width: 32, height: 32)
+		let line = uiDynamic(dark: 0xFFFFFF, light: 0x1E1B4B)
+		let renderer = UIGraphicsImageRenderer(size: size)
+		let draw: (UIColor, CGFloat) -> UIImage = { color, alpha in
+			renderer.image { context in
+				color.withAlphaComponent(alpha).setFill()
+				context.fill(CGRect(x: 0, y: 0, width: size.width, height: 1))
+				context.fill(CGRect(x: 0, y: 0, width: 1, height: size.height))
+			}
+		}
+		let dark = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)), 0.035)
+		let light = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), 0.05)
+		let asset = UIImageAsset()
+		asset.register(dark, with: UITraitCollection(userInterfaceStyle: .dark))
+		asset.register(light, with: UITraitCollection(userInterfaceStyle: .light))
+		return asset.image(with: UITraitCollection.current)
+	}()
+	
 	// MARK: App-wide UIKit appearance
 	/// Navigation titles in the store's display style and colours, set once at launch so every
 	/// screen (including Feather's own) picks them up.
@@ -113,22 +133,14 @@ extension View {
 		scrollContentBackground(.hidden).accretionBackground()
 	}
 
-	/// The store's page background: near-black with a faint grid
+	/// The store's page background: near-black with a faint grid. The grid is one 32-pt tile
+	/// drawn once and repeated, so long lists don't redraw hundreds of lines on every update.
 	func accretionBackground() -> some View {
 		background(
 			ZStack {
 				AccretionTheme.bg
-				Canvas { context, size in
-					let step: CGFloat = 32
-					var path = Path()
-					stride(from: 0, through: size.width, by: step).forEach { x in
-						path.move(to: CGPoint(x: x, y: 0)); path.addLine(to: CGPoint(x: x, y: size.height))
-					}
-					stride(from: 0, through: size.height, by: step).forEach { y in
-						path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: size.width, y: y))
-					}
-					context.stroke(path, with: .color(AccretionTheme.fg.opacity(0.035)), lineWidth: 1)
-				}
+				Image(uiImage: AccretionTheme.gridTile)
+					.resizable(resizingMode: .tile)
 			}
 			.ignoresSafeArea()
 		)

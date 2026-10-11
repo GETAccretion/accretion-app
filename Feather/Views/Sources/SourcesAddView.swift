@@ -37,7 +37,6 @@ struct SourcesAddView: View {
 	@State var recommendedSourcesData: [(url: URL, data: ASRepository)] = []
 	let recommendedSources: [URL] = [
 		"https://getaccretion.github.io/curated.json",
-		"https://getaccretion.github.io/source.json",
 		"https://raw.githubusercontent.com/AccretionMods/mods/main/mods.json",
 		"https://raw.githubusercontent.com/claration/Feather/refs/heads/main/app-repo.json",
 		"https://raw.githubusercontent.com/Aidoku/Aidoku/altstore/apps.json",
@@ -164,11 +163,19 @@ struct SourcesAddView: View {
 		_ code: String?,
 		competion: @escaping () -> Void
 	) {
-		guard let code else { return }
-		
-		let handler = ASDeobfuscator(with: code)
-		let repoUrls = handler.decode().compactMap { URL(string: $0) }
-		guard !repoUrls.isEmpty else { return }
+		// Accretion: accept plain lists of links (what Export copies) as well as KravaSign/ESign
+		// codes, and say so instead of leaving the spinner running when there's nothing to import
+		let decoded = code.map { ASDeobfuscator(with: $0).decode() } ?? []
+		let plain = (code ?? "").components(separatedBy: .whitespacesAndNewlines).filter { $0.hasPrefix("https://") }
+		let repoUrls = (decoded.isEmpty ? plain : decoded).compactMap { URL(string: $0) }
+		guard !repoUrls.isEmpty else {
+			_isImporting = false
+			UIAlertController.showAlertWithOk(
+				title: String.localized("Nothing to import"),
+				message: String.localized("Copy a list of source links (one per line) or a KravaSign/ESign code first, then tap Import.")
+			)
+			return
+		}
 		
 		Task {
 			let fetched = await _concurrentFetchRepositories(from: repoUrls)
@@ -186,32 +193,31 @@ struct SourcesAddView: View {
 	private func _concurrentFetchRepositories(
 		from urls: [URL]
 	) async -> [(url: URL, data: ASRepository)] {
-		var results: [(url: URL, data: ASRepository)] = []
-		
+		// Accretion: each task returns its result, so nothing is appended after the group ends
 		let dataService = _dataService
 		
-		await withTaskGroup(of: Void.self) { group in
+		return await withTaskGroup(of: (url: URL, data: ASRepository)?.self) { group in
 			for url in urls {
 				group.addTask {
 					await withCheckedContinuation { continuation in
 						dataService.fetch<ASRepository>(from: url) { (result: RepositoryDataHandler) in
 							switch result {
 							case .success(let repo):
-								Task { @MainActor in
-									results.append((url: url, data: repo))
-								}
+								continuation.resume(returning: (url: url, data: repo))
 							case .failure(let error):
 								Logger.misc.error("Failed to fetch \(url): \(error.localizedDescription)")
+								continuation.resume(returning: nil)
 							}
-							continuation.resume()
 						}
 					}
 				}
 			}
-			await group.waitForAll()
+			var results: [(url: URL, data: ASRepository)] = []
+			for await result in group {
+				if let result { results.append(result) }
+			}
+			return results
 		}
-		
-		return results
 	}
 
 }

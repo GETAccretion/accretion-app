@@ -114,5 +114,5 @@ jobs:
           git add app-repo.json
           git diff --cached --quiet && exit 0
           git commit -m "Point app-repo.json at $REF_NAME"
-          git pull --rebase --quiet origin main
+          git pull --rebase --autostash --quiet origin main # the build leaves modified files behind
           git push origin main

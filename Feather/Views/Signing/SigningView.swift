@@ -65,6 +65,7 @@ struct SigningView: View {
 					.frame(height: 30)
 					.listRowBackground(EmptyView())
 			}
+			.accretionList() // Accretion: store background
 			.overlay {
 				VStack(spacing: 0) {
 					Spacer()
@@ -251,8 +252,10 @@ extension SigningView {
 					.font(.footnote)
 				} icon: {
 					Image(systemName: "1.circle")
+						.foregroundStyle(AccretionTheme.accent2)
 				}
 			}
+			.listRowBackground(AccretionTheme.accent2.opacity(0.12))
 		}
 	}
 

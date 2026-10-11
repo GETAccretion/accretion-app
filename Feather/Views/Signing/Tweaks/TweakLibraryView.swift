@@ -42,5 +42,6 @@ struct TweakLibraryView: View {
 		}
 		.task { await _catalog.load() }
 		.refreshable { await _catalog.load() }
+		.accretionList()
 	}
 }

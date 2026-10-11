@@ -50,8 +50,10 @@ struct InstallPreviewView: View {
 			_button()
 		}
 		.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-		.background(Color(UIColor.secondarySystemBackground))
+		// Accretion: the store's card surface and border
+		.background(AccretionTheme.surface)
 		.cornerRadius(cornerRadius)
+		.overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
 		.padding()
 		.sheet(isPresented: $_isWebviewPresenting) {
 			SafariRepresentableView(url: installer.pageEndpoint).ignoresSafeArea()

@@ -76,6 +76,7 @@ struct SourcesView: View {
 					}
 				}
 			}
+			.accretionList() // Accretion: store background
 			.searchable(text: $_searchText, placement: .platform())
 			.overlay {
 				if _filteredSources.isEmpty {

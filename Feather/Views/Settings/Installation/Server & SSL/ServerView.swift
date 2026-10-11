@@ -64,6 +64,8 @@ struct ServerView: View {
 						Text(_serverMethods[index]).tag(index)
 					}
 				}
+				// Accretion: the pop-up menu glitches on iOS 26 inside this list; rows with a checkmark don't
+				.pickerStyle(.inline)
 				Toggle(.localized("Only use localhost address"), systemImage: "lifepreserver", isOn: $_ipFix)
 					.disabled(_serverMethod != 1)
 			}

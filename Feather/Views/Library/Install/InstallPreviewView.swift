@@ -68,9 +68,19 @@ struct InstallPreviewView: View {
 						UIAlertController.showAlertWithCancel(
 							title: String.localized("iOS didn't ask to install"),
 							message: String.localized("iOS couldn't reach Accretion's local install server. Usually:\n\n• iCloud Private Relay, a VPN or ad-blocking DNS blocks local addresses: turn it off and try again.\n• Or switch Settings → Installation → Server to Semi Local.\n• Or this app uses the same bundle ID as Accretion itself."),
-							actions: [UIAlertAction(title: String.localized("Try Again"), style: .default) { _ in
-								if let url = URL(string: link) { UIApplication.shared.open(url) }
-							}]
+							actions: [
+								UIAlertAction(title: String.localized("Try Again"), style: .default) { _ in
+									if let url = URL(string: link) { UIApplication.shared.open(url) }
+								},
+								// one tap to the mode that needs no local DNS (it works where Fully Local is blocked)
+								UIAlertAction(title: String.localized("Use Semi Local"), style: .default) { _ in
+									UserDefaults.standard.set(1, forKey: "Feather.serverMethod")
+									UIAlertController.showAlertWithOk(
+										title: String.localized("Switched to Semi Local"),
+										message: String.localized("Close this install card and tap Install again. You can switch back in Settings → Installation.")
+									)
+								},
+							]
 						)
 					}
 					if _serverMethod == 0 {

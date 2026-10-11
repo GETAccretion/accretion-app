@@ -87,6 +87,13 @@ final class SigningHandler: NSObject {
 		
 		try await _removePresetFiles(for: movedAppPath)
 		try await _removeWatchIfNeeded(for: movedAppPath)
+
+		// Accretion: a single-App-ID profile covers exactly one bundle ID, so app extensions
+		// (which need IDs of their own) can't be signed with it, and iOS then refuses the whole
+		// app ("integrity could not be verified"). Leave them out so the app itself installs.
+		if _options.signingOption == .default, case .explicit = CertificateSlots.kind(of: appCertificate) {
+			try await _removeFiles(for: movedAppPath, from: ["PlugIns", "Extensions"])
+		}
 		
 		if _options.experiment_supportLiquidGlass {
 			try await _locateMachosAndChangeToSDK26(for: movedAppPath)

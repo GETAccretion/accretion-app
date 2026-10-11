@@ -69,6 +69,22 @@ enum Preflight {
 			))
 		}
 
+		// Single-app certificates: extensions are left out (SigningHandler), so say what goes missing
+		if options.signingOption == .default, case .explicit = CertificateSlots.kind(of: cert) {
+			let extensions = ["PlugIns", "Extensions"].flatMap { folder -> [String] in
+				let url = appURL.appendingPathComponent(folder)
+				let items = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
+				return items.filter { $0.hasSuffix(".appex") }.map { ($0 as NSString).deletingPathExtension }
+			}
+			if !extensions.isEmpty {
+				problems.append(.init(
+					title: .localized("Extensions left out"),
+					message: .localized("This certificate covers one app, so its extensions (%@) can't be signed and are removed. The app installs, but features that rely on them, like widgets, share options or LiveContainer's multitasking, won't be there. A wildcard certificate keeps them.", arguments: extensions.joined(separator: ", ")),
+					isBlocking: false
+				))
+			}
+		}
+
 		// Encrypted extensions only break themselves; "Remove PlugIns" fixes it
 		let encryptedExtensions = MachOEncryption.encryptedExtensions(in: appURL)
 		if !encryptedExtensions.isEmpty {

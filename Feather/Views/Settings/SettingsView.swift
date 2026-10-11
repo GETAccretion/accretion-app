@@ -42,6 +42,7 @@ struct SettingsView: View {
 	var body: some View {
 		NBNavigationView(.localized("Settings")) {
 			Form {
+				_header() // Accretion: branded header card
 				#if !NIGHTLY && !DEBUG
 					SettingsDonationCellView(site: _donationsUrl)
 				#endif
@@ -100,12 +101,34 @@ struct SettingsView: View {
 					Text(.localized("Reset the applications sources, certificates, apps, and general contents."))
 				}
 			}
+			.accretionList() // Accretion: store background
 		}
 	}
 }
 
 // MARK: - View extension
 extension SettingsView {
+	/// Accretion: the store's brand card at the top of Settings
+	@ViewBuilder
+	private func _header() -> some View {
+		Section {
+			HStack(spacing: 14) {
+				FRAppIconView(size: 56)
+				VStack(alignment: .leading, spacing: 3) {
+					Text(verbatim: Bundle.main.name)
+						.font(.accretionDisplay(22))
+						.foregroundStyle(AccretionTheme.fg)
+					Text(verbatim: String.localized("Every source, pulled into one."))
+						.font(.footnote)
+						.foregroundStyle(AccretionTheme.muted)
+					AccretionBadge(text: "v\(Bundle.main.version)", color: AccretionTheme.accent2)
+				}
+			}
+			.padding(.vertical, 4)
+		}
+		.listRowBackground(AccretionTheme.surface)
+	}
+	
 	/// Accretion: update checks and the web store, guide and mods in one place
 	@ViewBuilder
 	private func _accretion() -> some View {

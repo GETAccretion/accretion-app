@@ -115,6 +115,7 @@ struct LibraryView: View {
 					}
 				}
 			}
+			.accretionList() // Accretion: store background
 			.searchable(text: $_searchText, placement: .platform())
 			.compatSearchScopes($_selectedScope) {
 				ForEach(Scope.allCases, id: \.displayName) { scope in

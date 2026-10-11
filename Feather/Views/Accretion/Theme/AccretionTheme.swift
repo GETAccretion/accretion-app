@@ -24,7 +24,12 @@ enum AccretionTheme {
 	static let radius: CGFloat = 14
 
 	private static func _dynamic(dark: UInt32, light: UInt32) -> Color {
-		Color(UIColor { traits in
+		Color(uiDynamic(dark: dark, light: light))
+	}
+
+	/// UIKit version, for appearance proxies (navigation bars, tab bar)
+	static func uiDynamic(dark: UInt32, light: UInt32) -> UIColor {
+		UIColor { traits in
 			let hex = traits.userInterfaceStyle == .light ? light : dark
 			return UIColor(
 				red: CGFloat((hex >> 16) & 0xFF) / 255,
@@ -32,7 +37,33 @@ enum AccretionTheme {
 				blue: CGFloat(hex & 0xFF) / 255,
 				alpha: 1
 			)
-		})
+		}
+	}
+
+	// MARK: App-wide UIKit appearance
+	/// Navigation titles in the store's display style and colours, set once at launch so every
+	/// screen (including Feather's own) picks them up.
+	static func applyAppearance() {
+		let fg = uiDynamic(dark: 0xECEAFF, light: 0x15122B)
+		func rounded(_ size: CGFloat, _ weight: UIFont.Weight) -> UIFont {
+			let base = UIFont.systemFont(ofSize: size, weight: weight)
+			guard let descriptor = base.fontDescriptor.withDesign(.rounded) else { return base }
+			return UIFont(descriptor: descriptor, size: size)
+		}
+
+		let standard = UINavigationBarAppearance()
+		standard.configureWithDefaultBackground()
+		standard.largeTitleTextAttributes = [.font: rounded(34, .heavy), .foregroundColor: fg]
+		standard.titleTextAttributes = [.font: rounded(17, .bold), .foregroundColor: fg]
+
+		let edge = UINavigationBarAppearance()
+		edge.configureWithTransparentBackground()
+		edge.largeTitleTextAttributes = standard.largeTitleTextAttributes
+		edge.titleTextAttributes = standard.titleTextAttributes
+
+		UINavigationBar.appearance().standardAppearance = standard
+		UINavigationBar.appearance().compactAppearance = standard
+		UINavigationBar.appearance().scrollEdgeAppearance = edge
 	}
 }
 
@@ -76,6 +107,11 @@ struct AccretionCard: ViewModifier {
 
 extension View {
 	func accretionCard() -> some View { modifier(AccretionCard()) }
+
+	/// Lists and forms on the store's background instead of the system grouped grey
+	func accretionList() -> some View {
+		scrollContentBackground(.hidden).accretionBackground()
+	}
 
 	/// The store's page background: near-black with a faint grid
 	func accretionBackground() -> some View {

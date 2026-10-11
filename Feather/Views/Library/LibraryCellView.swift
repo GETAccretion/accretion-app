@@ -65,11 +65,18 @@ struct LibraryCellView: View {
 			
 			_appIcon(for: app)
 			
-			NBTitleWithSubtitleView(
-				title: app.name ?? .localized("Unknown"),
-				subtitle: _desc,
-				linelimit: 0
-			)
+			// Accretion: store-style title, details and badges
+			VStack(alignment: .leading, spacing: 4) {
+				Text(verbatim: app.name ?? String.localized("Unknown"))
+					.font(.system(size: 16, weight: .semibold))
+					.foregroundStyle(AccretionTheme.fg)
+				Text(verbatim: _desc)
+					.font(.accretionMono(11, weight: .regular))
+					.foregroundStyle(AccretionTheme.muted)
+					.lineLimit(1)
+				_badges()
+			}
+			.frame(maxWidth: .infinity, alignment: .leading)
 			
 			if !isEditing {
 				_buttonActions(for: app)
@@ -129,9 +136,7 @@ struct LibraryCellView: View {
 	
 	private var _desc: String {
 		if let version = app.version, let id = app.identifier {
-			// Accretion: show when signing will re-apply a saved recipe
-			let recipe = RecipeStore.hasRecipe(for: app) ? " • " + String.localized("Recipe") : ""
-			return "\(version) • \(id)\(recipe)"
+			return "\(version) • \(id)"
 		} else {
 			return .localized("Unknown")
 		}
@@ -141,6 +146,21 @@ struct LibraryCellView: View {
 
 // MARK: - Extension: View
 extension LibraryCellView {
+	/// Accretion: update waiting, saved recipe, built by Accretion
+	@ViewBuilder
+	private func _badges() -> some View {
+		let isMod = (RecipeStore.key(for: app) ?? app.identifier ?? "").hasPrefix(Accretion.modPrefix)
+		let hasUpdate = updateManager.update(for: app) != nil
+		let hasRecipe = RecipeStore.hasRecipe(for: app)
+		if isMod || hasUpdate || hasRecipe {
+			HStack(spacing: 6) {
+				if hasUpdate { AccretionBadge(text: String.localized("Update"), color: AccretionTheme.warn) }
+				if hasRecipe { AccretionBadge(text: String.localized("Recipe"), color: AccretionTheme.accent2) }
+				if isMod { AccretionBadge(text: String.localized("Accretion Mod"), color: AccretionTheme.accent) }
+			}
+		}
+	}
+	
 	private func _appIcon(for app: AppInfoPresentable) -> some View {
 		FRAppIconView(app: app, size: 57)
 			.overlay(alignment: .topTrailing) {

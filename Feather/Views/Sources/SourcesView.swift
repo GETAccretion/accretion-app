@@ -92,6 +92,12 @@ struct SourcesView: View {
 								NBButton(.localized("Add Source"), style: .text)
 							}
 						}
+					} else {
+						// Accretion: iOS 16
+						AccretionEmptyState(title: String.localized("No Sources"), message: String.localized("Get started by adding your first source."), systemImage: "globe.desk.fill") {
+							Button(String.localized("Add Source")) { _isAddingPresenting = true }
+								.buttonStyle(AccretionButtonStyle())
+						}
 					}
 				}
 			}

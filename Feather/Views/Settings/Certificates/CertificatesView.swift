@@ -57,6 +57,12 @@ struct CertificatesView: View {
 							NBButton(.localized("Import"), style: .text)
 						}
 					}
+				} else {
+					// Accretion: iOS 16
+					AccretionEmptyState(title: String.localized("No Certificates"), message: String.localized("Get started signing by importing your first certificate."), systemImage: "questionmark.folder.fill") {
+						Button(String.localized("Import")) { _isAddingPresenting = true }
+							.buttonStyle(AccretionButtonStyle())
+					}
 				}
 			}
 		}
@@ -157,7 +163,7 @@ extension CertificatesView {
 			_isRenamingPresenting = true
 		}
 		Divider()
-		Button(.localized("Check Revokage"), systemImage: "person.text.rectangle") {
+		Button(.localized("Check Revocation"), systemImage: "person.text.rectangle") {
 			Storage.shared.revokagedCertificate(for: cert)
 		}
 	}

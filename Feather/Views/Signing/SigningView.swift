@@ -264,7 +264,7 @@ extension SigningView {
 		NBSection(.localized("Signing")) {
 			if let cert = _selectedCert() {
 				NavigationLink {
-					CertificatesView(selectedCert: $_temporaryCertificate)
+					CertificatesView(selectedCert: $_temporaryCertificate).accretionList() // Accretion: store style
 				} label: {
 					CertificatesCellView(
 						cert: cert
@@ -296,6 +296,7 @@ extension SigningView {
 						app: app,
 						options: $_temporaryOptions.optional()
 					)
+					.accretionList()
 				}
 				
 				NavigationLink(.localized("Frameworks & PlugIns")) {
@@ -303,12 +304,14 @@ extension SigningView {
 						app: app,
 						options: $_temporaryOptions.optional()
 					)
+					.accretionList()
 				}
 			
 				NavigationLink(.localized("Entitlements") + " (BETA)") {
 					SigningEntitlementsView(
 						bindingValue: $_temporaryOptions.appEntitlementsFile
 					)
+					.accretionList()
 				}
 				
 				NavigationLink(.localized("Tweaks")) {
@@ -316,6 +319,7 @@ extension SigningView {
 						options: $_temporaryOptions,
 						appIdentifier: app.identifier // Accretion: tweak suggestions
 					)
+					.accretionList()
 				}
 			}
 			
@@ -325,6 +329,7 @@ extension SigningView {
 					temporaryOptions: _optionsManager.options
 				)}
 				.navigationTitle(.localized("Properties"))
+				.accretionList()
 			}
 		}
 	}
@@ -332,7 +337,7 @@ extension SigningView {
 	@ViewBuilder
 	private func _infoCell<V: View>(_ title: String, desc: String?, @ViewBuilder destination: () -> V) -> some View {
 		NavigationLink {
-			destination()
+			destination().accretionList()
 		} label: {
 			LabeledContent(title) {
 				Text(desc ?? .localized("Unknown"))

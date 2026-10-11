@@ -141,6 +141,12 @@ struct LibraryView: View {
 								NBButton(.localized("Import"), style: .text)
 							}
 						}
+					} else {
+						// Accretion: iOS 16
+						AccretionEmptyState(title: String.localized("No Apps"), message: String.localized("Get started by importing your first IPA file."), systemImage: "questionmark.app.fill") {
+							Menu { _importActions() } label: { Text(verbatim: String.localized("Import")) }
+								.buttonStyle(AccretionButtonStyle())
+						}
 					}
 				}
 			}

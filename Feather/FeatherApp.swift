@@ -54,7 +54,11 @@ struct FeatherApp: App {
 					UIApplication.topViewController()?.view.window?.overrideUserInterfaceStyle = style
 				}
 				
-				UIApplication.topViewController()?.view.window?.tintColor = UIColor(Color(hex: UserDefaults.standard.string(forKey: "Feather.userTintColor") ?? "#8B5CF6"))
+				// Accretion: the default accent is the store's violet, lighter in dark mode like the website
+				let tint = UserDefaults.standard.string(forKey: "Feather.userTintColor") ?? "#8B5CF6"
+				UIApplication.topViewController()?.view.window?.tintColor = tint.uppercased() == "#8B5CF6"
+					? AccretionTheme.uiDynamic(dark: 0x8B5CF6, light: 0x6D3FE0)
+					: UIColor(Color(hex: tint))
 			}
 		}
 	}

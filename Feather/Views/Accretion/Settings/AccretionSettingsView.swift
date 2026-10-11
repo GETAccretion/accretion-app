@@ -155,7 +155,8 @@ struct AccretionSettingsView: View {
 		@ViewBuilder destination: @escaping () -> Destination
 	) -> some View {
 		NavigationLink {
-			destination()
+			// Feather's settings pages get the store background and list style too
+			destination().accretionList()
 		} label: {
 			HStack(spacing: 0) {
 				_label(title, subtitle, icon, tint)

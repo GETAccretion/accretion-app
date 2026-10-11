@@ -97,6 +97,21 @@ enum AccretionTheme {
 		UINavigationBar.appearance().standardAppearance = standard
 		UINavigationBar.appearance().compactAppearance = standard
 		UINavigationBar.appearance().scrollEdgeAppearance = edge
+
+		// tab bar: the store's page colour with a hairline, violet when selected
+		let tabs = UITabBarAppearance()
+		tabs.configureWithDefaultBackground()
+		tabs.backgroundColor = uiDynamic(dark: 0x07070D, light: 0xF7F6FC).withAlphaComponent(0.92)
+		let muted = uiDynamic(dark: 0x8B87B3, light: 0x625E85)
+		let accent = uiDynamic(dark: 0x8B5CF6, light: 0x6D3FE0)
+		for item in [tabs.stackedLayoutAppearance, tabs.inlineLayoutAppearance, tabs.compactInlineLayoutAppearance] {
+			item.normal.iconColor = muted
+			item.normal.titleTextAttributes = [.foregroundColor: muted]
+			item.selected.iconColor = accent
+			item.selected.titleTextAttributes = [.foregroundColor: accent]
+		}
+		UITabBar.appearance().standardAppearance = tabs
+		UITabBar.appearance().scrollEdgeAppearance = tabs
 	}
 }
 
@@ -303,5 +318,31 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 
 	public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
 		viewControllers.count > 1
+	}
+}
+
+/// "Nothing here yet" for iOS 16, which has no ContentUnavailableView (those screens were blank)
+struct AccretionEmptyState<Actions: View>: View {
+	let title: String
+	let message: String
+	let systemImage: String
+	@ViewBuilder var actions: Actions
+
+	var body: some View {
+		VStack(spacing: 10) {
+			Image(systemName: systemImage)
+				.font(.system(size: 40))
+				.foregroundStyle(AccretionTheme.muted)
+			Text(verbatim: title)
+				.font(.accretionDisplay(20))
+				.foregroundStyle(AccretionTheme.fg)
+			Text(verbatim: message)
+				.font(.system(size: 15))
+				.foregroundStyle(AccretionTheme.muted)
+				.multilineTextAlignment(.center)
+			actions.padding(.top, 4)
+		}
+		.padding(32)
+		.frame(maxWidth: .infinity)
 	}
 }

@@ -69,6 +69,7 @@ struct DiscoverView: View {
 			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
 			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
 			.navigationDestination(for: WhatsNewRoute.self) { _ in WhatsNewView() }
+			.navigationDestination(for: StatusRoute.self) { _ in StatusView() }
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)
@@ -283,6 +284,13 @@ struct DiscoverView: View {
 				}
 			}
 			.padding(.top, 24)
+			NavigationLink(value: StatusRoute()) {
+				Text(verbatim: String.localized("Store status →"))
+					.font(.system(size: 13, weight: .semibold))
+					.foregroundStyle(AccretionTheme.accent2)
+			}
+			.buttonStyle(.plain)
+			.padding(.top, 10)
 		}
 		.padding(.top, 34)
 		.padding(.bottom, 22)

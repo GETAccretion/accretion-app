@@ -69,6 +69,8 @@ struct AccretionSettingsView: View {
 						_divider()
 						_link(String.localized("Sign Your Own Apps"), String.localized("The step-by-step guide"), "book") { SignGuideView() }
 						_divider()
+						_link(String.localized("Store Status"), String.localized("Apps, sources and growth"), "chart.bar") { StatusView() }
+						_divider()
 						_web(String.localized("Accretion Mods"), String.localized("Mods built by Accretion"), "wand.and.stars", "https://github.com/AccretionMods/mods")
 						_divider()
 						_web(String.localized("Support Accretion"), String.localized("Ko-fi"), "heart", "https://ko-fi.com/getaccretion")

@@ -21,6 +21,8 @@ final class AutoSignPipeline: ObservableObject {
 	@Published private(set) var status: String?
 	/// A signed app ready for its install screen; the app root presents it from any tab
 	@Published var pendingInstall: AnyApp?
+	/// The store app being installed, so only its page shows the status line
+	@Published private(set) var activeBundleID: String?
 	var isRunning: Bool { status != nil }
 
 	private init() {}
@@ -30,6 +32,7 @@ final class AutoSignPipeline: ObservableObject {
 		case download(String)
 		case importNotFound
 		case blocked(String)
+		case unauthorized
 
 		var errorDescription: String? {
 			switch self {
@@ -37,6 +40,7 @@ final class AutoSignPipeline: ObservableObject {
 			case .download(let reason): return String.localized("Download failed: %@", arguments: reason)
 			case .importNotFound: return String.localized("The download didn't import as an app.")
 			case .blocked(let reason): return reason
+			case .unauthorized: return String.localized("Sign in to your Accretion account to download this app.")
 			}
 		}
 	}
@@ -91,6 +95,8 @@ final class AutoSignPipeline: ObservableObject {
 		guard !isRunning else { return }
 		Task {
 			status = String.localized("Getting %@…", arguments: name)
+			activeBundleID = bundleID
+			defer { activeBundleID = nil }
 			do {
 				_ = try await _fetchAndSign(bundleID: bundleID, downloadURL: downloadURL, provenance: nil, localUUID: nil, signNew: true)
 				status = nil
@@ -117,8 +123,15 @@ final class AutoSignPipeline: ObservableObject {
 			throw PipelineError.noCertificate
 		}
 		
-		// Accretion: Accretion's own builds come from the store's download server
-		let ipa = try await _download(await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL))
+		// Accretion: Accretion's own builds come from the store's download server. A refused key
+		// was probably replaced on the website, so fetch the current one and try once more.
+		let ipa: URL
+		do {
+			ipa = try await _download(await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL))
+		} catch PipelineError.unauthorized {
+			AccretionAccount.shared.forgetDownloadKey()
+			ipa = try await _download(await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL))
+		}
 		defer { try? FileManager.default.removeItem(at: ipa) }
 		
 		let started = Date().addingTimeInterval(-1)
@@ -259,16 +272,44 @@ final class AutoSignPipeline: ObservableObject {
 	}
 
 	// MARK: Steps
+	/// Downloads to a temporary .ipa, showing the percentage after the current status text.
 	private func _download(_ url: URL) async throws -> URL {
-		let (temp, response) = try await URLSession.shared.download(from: url)
+		let label = status ?? ""
+		let ipa = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).ipa")
+		var observation: NSKeyValueObservation?
+		defer { observation?.invalidate() }
+		let response: URLResponse? = try await withCheckedThrowingContinuation { continuation in
+			let task = URLSession.shared.downloadTask(with: url) { temp, response, error in
+				// the temporary file is gone once this handler returns, so move it here
+				if let temp {
+					do {
+						try FileManager.default.moveItem(at: temp, to: ipa)
+					} catch {
+						continuation.resume(throwing: error)
+						return
+					}
+				}
+				if let error { continuation.resume(throwing: error) } else { continuation.resume(returning: response) }
+			}
+			var shown = -1
+			observation = task.progress.observe(\.fractionCompleted) { progress, _ in
+				let percent = Int(progress.fractionCompleted * 100)
+				guard percent != shown, !label.isEmpty else { return }
+				shown = percent
+				Task { @MainActor in
+					if self.isRunning { self.status = "\(label) \(percent)%" }
+				}
+			}
+			task.resume()
+		}
+		if !label.isEmpty { status = label }
 		if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-			if http.statusCode == 401 {
-				throw PipelineError.download(String.localized("Sign in to your Accretion account to download this app."))
+			try? FileManager.default.removeItem(at: ipa)
+			if http.statusCode == 401 || http.statusCode == 403 {
+				throw PipelineError.unauthorized
 			}
 			throw PipelineError.download("HTTP \(http.statusCode)")
 		}
-		let ipa = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).ipa")
-		try FileManager.default.moveItem(at: temp, to: ipa)
 		return ipa
 	}
 

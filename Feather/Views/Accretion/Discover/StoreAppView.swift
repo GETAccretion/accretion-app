@@ -27,6 +27,8 @@ struct StoreAppView: View {
 	@State private var _draft = ""
 	@State private var _replyTo: AccretionAccount.Post?
 	@State private var _isPosting = false
+	@State private var _isLiking = false
+	@State private var _threadError: String?
 	@State private var _toast: String?
 
 	private var _latest: StoreAppDetail.Version? { _detail?.versions.first }
@@ -59,6 +61,7 @@ struct StoreAppView: View {
 		.toolbar(.hidden, for: .navigationBar)
 		.overlay(alignment: .bottom) { _toastView() }
 		.task {
+			_store.markSeen(app)
 			_detail = await _store.detail(for: app)
 			_detailLoaded = true
 		}
@@ -96,7 +99,7 @@ struct StoreAppView: View {
 				}
 				if _detail != nil {
 					_actions().padding(.top, 16)
-					if let status = _pipeline.status {
+					if let status = _pipeline.status, _pipeline.activeBundleID == app.i {
 						Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted).padding(.top, 8)
 					}
 					if _ipa != nil {
@@ -209,12 +212,15 @@ struct StoreAppView: View {
 			if let social = _social {
 				AccretionFlow(spacing: 12) {
 					Button {
-						guard _needsAccount() else { return }
+						guard _needsAccount(), !_isLiking else { return }
+						_isLiking = true
 						Task {
+							defer { _isLiking = false }
 							do {
-								try await _account.likeApp(app.i, !social.liked)
-								_social?.liked.toggle()
-								_social?.likes += social.liked ? -1 : 1
+								let liked = !(_social?.liked ?? false)
+								try await _account.likeApp(app.i, liked)
+								_social?.liked = liked
+								_social?.likes += liked ? 1 : -1
 							} catch { _show(error.localizedDescription) }
 						}
 					} label: {
@@ -230,7 +236,7 @@ struct StoreAppView: View {
 									Task {
 										do {
 											try await _account.rateApp(app.i, stars: star)
-											_social?.stars = star
+											_applyRating(star)
 											_show(String.localized("Thanks for rating"))
 										} catch { _show(error.localizedDescription) }
 									}
@@ -450,7 +456,13 @@ struct StoreAppView: View {
 				.padding(.bottom, 6)
 			}
 
-			if let posts = _posts {
+			if let error = _threadError {
+				Text(verbatim: error)
+					.font(.system(size: 13))
+					.foregroundStyle(AccretionTheme.warn)
+					.padding(.vertical, 12)
+					.padding(.horizontal, 4)
+			} else if let posts = _posts {
 				let top = posts.filter { $0.parent_id == nil }.reversed()
 				if top.isEmpty {
 					Text(verbatim: String.localized("No comments yet. Be the first."))
@@ -559,7 +571,30 @@ struct StoreAppView: View {
 		} catch {
 			_socialError = error.localizedDescription
 		}
-		_posts = (try? await _account.thread(app.i)) ?? []
+		await _loadThread()
+	}
+
+	private func _loadThread() async {
+		do {
+			_posts = try await _account.thread(app.i)
+			_threadError = nil
+		} catch {
+			_threadError = String.localized("Couldn't load comments: %@", arguments: error.localizedDescription)
+		}
+	}
+
+	/// Keeps "4.3 ★ from 12 ratings" right after rating, without asking the server again
+	private func _applyRating(_ star: Int) {
+		guard var social = _social else { return }
+		let total = (social.average ?? 0) * Double(social.ratings)
+		if social.stars == 0 {
+			social.ratings += 1
+			social.average = (total + Double(star)) / Double(social.ratings)
+		} else if social.ratings > 0 {
+			social.average = (total - Double(social.stars) + Double(star)) / Double(social.ratings)
+		}
+		social.stars = star
+		_social = social
 	}
 
 	private func _submit() {
@@ -572,7 +607,8 @@ struct StoreAppView: View {
 				try await _account.comment(on: app.i, body: body, replyTo: _replyTo?.id)
 				_draft = ""
 				_replyTo = nil
-				await _loadCommunity()
+				_social?.comments += 1
+				await _loadThread()
 			} catch {
 				_show(error.localizedDescription)
 			}

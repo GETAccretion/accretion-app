@@ -136,7 +136,13 @@ extension CertificatesView {
 	@ViewBuilder
 	private func _actions(for cert: CertificatePair) -> some View {
 		Button(.localized("Delete"), systemImage: "trash", role: .destructive) {
-			Storage.shared.deleteCertificate(for: cert)
+			// Accretion: confirm first; a deleted certificate can't sign until it's imported again
+			ConfirmDelete.ask(
+				String.localized("Delete this certificate?"),
+				message: String.localized("Apps signed with it keep working, but you'll need the .p12, .mobileprovision and password to sign with it again.")
+			) {
+				Storage.shared.deleteCertificate(for: cert)
+			}
 		}
 	}
 	

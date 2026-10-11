@@ -155,7 +155,10 @@ struct LibraryView: View {
 						systemImage: "trash",
 						isDisabled: _selectedAppUUIDs.isEmpty
 					) {
-						_bulkDeleteSelectedApps()
+						// Accretion: confirm first
+						ConfirmDelete.ask(String.localized("Delete %@ apps?", arguments: String(_selectedAppUUIDs.count))) {
+							_bulkDeleteSelectedApps()
+						}
 					}
 				} else {
 					ToolbarItem(placement: .topBarTrailing) {

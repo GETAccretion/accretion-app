@@ -183,7 +183,10 @@ extension LibraryCellView {
 	@ViewBuilder
 	private func _actions(for app: AppInfoPresentable) -> some View {
 		Button(.localized("Delete"), systemImage: "trash", role: .destructive) {
-			Storage.shared.deleteApp(for: app)
+			// Accretion: confirm first
+			ConfirmDelete.ask(String.localized("Delete %@?", arguments: app.name ?? String.localized("this app"))) {
+				Storage.shared.deleteApp(for: app)
+			}
 		}
 	}
 	

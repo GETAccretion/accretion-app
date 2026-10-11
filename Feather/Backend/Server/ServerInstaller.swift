@@ -30,8 +30,14 @@ class ServerInstaller: Identifiable, ObservableObject {
 		self.viewModel = viewModel
 		try _setup()
 		try _configureRoutes()
-		try _server?.server.start()
-		_needsShutdown = true
+		// Accretion: a local server that can't start (port busy) shows as an install error
+		// on the install card instead of crashing the app
+		do {
+			try _server?.server.start()
+			_needsShutdown = true
+		} catch {
+			_updateStatus(.broken(error))
+		}
 	}
 	
 	deinit {

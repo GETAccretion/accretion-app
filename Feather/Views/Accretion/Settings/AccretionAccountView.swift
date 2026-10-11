@@ -170,7 +170,9 @@ struct AccretionAccountView: View {
 				Button(String.localized("Restore")) { _passphraseFor = .restore(backup) }
 					.buttonStyle(AccretionButtonStyle(prominent: false))
 				Button {
-					Task { await _work { try await _account.deleteBackup(backup.id); await _reload() } }
+					ConfirmDelete.ask(String.localized("Delete this backup?"), message: String.localized("It's removed from your account for good.")) {
+						Task { await _work { try await _account.deleteBackup(backup.id); await _reload() } }
+					}
 				} label: {
 					Image(systemName: "trash")
 				}

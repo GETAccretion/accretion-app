@@ -125,7 +125,11 @@ final class AccretionAccount: ObservableObject {
 			URLQueryItem(name: "code_challenge_method", value: "s256"),
 		]
 		let callback = try await _WebSignIn.run(authorize.url!, scheme: "accretion")
-		let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
+		// Supabase puts the code in the query, and errors sometimes in the fragment
+		let components = URLComponents(url: callback, resolvingAgainstBaseURL: false)
+		var fragment = URLComponents()
+		fragment.query = components?.fragment
+		let items = (components?.queryItems ?? []) + (fragment.queryItems ?? [])
 		guard let code = items.first(where: { $0.name == "code" })?.value else {
 			let reason = items.first(where: { $0.name == "error_description" })?.value
 			throw AccountError.server(reason ?? String.localized("Sign-in was cancelled."))
@@ -183,10 +187,26 @@ final class AccretionAccount: ObservableObject {
 	}
 
 	/// A valid access token, refreshed with the saved refresh token when needed.
+	/// One refresh at a time: Supabase can revoke a session when the same refresh token is used twice.
+	private var _refreshing: Task<Void, Error>?
+
 	private func _bearer() async throws -> String {
 		if let token = _accessToken, Date() < _expiresAt { return token }
-		guard isSignedIn, let refresh = _Keychain.read("refresh") else { throw AccountError.notSignedIn }
-		try await _token(["refresh_token": refresh], grant: "refresh_token")
+		if let pending = _refreshing {
+			try await pending.value
+		} else {
+			guard isSignedIn, let refresh = _Keychain.read("refresh") else { throw AccountError.notSignedIn }
+			let task = Task { _ = try await self._token(["refresh_token": refresh], grant: "refresh_token") }
+			_refreshing = task
+			defer { _refreshing = nil }
+			do {
+				try await task.value
+			} catch AccountError.server {
+				// the server turned the session down (expired or revoked): sign out cleanly
+				signOut()
+				throw AccountError.notSignedIn
+			}
+		}
 		guard let token = _accessToken else { throw AccountError.notSignedIn }
 		return token
 	}
@@ -199,7 +219,14 @@ final class AccretionAccount: ObservableObject {
 		request.httpMethod = method
 		request.setValue(config.key, forHTTPHeaderField: "apikey")
 		let token: String
-		if anonymous && !isSignedIn { token = config.key } else { token = try await _bearer() }
+		if anonymous {
+			// public reads still work when the session can't be refreshed
+			var session: String?
+			if isSignedIn { session = try? await _bearer() }
+			token = session ?? config.key
+		} else {
+			token = try await _bearer()
+		}
 		request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		if let prefer { request.setValue(prefer, forHTTPHeaderField: "Prefer") }
@@ -258,7 +285,7 @@ final class AccretionAccount: ObservableObject {
 			social.comments = row["comments"] as? Int ?? 0
 			social.average = (row["avg_rating"] as? Double) ?? (row["avg_rating"] as? String).flatMap(Double.init)
 		}
-		if isSignedIn, let uid = userID {
+		if isSignedIn, let uid = try? await _uid() {
 			let liked = try await _rest("app_likes?select=app_id&app_id=eq.\(id)&user_id=eq.\(uid)")
 			social.liked = !(((try? JSONSerialization.jsonObject(with: liked)) as? [Any]) ?? []).isEmpty
 			let rated = try await _rest("app_ratings?select=stars&app_id=eq.\(id)&user_id=eq.\(uid)")
@@ -315,9 +342,7 @@ final class AccretionAccount: ObservableObject {
 		guard isSignedIn else { return url }
 		do {
 			let config = try await _configuration()
-			let hostedData = try await _rest("hosted_builds?select=bundle_id&bundle_id=eq.\(bundleID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? bundleID)")
-			let hosted = (try? JSONSerialization.jsonObject(with: hostedData) as? [[String: Any]]) ?? []
-			guard !hosted.isEmpty else { return url }
+			guard try await _hostedBundleIDs().contains(bundleID) else { return url }
 			if _downloadKey == nil {
 				let keyData = try await _rest("rpc/my_download_key", method: "POST", body: ["rotate": false])
 				_downloadKey = try JSONDecoder().decode(String.self, from: keyData)
@@ -329,6 +354,24 @@ final class AccretionAccount: ObservableObject {
 		} catch {
 			return url
 		}
+	}
+
+	/// Which apps the download server hosts, fetched once every 10 minutes (the website does the
+	/// same) instead of on every install.
+	private var _hosted: (ids: Set<String>, at: Date)?
+
+	private func _hostedBundleIDs() async throws -> Set<String> {
+		if let hosted = _hosted, Date().timeIntervalSince(hosted.at) < 600 { return hosted.ids }
+		let data = try await _rest("hosted_builds?select=bundle_id", anonymous: true)
+		let rows = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
+		let ids = Set(rows.compactMap { $0["bundle_id"] as? String })
+		_hosted = (ids, Date())
+		return ids
+	}
+
+	/// Forget the personal key, e.g. after the server refused it because it was replaced on the website
+	func forgetDownloadKey() {
+		_downloadKey = nil
 	}
 
 	// MARK: Back up and restore
@@ -425,7 +468,9 @@ private final class _WebSignIn: NSObject, ASWebAuthenticationPresentationContext
 			session.presentationContextProvider = runner
 			session.prefersEphemeralWebBrowserSession = true
 			runner._session = session
-			session.start()
+			if !session.start() {
+				continuation.resume(throwing: AccretionAccount.AccountError.server(String.localized("Couldn't open the sign-in page. Try again.")))
+			}
 		}
 	}
 

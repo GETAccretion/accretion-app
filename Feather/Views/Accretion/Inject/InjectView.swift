@@ -29,6 +29,8 @@ struct InjectView: View {
 
 	@State private var _app: Imported?
 	@State private var _waitingSince: Date?
+	@State private var _importID: String?
+	@State private var _importError: String?
 	@State private var _tweaks: [URL] = []
 	@State private var _name = ""
 	@State private var _sideBySide = false
@@ -74,11 +76,14 @@ struct InjectView: View {
 		.tint(AccretionTheme.accent)
 		.task { await _catalog.load() }
 		.onChange(of: _imported.count) { _ in _pickNewlyImported() }
+		.task(id: _importID) { await _watchImport() }
 		.sheet(isPresented: $_isPickingIPA) {
 			FileImporterRepresentableView(allowedContentTypes: [.ipa, .tipa], allowsMultipleSelection: false) { urls in
 				guard let url = urls.first else { return }
 				_waitingSince = Date().addingTimeInterval(-1)
+				_importError = nil
 				let id = "AccretionInject_\(UUID().uuidString)"
+				_importID = id
 				let download = DownloadManager.shared.startArchive(from: url, id: id)
 				try? DownloadManager.shared.handlePachageFile(url: url, dl: download)
 			}
@@ -139,6 +144,12 @@ struct InjectView: View {
 					Text(verbatim: String.localized("Importing…")).foregroundStyle(AccretionTheme.muted)
 				}
 			} else {
+				if let error = _importError {
+					Text(verbatim: error)
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.warn)
+						.fixedSize(horizontal: false, vertical: true)
+				}
 				AccretionFlow(spacing: 8) {
 					Button(String.localized("Choose IPA from Files")) { _isPickingIPA = true }
 						.buttonStyle(AccretionButtonStyle())
@@ -322,6 +333,25 @@ struct InjectView: View {
 		if let recipe = RecipeStore.load(for: app, base: OptionsManager.shared.options) {
 			_tweaks = recipe.options.injectionFiles
 			_name = recipe.options.appName ?? ""
+		}
+	}
+
+	/// The import finished (its download entry is gone) without a new app: say so instead of
+	/// spinning forever. Gives up waiting after two minutes as well.
+	private func _watchImport() async {
+		guard let id = _importID else { return }
+		for _ in 0..<240 {
+			try? await Task.sleep(nanoseconds: 500_000_000)
+			if Task.isCancelled || _waitingSince == nil { return }
+			if DownloadManager.shared.getDownloadIndex(by: id) == nil {
+				try? await Task.sleep(nanoseconds: 1_000_000_000) // let Core Data catch up
+				_pickNewlyImported()
+				break
+			}
+		}
+		if _waitingSince != nil {
+			_waitingSince = nil
+			_importError = String.localized("That IPA couldn't be imported. Check that it's a complete .ipa file and try again.")
 		}
 	}
 

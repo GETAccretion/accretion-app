@@ -48,7 +48,10 @@ extension SourcesCellView {
 	@ViewBuilder
 	private func _actions(for source: AltSource) -> some View {
 		Button(.localized("Delete"), systemImage: "trash", role: .destructive) {
-			Storage.shared.deleteSource(for: source)
+			// Accretion: confirm first
+			ConfirmDelete.ask(String.localized("Remove %@?", arguments: source.name ?? String.localized("this source"))) {
+				Storage.shared.deleteSource(for: source)
+			}
 		}
 	}
 	

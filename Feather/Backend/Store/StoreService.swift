@@ -189,6 +189,13 @@ final class StoreService: ObservableObject {
 		UserDefaults.standard.set(saved, forKey: "accretion.saved")
 	}
 
+	/// Opening a saved app's page counts as seeing its update, like the web store
+	func markSeen(_ app: StoreApp) {
+		guard let version = saved[app.i], version != app.v else { return }
+		saved[app.i] = app.v
+		UserDefaults.standard.set(saved, forKey: "accretion.saved")
+	}
+
 	/// A saved app whose version moved on since it was saved
 	func hasUpdate(_ app: StoreApp) -> Bool {
 		guard let version = saved[app.i] else { return false }

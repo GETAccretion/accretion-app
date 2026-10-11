@@ -20,8 +20,21 @@ enum AccretionTheme {
 	static let accent2 = _dynamic(dark: 0x22D3EE, light: 0x0E8FB0)
 	static let good = _dynamic(dark: 0x34D399, light: 0x078A5E)
 	static let warn = _dynamic(dark: 0xF59E0B, light: 0xB76A00)
+	static let star = Color(red: 245.0 / 255, green: 184.0 / 255, blue: 59.0 / 255)
+	/// color-mix(accent 55%, accent-2): the far end of the primary button's gradient
+	static let accentMix = _dynamic(dark: 0x5C93F2, light: 0x4568C8)
 
 	static let radius: CGFloat = 14
+
+	/// The store's headline and stat numbers: text fading from the foreground into the accents
+	static let headline = LinearGradient(
+		stops: [
+			.init(color: fg, location: 0.3),
+			.init(color: _dynamic(dark: 0x6C86F3, light: 0x5251D6), location: 1),
+		],
+		startPoint: .leading,
+		endPoint: .trailing
+	)
 
 	private static func _dynamic(dark: UInt32, light: UInt32) -> Color {
 		Color(uiDynamic(dark: dark, light: light))
@@ -147,24 +160,148 @@ extension View {
 	}
 }
 
-/// Primary pill button in the store's accent colour
+/// The store's `.btn`: 40-pt tall, 10-pt corners, raised fill with a hairline border.
+/// `prominent` is `.btn.primary` (accent gradient), `ghost` is `.btn.ghost` (no fill) and
+/// `on` is `.btn.on` (green outline, for Liked and Saved).
 struct AccretionButtonStyle: ButtonStyle {
 	var prominent = true
+	var ghost = false
+	var on = false
+	var compact = false
 
 	func makeBody(configuration: Configuration) -> some View {
+		let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
 		configuration.label
-			.font(.system(size: 15, weight: .semibold))
-			.padding(.horizontal, 16)
-			.padding(.vertical, 9)
-			.foregroundStyle(prominent ? Color.white : AccretionTheme.fg)
-			.background(
-				prominent ? AccretionTheme.accent : AccretionTheme.raised,
-				in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-			)
-			.overlay(
-				RoundedRectangle(cornerRadius: 11, style: .continuous)
-					.stroke(prominent ? Color.clear : AccretionTheme.line, lineWidth: 1)
-			)
+			.font(.system(size: compact ? 13 : 14, weight: .semibold))
+			.lineLimit(1)
+			.padding(.horizontal, compact ? 12 : 14)
+			.frame(minHeight: compact ? 34 : 40)
+			.foregroundStyle(prominent ? Color.white : on ? AccretionTheme.good : AccretionTheme.fg)
+			.background {
+				if prominent {
+					shape.fill(LinearGradient(colors: [AccretionTheme.accent, AccretionTheme.accentMix], startPoint: .topLeading, endPoint: .bottomTrailing))
+				} else if !ghost {
+					shape.fill(AccretionTheme.raised)
+				}
+			}
+			.overlay(shape.stroke(prominent ? Color.clear : on ? AccretionTheme.good : AccretionTheme.line, lineWidth: 1))
+			.contentShape(shape)
 			.opacity(configuration.isPressed ? 0.75 : 1)
+	}
+}
+
+/// The store's `.sec` card: surface, 14-pt corners, and a small mono uppercase heading.
+struct AccretionSection<Content: View>: View {
+	let title: String?
+	@ViewBuilder let content: Content
+
+	init(_ title: String?, @ViewBuilder content: () -> Content) {
+		self.title = title
+		self.content = content()
+	}
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 10) {
+			if let title {
+				Text(verbatim: title.uppercased())
+					.font(.accretionMono(11, weight: .medium))
+					.tracking(1.1)
+					.foregroundStyle(AccretionTheme.muted)
+			}
+			content
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.padding(.vertical, 16)
+		.padding(.horizontal, 18)
+		.accretionCard()
+	}
+}
+
+/// One cell of the store's `.facts` grid: "VERSION / 4.0.0"
+struct AccretionFact: View {
+	let label: String
+	let value: String
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 3) {
+			Text(verbatim: label.uppercased())
+				.font(.accretionMono(10.5, weight: .regular))
+				.tracking(1)
+				.foregroundStyle(AccretionTheme.muted)
+			Text(verbatim: value.isEmpty ? "–" : value)
+				.font(.system(size: 15, weight: .semibold))
+				.foregroundStyle(AccretionTheme.fg)
+				.fixedSize(horizontal: false, vertical: true)
+		}
+		.frame(maxWidth: .infinity, alignment: .leading)
+		.padding(.vertical, 11)
+		.padding(.horizontal, 13)
+		.background(AccretionTheme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+		.overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+	}
+}
+
+/// Wraps its children onto new lines like the store's `flex-wrap` button rows.
+struct AccretionFlow: Layout {
+	var spacing: CGFloat = 8
+
+	func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+		let rows = _rows(width: proposal.width ?? .infinity, subviews: subviews)
+		let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+		let width = rows.map(\.width).max() ?? 0
+		return CGSize(width: proposal.width ?? width, height: height)
+	}
+
+	func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+		var y = bounds.minY
+		for row in _rows(width: bounds.width, subviews: subviews) {
+			var x = bounds.minX
+			for index in row.items {
+				let size = subviews[index].sizeThatFits(.unspecified)
+				subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+				x += size.width + spacing
+			}
+			y += row.height + spacing
+		}
+	}
+
+	private struct _Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+	private func _rows(width: CGFloat, subviews: Subviews) -> [_Row] {
+		var rows = [_Row()]
+		for index in subviews.indices {
+			let size = subviews[index].sizeThatFits(.unspecified)
+			let extra = rows[rows.count - 1].items.isEmpty ? size.width : size.width + spacing
+			if rows[rows.count - 1].width + extra > width, !rows[rows.count - 1].items.isEmpty {
+				rows.append(_Row())
+			}
+			let added = rows[rows.count - 1].items.isEmpty ? size.width : size.width + spacing
+			rows[rows.count - 1].items.append(index)
+			rows[rows.count - 1].width += added
+			rows[rows.count - 1].height = max(rows[rows.count - 1].height, size.height)
+		}
+		return rows
+	}
+}
+
+/// The store's `.back` button and an interactive swipe-back that still works with the
+/// navigation bar hidden.
+struct AccretionBackButton: View {
+	@Environment(\.dismiss) private var _dismiss
+
+	var body: some View {
+		Button { _dismiss() } label: { Text(verbatim: "← " + String.localized("Back")) }
+			.buttonStyle(AccretionButtonStyle(prominent: false))
+	}
+}
+
+extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
+	override open func viewDidLoad() {
+		super.viewDidLoad()
+		interactivePopGestureRecognizer?.delegate = self
+	}
+
+	public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+		viewControllers.count > 1
 	}
 }

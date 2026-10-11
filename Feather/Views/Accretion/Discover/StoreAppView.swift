@@ -4,144 +4,682 @@
 //
 
 import SwiftUI
+import UIKit
 import NukeUI
 
 // MARK: - App page
-/// An app's page in Discover, laid out like the web store's: header, Install, facts,
-/// what's new, screenshots, about and versions.
+/// An app's page in Discover, a copy of the web store's app page (site/app.js `openApp`):
+/// back, header card with the install buttons, likes and ratings, facts, what's new,
+/// screenshots, about, versions, permissions, related shelves, info and comments.
 struct StoreAppView: View {
 	@ObservedObject private var _store = StoreService.shared
 	@ObservedObject private var _pipeline = AutoSignPipeline.shared
 	@ObservedObject private var _account = AccretionAccount.shared
-	@State private var _isSigningIn = false
+	@Environment(\.openURL) private var _openURL
 	let app: StoreApp
+
 	@State private var _detail: StoreAppDetail?
+	@State private var _detailLoaded = false
+	@State private var _isSigningIn = false
+	@State private var _social: AccretionAccount.AppSocial?
+	@State private var _socialError: String?
+	@State private var _posts: [AccretionAccount.Post]?
+	@State private var _draft = ""
+	@State private var _replyTo: AccretionAccount.Post?
+	@State private var _isPosting = false
+	@State private var _toast: String?
 
 	private var _latest: StoreAppDetail.Version? { _detail?.versions.first }
+	private var _ipa: URL? { _latest.flatMap { URL(string: $0.url) } }
+	private var _tint: Color {
+		guard let hex = _detail?.tint, hex.count == 6, let value = UInt32(hex, radix: 16) else { return AccretionTheme.accent }
+		return Color(red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
+	}
 
 	var body: some View {
 		ScrollView {
-			VStack(alignment: .leading, spacing: 20) {
-				HStack(alignment: .top, spacing: 14) {
-					StoreAppIcon(url: app.iconURL, size: 96)
-					VStack(alignment: .leading, spacing: 6) {
-						Text(verbatim: app.n)
-							.font(.accretionDisplay(24))
-							.foregroundStyle(AccretionTheme.fg)
-						Text(verbatim: app.d)
-							.foregroundStyle(AccretionTheme.muted)
-						HStack(spacing: 6) {
-							if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accent) }
-							if _store.isNew(app) { AccretionBadge(text: "new") }
-							if !_store.fits(app) { AccretionBadge(text: "needs iOS \(app.m ?? "")", color: AccretionTheme.warn) }
-						}
-					}
+			VStack(alignment: .leading, spacing: 12) {
+				AccretionBackButton()
+					.padding(.bottom, 2)
+				_head()
+				_community()
+				if _detail != nil {
+					_body()
+				} else if _detailLoaded {
+					Text(verbatim: String.localized("Details couldn't load. Check your connection and refresh."))
+						.foregroundStyle(AccretionTheme.muted)
 				}
-
-				HStack(spacing: 10) {
-					Button {
-						// downloads need an Accretion account, like on the web store
-						guard _account.isSignedIn else { _isSigningIn = true; return }
-						if let url = _latest.flatMap({ URL(string: $0.url) }) {
-							_pipeline.install(name: app.n, bundleID: app.i, downloadURL: url)
-						}
-					} label: {
-						Label(String.localized("Install"), systemImage: "arrow.down.circle.fill")
-					}
-					.buttonStyle(AccretionButtonStyle())
-					.disabled(_latest == nil || _pipeline.isRunning)
-
-					if let url = _latest.flatMap({ URL(string: $0.url) }) {
-						Button {
-							guard _account.isSignedIn else { _isSigningIn = true; return }
-							Task { LiveContainer.install(from: await _account.downloadURL(for: app.i, fallback: url)) }
-						} label: {
-							Label(String.localized("LiveContainer"), systemImage: "shippingbox")
-						}
-						.buttonStyle(AccretionButtonStyle(prominent: false))
-					}
-				}
-				if let status = _pipeline.status {
-					Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted)
-				}
-
-				_facts()
-
-				if let notes = _latest?.notes, !notes.isEmpty {
-					_section(String.localized("What's new")) { Text(verbatim: notes).foregroundStyle(AccretionTheme.fg) }
-				}
-				if let shots = _detail?.shots, !shots.isEmpty {
-					_section(String.localized("Screenshots")) {
-						ScrollView(.horizontal, showsIndicators: false) {
-							HStack(spacing: 10) {
-								ForEach(shots, id: \.self) { shot in
-									LazyImage(url: URL(string: shot)) { state in
-										if let image = state.image { image.resizable().scaledToFit() } else { AccretionTheme.raised }
-									}
-									.frame(height: 380)
-									.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-								}
-							}
-						}
-					}
-				}
-				if let desc = _detail?.desc, !desc.isEmpty {
-					_section(String.localized("About")) { Text(verbatim: desc).foregroundStyle(AccretionTheme.fg) }
-				}
-				_section(String.localized("Info")) {
-					VStack(alignment: .leading, spacing: 6) {
-						_fact(String.localized("Bundle ID"), app.i)
-						_fact(String.localized("Listed by"), _store.source(of: app)?.name ?? "–")
-						Text(verbatim: _store.isMod(app)
-							? String.localized("Built by Accretion from a free or open-source app.")
-							: String.localized("Files are hosted by the source above, not by Accretion. Install what you trust."))
-							.font(.footnote)
-							.foregroundStyle(AccretionTheme.muted)
-					}
-				}
+				_comments()
 			}
-			.padding(16)
+			.padding(.horizontal, 16)
+			.padding(.top, 8)
+			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.navigationBarTitleDisplayMode(.inline)
-		.task { _detail = await _store.detail(for: app) }
+		.toolbar(.hidden, for: .navigationBar)
+		.overlay(alignment: .bottom) { _toastView() }
+		.task {
+			_detail = await _store.detail(for: app)
+			_detailLoaded = true
+		}
+		.task(id: _account.email) { await _loadCommunity() }
 		.sheet(isPresented: $_isSigningIn) {
 			NavigationStack { AccretionAccountView() }
 		}
 	}
 
-	private func _facts() -> some View {
-		HStack(spacing: 10) {
-			_factCard(String.localized("Version"), app.v)
-			_factCard(String.localized("Updated"), StoreFormat.since(app))
-			_factCard(String.localized("Size"), app.z.map(StoreFormat.bytes) ?? "–")
-			_factCard(String.localized("Min iOS"), app.m ?? "–")
+	// MARK: Header (.d-head)
+	private func _head() -> some View {
+		HStack(alignment: .center, spacing: 14) {
+			StoreAppIcon(url: app.iconURL, size: 80)
+			VStack(alignment: .leading, spacing: 0) {
+				Text(verbatim: app.n)
+					.font(.accretionDisplay(24))
+					.foregroundStyle(AccretionTheme.fg)
+					.fixedSize(horizontal: false, vertical: true)
+				NavigationLink(value: StoreListRoute(title: app.d, developer: app.d)) {
+					Text(verbatim: app.d).underline().foregroundStyle(AccretionTheme.muted)
+				}
+				.buttonStyle(.plain)
+				.padding(.top, 4)
+				if let subtitle = app.s, !subtitle.isEmpty {
+					Text(verbatim: subtitle)
+						.foregroundStyle(AccretionTheme.fg)
+						.fixedSize(horizontal: false, vertical: true)
+						.padding(.top, 8)
+				}
+				if !_store.fits(app) {
+					Text(verbatim: String.localized("Needs iOS %@ or later. This device is on %@.", arguments: app.m ?? "", UIDevice.current.systemVersion))
+						.font(.system(size: 15, weight: .semibold))
+						.foregroundStyle(AccretionTheme.warn)
+						.padding(.top, 10)
+				}
+				if _detail != nil {
+					_actions().padding(.top, 16)
+					if let status = _pipeline.status {
+						Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted).padding(.top, 8)
+					}
+					if _ipa != nil {
+						Button { _openURL(URL(string: "https://getaccretion.github.io/#/sign")!) } label: {
+							Text(verbatim: String.localized("How to sign your own apps →")).underline()
+						}
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.accent2)
+						.padding(.top, 10)
+					}
+				}
+			}
+			.frame(maxWidth: .infinity, alignment: .leading)
+		}
+		.padding(16)
+		.background {
+			ZStack {
+				AccretionTheme.surface
+				GeometryReader { geo in
+					RadialGradient(colors: [_tint.opacity(0.3), .clear], center: .center, startRadius: 0, endRadius: geo.size.width * 0.45)
+						.frame(width: geo.size.width * 0.9, height: geo.size.height * 1.4)
+						.offset(x: geo.size.width * 0.35, y: -geo.size.height * 0.3)
+				}
+			}
+		}
+		.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+		.overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+	}
+
+	/// Install, Download IPA, the other installers, Save, Share, Copy IPA link
+	private func _actions() -> some View {
+		AccretionFlow(spacing: 8) {
+			if let ipa = _ipa {
+				Button(String.localized("Install")) {
+					guard _needsAccount() else { return }
+					_pipeline.install(name: app.n, bundleID: app.i, downloadURL: ipa)
+				}
+				.buttonStyle(AccretionButtonStyle())
+				.disabled(_pipeline.isRunning)
+
+				Button(String.localized("Download IPA")) {
+					guard _needsAccount() else { return }
+					Task {
+						_ = DownloadManager.shared.startDownload(from: await _resolved(ipa))
+						_show(String.localized("Downloading to your Library"))
+					}
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false))
+
+				ForEach(_Installer.all) { installer in
+					Button(installer.name) {
+						guard _needsAccount() else { return }
+						Task {
+							let url = await _resolved(ipa)
+							if installer.id == "livecontainer" { LiveContainer.install(from: url) } else if let link = installer.link(url) { _openURL(link) }
+						}
+					}
+					.buttonStyle(AccretionButtonStyle(prominent: false))
+				}
+			}
+
+			Button(_store.isSaved(app) ? String.localized("Saved") : String.localized("Save")) {
+				_store.toggleSaved(app)
+			}
+			.buttonStyle(AccretionButtonStyle(prominent: false, on: _store.isSaved(app)))
+
+			ShareLink(item: StoreService.base.appendingPathComponent("app/\(app.i)/")) {
+				Text(verbatim: String.localized("Share"))
+			}
+			.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
+
+			if let ipa = _ipa {
+				Button(String.localized("Copy IPA link")) {
+					guard _needsAccount() else { return }
+					Task {
+						UIPasteboard.general.string = await _resolved(ipa).absoluteString
+						_show(String.localized("IPA link copied"))
+					}
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
+			}
 		}
 	}
 
-	private func _factCard(_ label: String, _ value: String) -> some View {
-		VStack(alignment: .leading, spacing: 2) {
-			Text(verbatim: label.uppercased()).font(.accretionMono(9)).foregroundStyle(AccretionTheme.muted)
-			Text(verbatim: value).font(.system(size: 13, weight: .semibold)).foregroundStyle(AccretionTheme.fg).lineLimit(1)
+	/// The web store's installers (AltStore and friends), opened with the app's download link.
+	private struct _Installer: Identifiable {
+		let id: String
+		let name: String
+		let link: (URL) -> URL?
+
+		static let all: [_Installer] = [
+			_Installer(id: "livecontainer", name: "LiveContainer") { _ in nil },
+			_Installer(id: "feather", name: "Feather") { URL(string: "feather://install/\($0.absoluteString)") },
+			_Installer(id: "altstore", name: "AltStore") { _Installer._query("altstore://install", $0) },
+			_Installer(id: "sidestore", name: "SideStore") { _Installer._query("sidestore://install", $0) },
+			_Installer(id: "trollstore", name: "TrollStore") { _Installer._query("apple-magnifier://install", $0) },
+		]
+
+		private static func _query(_ base: String, _ url: URL) -> URL? {
+			var components = URLComponents(string: base)
+			components?.queryItems = [URLQueryItem(name: "url", value: url.absoluteString)]
+			return components?.url
+		}
+	}
+
+	// MARK: Likes and ratings (.community-top)
+	@ViewBuilder
+	private func _community() -> some View {
+		AccretionSection(nil) {
+			if let social = _social {
+				AccretionFlow(spacing: 12) {
+					Button {
+						guard _needsAccount() else { return }
+						Task {
+							do {
+								try await _account.likeApp(app.i, !social.liked)
+								_social?.liked.toggle()
+								_social?.likes += social.liked ? -1 : 1
+							} catch { _show(error.localizedDescription) }
+						}
+					} label: {
+						Text(verbatim: "♥ " + (social.liked ? String.localized("Liked") : String.localized("Like")) + (social.likes > 0 ? " · \(social.likes)" : ""))
+					}
+					.buttonStyle(AccretionButtonStyle(prominent: false, on: social.liked))
+
+					HStack(spacing: 10) {
+						HStack(spacing: 2) {
+							ForEach(1...5, id: \.self) { star in
+								Button {
+									guard _needsAccount() else { return }
+									Task {
+										do {
+											try await _account.rateApp(app.i, stars: star)
+											_social?.stars = star
+											_show(String.localized("Thanks for rating"))
+										} catch { _show(error.localizedDescription) }
+									}
+								} label: {
+									Text(verbatim: "★")
+										.font(.system(size: 24))
+										.foregroundStyle(star <= social.stars ? AccretionTheme.star : AccretionTheme.line)
+										.padding(2)
+								}
+								.buttonStyle(.plain)
+								.accessibilityLabel(String.localized("%@ stars", arguments: String(star)))
+							}
+						}
+						Text(verbatim: social.average.map {
+							String.localized("%@ ★ from %@ ratings", arguments: String(format: "%.1f", $0), String(social.ratings))
+						} ?? String.localized("No ratings yet"))
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.muted)
+					}
+				}
+			} else {
+				Text(verbatim: _socialError ?? String.localized("Loading community…"))
+					.font(.system(size: 13))
+					.foregroundStyle(AccretionTheme.muted)
+			}
+		}
+	}
+
+	// MARK: Details
+	@ViewBuilder
+	private func _body() -> some View {
+		let latest = _latest
+		_factsGrid([
+			(String.localized("Version"), latest?.v ?? ""),
+			(String.localized("Build"), latest?.b ?? ""),
+			(String.localized("Released"), app.u != nil
+				? String.localized("Unknown (the source gives no date)")
+				: latest.map { "\($0.t) · \(StoreFormat.ago($0.t))" } ?? ""),
+			(String.localized("Size"), latest?.z.map(StoreFormat.bytes) ?? ""),
+			(String.localized("Min iOS"), latest?.min ?? ""),
+			(String.localized("Category"), StoreService.categoryNames[app.c] ?? app.c),
+		])
+		.padding(.vertical, 4)
+
+		if let notes = latest?.notes, !notes.isEmpty {
+			AccretionSection(String.localized("What's new")) { _prose(notes) }
+		}
+		if let shots = _detail?.shots, !shots.isEmpty {
+			AccretionSection(String.localized("Screenshots")) {
+				ScrollView(.horizontal, showsIndicators: false) {
+					HStack(spacing: 10) {
+						ForEach(shots, id: \.self) { shot in
+							LazyImage(url: URL(string: shot)) { state in
+								if let image = state.image { image.resizable().scaledToFit() } else { AccretionTheme.raised.frame(width: 166) }
+							}
+							.frame(height: 300)
+							.clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+							.overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+						}
+					}
+				}
+			}
+		}
+		if let desc = _detail?.desc, !desc.isEmpty {
+			AccretionSection(String.localized("About")) { _prose(desc) }
+		}
+		if let versions = _detail?.versions, !versions.isEmpty {
+			AccretionSection(String.localized("Versions")) {
+				VStack(spacing: 8) {
+					ForEach(Array(versions.enumerated()), id: \.offset) { index, version in
+						_versionRow(version, isLatest: index == 0)
+					}
+				}
+			}
+		}
+		if let perms = _detail?.perms, !(perms.privacy.isEmpty && perms.entitlements.isEmpty) {
+			AccretionSection(String.localized("Permissions")) {
+				AccretionFlow(spacing: 6) {
+					ForEach(perms.privacy.map(_privacyName) + perms.entitlements, id: \.self) { name in
+						Text(verbatim: name)
+							.font(.accretionMono(12, weight: .regular))
+							.foregroundStyle(AccretionTheme.fg)
+							.padding(.horizontal, 8)
+							.padding(.vertical, 4)
+							.background(AccretionTheme.raised, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+					}
+				}
+			}
+		}
+
+		let others = _store.index?.apps ?? []
+		let sameDeveloper = others.filter { $0.d == app.d && $0.i != app.i }.sorted { $0.t > $1.t }
+		let similar = others.filter { $0.c == app.c && $0.i != app.i && $0.d != app.d && $0.c != "other" }.sorted { $0.t > $1.t }
+		if !sameDeveloper.isEmpty {
+			StoreShelfView(shelf: .init(id: "dev", title: String.localized("More from %@", arguments: app.d), note: nil, apps: Array(sameDeveloper.prefix(20))))
+				.padding(.top, 8)
+		}
+		if !similar.isEmpty {
+			StoreShelfView(shelf: .init(
+				id: "similar",
+				title: String.localized("More %@", arguments: StoreService.categoryNames[app.c] ?? ""),
+				note: String.localized("recently updated"),
+				apps: Array(similar.prefix(20)),
+				seeAll: StoreListRoute(title: StoreService.categoryNames[app.c] ?? app.c, category: app.c)
+			))
+		}
+
+		AccretionSection(String.localized("Info")) {
+			_factsGrid([
+				(String.localized("Bundle ID"), app.i),
+				(String.localized("Listed by"), _store.source(of: app)?.name ?? "–"),
+				(String.localized("First seen"), app.f ?? ""),
+			])
+			if _store.isMod(app) {
+				(Text(verbatim: "ACCRETION MOD").font(.accretionMono(10)).foregroundColor(AccretionTheme.accent)
+				 + Text(verbatim: "  ")
+				 + Text(_modNote))
+				.font(.system(size: 13))
+				.foregroundStyle(AccretionTheme.muted)
+				.tint(AccretionTheme.accent2)
+			} else {
+				Text(verbatim: String.localized("Files are hosted by the source above, not by Accretion. Install what you trust."))
+					.font(.system(size: 13))
+					.foregroundStyle(AccretionTheme.muted)
+			}
+		}
+	}
+
+	private var _modNote: AttributedString {
+		let text = String.localized("Built by Accretion from a free or open-source app. Unsigned: sign it with your own tool. Source and build scripts: [AccretionMods/mods](https://github.com/AccretionMods/mods).")
+		return (try? AttributedString(markdown: text)) ?? AttributedString(text)
+	}
+
+	/// NSCameraUsageDescription → Camera, like the web store
+	private func _privacyName(_ key: String) -> String {
+		var name = key
+		if name.hasPrefix("NS") { name.removeFirst(2) }
+		if name.hasSuffix("UsageDescription") { name.removeLast("UsageDescription".count) }
+		return name
+	}
+
+	/// The store's `.facts` grid: two equal columns on a phone, rows as tall as their tallest cell
+	private func _factsGrid(_ facts: [(String, String)]) -> some View {
+		Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+			ForEach(Array(stride(from: 0, to: facts.count, by: 2)), id: \.self) { start in
+				GridRow {
+					ForEach(start..<min(start + 2, facts.count), id: \.self) { index in
+						AccretionFact(label: facts[index].0, value: facts[index].1)
+							.frame(maxHeight: .infinity, alignment: .topLeading)
+					}
+					if start + 1 >= facts.count { Color.clear.gridCellUnsizedAxes([.horizontal, .vertical]) }
+				}
+			}
+		}
+	}
+
+	private func _prose(_ text: String) -> some View {
+		Text(verbatim: text)
+			.foregroundStyle(AccretionTheme.fg)
+			.fixedSize(horizontal: false, vertical: true)
+			.frame(maxWidth: .infinity, alignment: .leading)
+	}
+
+	private func _versionRow(_ version: StoreAppDetail.Version, isLatest: Bool) -> some View {
+		VStack(alignment: .leading, spacing: 6) {
+			AccretionFlow(spacing: 14) {
+				Text(verbatim: "v\(version.v)" + (version.b.map { $0 != version.v ? " (\($0))" : "" } ?? ""))
+					.foregroundStyle(AccretionTheme.fg)
+				Text(verbatim: "\(version.t) · \(version.z.map(StoreFormat.bytes) ?? "–")" + (version.min.map { " · iOS \($0)+" } ?? ""))
+					.foregroundStyle(AccretionTheme.muted)
+				if let url = URL(string: version.url) {
+					Button {
+						guard _needsAccount() else { return }
+						Task {
+							let link = isLatest ? await _resolved(url) : url
+							_ = DownloadManager.shared.startDownload(from: link)
+							_show(String.localized("Downloading to your Library"))
+						}
+					} label: {
+						Text(verbatim: String.localized("Download")).underline()
+					}
+					.buttonStyle(.plain)
+					.foregroundStyle(AccretionTheme.accent2)
+				}
+			}
+			.font(.accretionMono(13, weight: .regular))
+			if let notes = version.notes, !notes.isEmpty, !isLatest {
+				Text(verbatim: notes)
+					.font(.system(size: 13))
+					.foregroundStyle(AccretionTheme.muted)
+					.fixedSize(horizontal: false, vertical: true)
+			}
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
-		.padding(10)
-		.accretionCard()
+		.padding(.vertical, 10)
+		.padding(.horizontal, 12)
+		.background(AccretionTheme.raised, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 	}
 
-	private func _fact(_ label: String, _ value: String) -> some View {
-		HStack {
-			Text(verbatim: label).foregroundStyle(AccretionTheme.muted)
-			Spacer()
-			Text(verbatim: value).foregroundStyle(AccretionTheme.fg).lineLimit(1)
+	// MARK: Comments
+	private func _comments() -> some View {
+		AccretionSection(String.localized("Comments") + ((_social?.comments ?? 0) > 0 ? " · \(_social?.comments ?? 0)" : "")) {
+			if _account.isSignedIn {
+				_composer()
+			} else {
+				AccretionFlow(spacing: 10) {
+					Text(verbatim: String.localized("Join the conversation."))
+						.foregroundStyle(AccretionTheme.fg)
+					Button(String.localized("Sign in or create an account")) { _isSigningIn = true }
+						.buttonStyle(AccretionButtonStyle())
+				}
+				.padding(12)
+				.frame(maxWidth: .infinity, alignment: .leading)
+				.background(AccretionTheme.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+				.overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+				.padding(.top, 2)
+				.padding(.bottom, 6)
+			}
+
+			if let posts = _posts {
+				let top = posts.filter { $0.parent_id == nil }.reversed()
+				if top.isEmpty {
+					Text(verbatim: String.localized("No comments yet. Be the first."))
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.muted)
+						.padding(.vertical, 12)
+						.padding(.horizontal, 4)
+				} else {
+					ForEach(Array(top)) { post in
+						_post(post)
+						ForEach(posts.filter { $0.parent_id == post.id }) { reply in
+							_post(reply).padding(.leading, 48)
+						}
+					}
+				}
+			}
 		}
-		.font(.subheadline)
 	}
 
-	private func _section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-		VStack(alignment: .leading, spacing: 8) {
-			Text(verbatim: title).font(.accretionDisplay(18)).foregroundStyle(AccretionTheme.fg)
-			content()
+	private func _composer() -> some View {
+		HStack(alignment: .top, spacing: 12) {
+			_avatar(name: _account.email ?? "?", color: nil)
+			VStack(alignment: .leading, spacing: 8) {
+				if let reply = _replyTo {
+					HStack {
+						Text(verbatim: String.localized("Replying to @%@", arguments: reply.username))
+							.font(.system(size: 13))
+							.foregroundStyle(AccretionTheme.muted)
+						Spacer()
+						Button(String.localized("Cancel")) { _replyTo = nil }
+							.font(.system(size: 13))
+							.foregroundStyle(AccretionTheme.accent2)
+					}
+				}
+				TextField(String.localized("Say something about %@…", arguments: app.n), text: $_draft, axis: .vertical)
+					.lineLimit(2...6)
+					.foregroundStyle(AccretionTheme.fg)
+				HStack {
+					Text(verbatim: "\(_draft.count)/2000")
+						.font(.accretionMono(11, weight: .regular))
+						.foregroundStyle(AccretionTheme.muted)
+					Spacer()
+					Button(String.localized("Post")) { _submit() }
+						.buttonStyle(AccretionButtonStyle(compact: true))
+						.disabled(_isPosting || _draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || _draft.count > 2000)
+				}
+			}
 		}
+		.padding(12)
+		.background(AccretionTheme.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+		.overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+		.padding(.top, 2)
+		.padding(.bottom, 6)
+	}
+
+	private func _post(_ post: AccretionAccount.Post) -> some View {
+		HStack(alignment: .top, spacing: 12) {
+			_avatar(name: post.display_name ?? post.username, color: post.color)
+			VStack(alignment: .leading, spacing: 4) {
+				AccretionFlow(spacing: 6) {
+					Text(verbatim: post.display_name?.isEmpty == false ? post.display_name! : post.username)
+						.font(.system(size: 14, weight: .semibold))
+						.foregroundStyle(AccretionTheme.fg)
+					Text(verbatim: "@\(post.username)")
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.muted)
+					if let role = post.role, role == "admin" || role == "mod" {
+						AccretionBadge(text: role, color: role == "admin" ? Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255) : AccretionTheme.good)
+					}
+					Text(verbatim: "· " + StoreFormat.ago(post.created_at))
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.muted)
+				}
+				Text(verbatim: post.body)
+					.foregroundStyle(AccretionTheme.fg)
+					.fixedSize(horizontal: false, vertical: true)
+				if post.parent_id == nil {
+					Button(String.localized("Reply")) {
+						guard _needsAccount() else { return }
+						_replyTo = post
+					}
+					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+				}
+			}
+			.frame(maxWidth: .infinity, alignment: .leading)
+		}
+		.padding(.vertical, 12)
+		.padding(.horizontal, 4)
+	}
+
+	private func _avatar(name: String, color: String?) -> some View {
+		let hex = color.flatMap { UInt32($0, radix: 16) } ?? 0x8B5CF6
+		let fill = Color(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
+		return Text(verbatim: String(name.prefix(1)).uppercased())
+			.font(.accretionDisplay(15))
+			.foregroundStyle(Color.white)
+			.frame(width: 36, height: 36)
+			.background(fill, in: Circle())
+	}
+
+	// MARK: Actions
+	private func _loadCommunity() async {
+		do {
+			_social = try await _account.appSocial(app.i)
+			_socialError = nil
+		} catch {
+			_socialError = error.localizedDescription
+		}
+		_posts = (try? await _account.thread(app.i)) ?? []
+	}
+
+	private func _submit() {
+		let body = _draft.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !body.isEmpty else { return }
+		_isPosting = true
+		Task {
+			defer { _isPosting = false }
+			do {
+				try await _account.comment(on: app.i, body: body, replyTo: _replyTo?.id)
+				_draft = ""
+				_replyTo = nil
+				await _loadCommunity()
+			} catch {
+				_show(error.localizedDescription)
+			}
+		}
+	}
+
+	/// Downloads need an Accretion account, like on the web store
+	private func _needsAccount() -> Bool {
+		guard _account.isSignedIn else {
+			_isSigningIn = true
+			return false
+		}
+		return true
+	}
+
+	private func _resolved(_ url: URL) async -> URL {
+		await _account.downloadURL(for: app.i, fallback: url)
+	}
+
+	private func _show(_ message: String) {
+		withAnimation { _toast = message }
+		Task {
+			try? await Task.sleep(nanoseconds: 2_200_000_000)
+			withAnimation { if _toast == message { _toast = nil } }
+		}
+	}
+
+	@ViewBuilder
+	private func _toastView() -> some View {
+		if let toast = _toast {
+			Text(verbatim: toast)
+				.font(.system(size: 14, weight: .semibold))
+				.foregroundStyle(AccretionTheme.fg)
+				.padding(.horizontal, 16)
+				.padding(.vertical, 10)
+				.background(AccretionTheme.raised, in: Capsule())
+				.overlay(Capsule().stroke(AccretionTheme.line, lineWidth: 1))
+				.padding(.bottom, 24)
+				.transition(.move(edge: .bottom).combined(with: .opacity))
+		}
+	}
+}
+
+// MARK: - App lists ("See all", a developer's apps, saved apps)
+struct StoreListRoute: Hashable {
+	let title: String
+	var category: String?
+	var developer: String?
+	/// A fixed list (a shelf's full contents), in order
+	var ids: [String]?
+	var saved = false
+}
+
+/// A full list of apps in the web store's card style, for "See all" and developer links.
+struct StoreListView: View {
+	@ObservedObject private var _store = StoreService.shared
+	let route: StoreListRoute
+	@State private var _shown = 60
+
+	private var _apps: [StoreApp] {
+		let all = _store.index?.apps ?? []
+		if let ids = route.ids {
+			let byID = Dictionary(all.map { ($0.i, $0) }, uniquingKeysWith: { first, _ in first })
+			return ids.compactMap { byID[$0] }
+		}
+		return _store.sorted(
+			all
+				.filter { route.category == nil || $0.c == route.category }
+				.filter { route.developer == nil || $0.d == route.developer }
+				.filter { !route.saved || _store.isSaved($0) },
+			by: .updated
+		)
+	}
+
+	var body: some View {
+		ScrollView {
+			LazyVStack(alignment: .leading, spacing: 12) {
+				AccretionBackButton()
+				HStack(alignment: .firstTextBaseline) {
+					Text(verbatim: route.title)
+						.font(.accretionDisplay(20))
+						.foregroundStyle(AccretionTheme.fg)
+					Spacer()
+				}
+				.padding(.top, 6)
+				Text(verbatim: String.localized("%@ apps", arguments: _apps.count.formatted()))
+					.font(.accretionMono(12, weight: .regular))
+					.foregroundStyle(AccretionTheme.muted)
+				ForEach(_apps.prefix(_shown)) { app in
+					NavigationLink(value: app) { StoreAppCard(app: app) }
+						.buttonStyle(.plain)
+				}
+				if _apps.count > _shown {
+					Button(String.localized("Show more")) { _shown += 60 }
+						.buttonStyle(AccretionButtonStyle(prominent: false))
+						.frame(maxWidth: .infinity)
+				} else if _apps.isEmpty {
+					Text(verbatim: route.saved ? String.localized("Nothing saved yet. Tap Save on an app to keep it here.") : String.localized("Nothing here yet."))
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.muted)
+				}
+			}
+			.padding(.horizontal, 16)
+			.padding(.top, 8)
+			.padding(.bottom, 40)
+		}
+		.accretionBackground()
+		.toolbar(.hidden, for: .navigationBar)
 	}
 }

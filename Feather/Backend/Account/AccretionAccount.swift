@@ -17,6 +17,8 @@ final class AccretionAccount: ObservableObject {
 	static let shared = AccretionAccount()
 
 	@Published private(set) var email: String?
+	/// The signed-in user's id, for the community tables' `user_id` columns
+	private(set) var userID: String?
 	var isSignedIn: Bool { email != nil }
 
 	struct Backup: Decodable, Identifiable {
@@ -47,6 +49,7 @@ final class AccretionAccount: ObservableObject {
 
 	private init() {
 		email = _Keychain.read("email")
+		userID = _Keychain.read("uid")
 	}
 
 	// MARK: Config
@@ -77,6 +80,8 @@ final class AccretionAccount: ObservableObject {
 
 	func signOut() {
 		_downloadKey = nil
+		userID = nil
+		_Keychain.delete("uid")
 		email = nil
 		_accessToken = nil
 		_expiresAt = .distantPast
@@ -102,6 +107,10 @@ final class AccretionAccount: ObservableObject {
 		_accessToken = access
 		_expiresAt = Date().addingTimeInterval(TimeInterval((json["expires_in"] as? Int) ?? 3600) - 60)
 		if let refresh = json["refresh_token"] as? String { _Keychain.write(refresh, for: "refresh") }
+		if let user = json["user"] as? [String: Any], let id = user["id"] as? String {
+			userID = id
+			_Keychain.write(id, for: "uid")
+		}
 	}
 
 	/// A valid access token, refreshed with the saved refresh token when needed.
@@ -114,13 +123,17 @@ final class AccretionAccount: ObservableObject {
 	}
 
 	// MARK: Table
-	private func _rest(_ path: String, method: String = "GET", body: Any? = nil) async throws -> Data {
+	/// `anonymous` reads public tables (stats, comments) without an account.
+	private func _rest(_ path: String, method: String = "GET", body: Any? = nil, prefer: String? = nil, anonymous: Bool = false) async throws -> Data {
 		let config = try await _configuration()
 		var request = URLRequest(url: URL(string: config.url.absoluteString + "/rest/v1/" + path)!)
 		request.httpMethod = method
 		request.setValue(config.key, forHTTPHeaderField: "apikey")
-		request.setValue("Bearer \(try await _bearer())", forHTTPHeaderField: "Authorization")
+		let token: String
+		if anonymous && !isSignedIn { token = config.key } else { token = try await _bearer() }
+		request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+		if let prefer { request.setValue(prefer, forHTTPHeaderField: "Prefer") }
 		if let body { request.httpBody = try JSONSerialization.data(withJSONObject: body) }
 		let (data, response) = try await URLSession.shared.data(for: request)
 		guard let status = (response as? HTTPURLResponse)?.statusCode, (200..<300).contains(status) else {
@@ -137,6 +150,90 @@ final class AccretionAccount: ObservableObject {
 
 	func deleteBackup(_ id: String) async throws {
 		_ = try await _rest("certificate_backups?id=eq.\(id)", method: "DELETE")
+	}
+
+	// MARK: Community (the web store's likes, ratings and comments)
+	struct AppSocial {
+		var likes = 0
+		var ratings = 0
+		var average: Double?
+		var comments = 0
+		var liked = false
+		var stars = 0
+	}
+
+	struct Post: Decodable, Identifiable {
+		let id: Int
+		let parent_id: Int?
+		let body: String
+		let created_at: String
+		let username: String
+		let display_name: String?
+		let color: String?
+		let role: String?
+		let likes: Int?
+		let replies: Int?
+	}
+
+	private static func _quoted(_ value: String) -> String {
+		value.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: ".-_"))) ?? value
+	}
+
+	func appSocial(_ appID: String) async throws -> AppSocial {
+		let id = Self._quoted(appID)
+		var social = AppSocial()
+		let statsData = try await _rest("app_stats?select=*&app_id=eq.\(id)", anonymous: true)
+		if let row = ((try? JSONSerialization.jsonObject(with: statsData)) as? [[String: Any]])?.first {
+			social.likes = row["likes"] as? Int ?? 0
+			social.ratings = row["ratings"] as? Int ?? 0
+			social.comments = row["comments"] as? Int ?? 0
+			social.average = (row["avg_rating"] as? Double) ?? (row["avg_rating"] as? String).flatMap(Double.init)
+		}
+		if isSignedIn, let uid = userID {
+			let liked = try await _rest("app_likes?select=app_id&app_id=eq.\(id)&user_id=eq.\(uid)")
+			social.liked = !(((try? JSONSerialization.jsonObject(with: liked)) as? [Any]) ?? []).isEmpty
+			let rated = try await _rest("app_ratings?select=stars&app_id=eq.\(id)&user_id=eq.\(uid)")
+			social.stars = (((try? JSONSerialization.jsonObject(with: rated)) as? [[String: Any]])?.first?["stars"] as? Int) ?? 0
+		}
+		return social
+	}
+
+	/// The user id, refreshing the session first when it isn't known yet (sign-ins from 1.0.0)
+	private func _uid() async throws -> String {
+		if userID == nil { _ = try await _bearer() }
+		guard let uid = userID else { throw AccountError.notSignedIn }
+		return uid
+	}
+
+	func likeApp(_ appID: String, _ on: Bool) async throws {
+		let uid = try await _uid()
+		if on {
+			_ = try await _rest("app_likes", method: "POST", body: ["app_id": appID], prefer: "return=minimal")
+		} else {
+			_ = try await _rest("app_likes?app_id=eq.\(Self._quoted(appID))&user_id=eq.\(uid)", method: "DELETE")
+		}
+	}
+
+	func rateApp(_ appID: String, stars: Int) async throws {
+		let uid = try await _uid()
+		_ = try await _rest(
+			"app_ratings",
+			method: "POST",
+			body: ["app_id": appID, "user_id": uid, "stars": stars],
+			prefer: "resolution=merge-duplicates,return=minimal"
+		)
+	}
+
+	func thread(_ appID: String) async throws -> [Post] {
+		let columns = "id,parent_id,body,created_at,username,display_name,color,role,likes,replies"
+		let data = try await _rest("post_feed?select=\(columns)&app_id=eq.\(Self._quoted(appID))&order=created_at.asc&limit=500", anonymous: true)
+		return try JSONDecoder().decode([Post].self, from: data)
+	}
+
+	func comment(on appID: String, body: String, replyTo parent: Int? = nil) async throws {
+		var row: [String: Any] = ["body": body, "app_id": appID]
+		if let parent { row["parent_id"] = parent }
+		_ = try await _rest("posts", method: "POST", body: row, prefer: "return=minimal")
 	}
 
 	// MARK: Downloads

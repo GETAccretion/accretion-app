@@ -29,30 +29,28 @@ struct DiscoverView: View {
 	var body: some View {
 		NavigationStack(path: $_path) {
 			ScrollView {
-				LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-					Section {
-						VStack(alignment: .leading, spacing: 0) {
-							if _store.index == nil {
-								_placeholder()
-							} else {
-								if !_isBrowsing {
-									_hero()
-									ForEach(_store.shelves(onlyFitting: _onlyFitting)) { shelf in
-										StoreShelfView(shelf: shelf)
-											.padding(.top, 8)
-											.padding(.bottom, 18)
-									}
-								}
-								_all()
+				LazyVStack(alignment: .leading, spacing: 0) {
+					if _store.index == nil {
+						_placeholder()
+					} else {
+						if !_isBrowsing {
+							_hero()
+							ForEach(_store.shelves(onlyFitting: _onlyFitting)) { shelf in
+								StoreShelfView(shelf: shelf)
+									.padding(.top, 8)
+									.padding(.bottom, 18)
 							}
 						}
-						.padding(.horizontal, 16)
-						.padding(.bottom, 40)
-					} header: {
-						_topBar()
+						_all()
 					}
 				}
+				.padding(.horizontal, 16)
+				.padding(.bottom, 40)
 			}
+			.scrollDismissesKeyboard(.immediately)
+			// the sticky bar sits outside the scroll view, so content scrolls under it and never
+			// shows through the status bar
+			.safeAreaInset(edge: .top, spacing: 0) { _topBar() }
 			.accretionBackground()
 			.refreshable { await _store.load(force: true) }
 			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
@@ -91,8 +89,10 @@ struct DiscoverView: View {
 		.padding(.horizontal, 16)
 		.padding(.top, 10)
 		.padding(.bottom, 10)
-		.background(.ultraThinMaterial)
-		.background(AccretionTheme.bg.opacity(0.78))
+		.background {
+			// solid store background (a material turns grey over the dark page), up under the clock
+			AccretionTheme.bg.opacity(0.96).ignoresSafeArea(edges: .top)
+		}
 		.overlay(alignment: .bottom) { AccretionTheme.line.frame(height: 1) }
 	}
 
@@ -101,7 +101,9 @@ struct DiscoverView: View {
 			Image(systemName: "magnifyingglass")
 				.font(.system(size: 15))
 				.foregroundStyle(AccretionTheme.muted)
-			TextField(String.localized("Search apps, developers, bundle IDs"), text: $_query)
+			TextField(String.localized("Search apps, developers, IDs"), text: $_query)
+				.font(.system(size: 15))
+				.submitLabel(.search)
 				.textInputAutocapitalization(.never)
 				.autocorrectionDisabled()
 				.foregroundStyle(AccretionTheme.fg)
@@ -385,7 +387,9 @@ struct StoreShelfView: View {
 								_page(start).frame(width: geo.size.width * 0.88)
 							}
 						}
+						.modifier(_SnapTargets())
 					}
+					.modifier(_SnapPaging())
 				}
 				.frame(height: CGFloat(min(shelf.apps.count, Self.perPage)) * 64)
 			} else {
@@ -403,6 +407,19 @@ struct StoreShelfView: View {
 				.buttonStyle(.plain)
 			}
 		}
+	}
+}
+
+/// Shelves stop on a page instead of halfway (iOS 17+, like the web store's scroll snap)
+private struct _SnapTargets: ViewModifier {
+	func body(content: Content) -> some View {
+		if #available(iOS 17.0, *) { content.scrollTargetLayout() } else { content }
+	}
+}
+
+private struct _SnapPaging: ViewModifier {
+	func body(content: Content) -> some View {
+		if #available(iOS 17.0, *) { content.scrollTargetBehavior(.viewAligned) } else { content }
 	}
 }
 

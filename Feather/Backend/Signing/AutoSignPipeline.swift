@@ -26,7 +26,7 @@ final class AutoSignPipeline: ObservableObject {
 	private func _keepRunningInBackground(_ running: Bool) {
 		if running, _backgroundTask == .invalid {
 			_backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Accretion signing") { [weak self] in
-				self?._keepRunningInBackground(false)
+				Task { @MainActor in self?._keepRunningInBackground(false) }
 			}
 		} else if !running, _backgroundTask != .invalid {
 			UIApplication.shared.endBackgroundTask(_backgroundTask)

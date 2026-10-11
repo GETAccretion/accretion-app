@@ -185,7 +185,25 @@ enum FR {
 		}
 	}
 	
+	/// Accretion: apps allowed to receive a certificate through export-certificate. A web link
+	/// could otherwise send the .p12 and its password to any website.
+	static let certificateExportSchemes: Set<String> = ["livecontainer", "sidestore"]
+
 	static func exportCertificateAndOpenUrl(using template: String) {
+		// Accretion: only to known apps, never to a website or an unknown scheme
+		guard
+			let scheme = URLComponents(string: template.components(separatedBy: "$(").first ?? template)?.scheme?.lowercased()
+				?? template.components(separatedBy: ":").first?.lowercased(),
+			certificateExportSchemes.contains(scheme)
+		else {
+			UIAlertController.showAlertWithOk(
+				title: .localized("Export blocked"),
+				message: .localized("A link asked Accretion to send your certificate to an app or website it doesn't know. Nothing was sent.")
+			)
+			return
+		}
+		let destination = scheme == "livecontainer" ? "LiveContainer" : "SideStore"
+
 		// Helper that performs the export for a given certificate
 		func performExport(for certificate: CertificatePair) {
 			guard
@@ -206,7 +224,7 @@ enum FR {
 			
 			let urlStr = template
 				.replacingOccurrences(of: "$(BASE64_CERT)", with: encodedCert)
-				.replacingOccurrences(of: "$(PASSWORD)", with: certificate.password ?? "")
+				.replacingOccurrences(of: "$(PASSWORD)", with: (certificate.password ?? "").addingPercentEncoding(withAllowedCharacters: allowedQueryParamAndKey) ?? "")
 			
 			guard let callbackUrl = URL(string: urlStr) else {
 				return
@@ -239,7 +257,7 @@ enum FR {
 			
 			UIAlertController.showAlertWithCancel(
 				title: .localized("Export Certificate"),
-				message: .localized("Do you want to export your certificate to an external app? That app will be able to sign apps using your certificate."),
+				message: String.localized("Send your certificate and its password to %@? That app will be able to sign apps with your certificate. Only continue if you opened this from %@ yourself.", arguments: destination, destination),
 				style: .alert,
 				actions: selectionActions
 			)

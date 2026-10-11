@@ -109,17 +109,27 @@ struct FeatherApp: App {
 					return
 				}
 				
-				FR.handleCertificateFiles(
-					p12URL: p12URL,
-					provisionURL: provisionURL,
-					p12Password: password
-				) { error in
-					if let error = error {
-						UIAlertController.showAlertWithOk(title: .localized("Error"), message: error.localizedDescription)
-					} else {
-						generator.notificationOccurred(.success)
-					}
-				}
+				// Accretion: a link must not add a certificate without asking
+				let profileName = CertificateReader(provisionURL).decoded?.Name ?? String.localized("Unknown")
+				UIAlertController.showAlertWithCancel(
+					title: .localized("Add certificate?"),
+					message: String.localized("A link wants to add the certificate \"%@\" to Accretion. Only add it if you started this yourself, for example from Sign your own apps.", arguments: profileName),
+					actions: [
+						UIAlertAction(title: .localized("Add"), style: .default) { _ in
+							FR.handleCertificateFiles(
+								p12URL: p12URL,
+								provisionURL: provisionURL,
+								p12Password: password
+							) { error in
+								if let error = error {
+									UIAlertController.showAlertWithOk(title: .localized("Error"), message: error.localizedDescription)
+								} else {
+									generator.notificationOccurred(.success)
+								}
+							}
+						}
+					]
+				)
 				
 				return
 			}
@@ -142,7 +152,12 @@ struct FeatherApp: App {
 			}
 			/// feather://source/<url>
 			if let fullPath = url.validatedScheme(after: "/source/") {
-				FR.handleSource(fullPath) { }
+				// Accretion: sources feed automatic updates, so a link must not add one silently
+				UIAlertController.showAlertWithCancel(
+					title: .localized("Add source?"),
+					message: String.localized("A link wants to add this source. Its apps will appear in Accretion and can update apps you install from it.") + "\n\n" + fullPath,
+					actions: [UIAlertAction(title: .localized("Add"), style: .default) { _ in FR.handleSource(fullPath) { } }]
+				)
 			}
 			/// feather://install/<url.ipa>
 			if

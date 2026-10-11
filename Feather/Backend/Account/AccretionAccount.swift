@@ -574,31 +574,43 @@ private final class _WebSignIn: NSObject, ASWebAuthenticationPresentationContext
 // MARK: - Sealing
 /// AES-GCM with a 256-bit key from PBKDF2-SHA256 over the passphrase and a random salt.
 enum CertificateSeal {
-	static let defaultRounds = 210_000
+	/// OWASP's current guidance for PBKDF2-HMAC-SHA256. Backups made by 1.0.0–1.0.6 used 210,000
+	/// and still open: the round count is stored with each backup.
+	static let defaultRounds = 600_000
+	/// What open() accepts from a stored backup, so a tampered row can't force a weak or huge count
+	static let acceptedRounds = 100_000...10_000_000
 
 	static func seal(_ data: Data, passphrase: String, rounds: Int = defaultRounds) throws -> (payload: String, salt: String, rounds: Int) {
 		var salt = Data(count: 16)
-		_ = salt.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
-		let key = _key(passphrase, salt: salt, rounds: rounds)
-		guard let combined = try AES.GCM.seal(data, using: key).combined else { throw AccretionAccount.AccountError.wrongPassphrase }
+		let status = salt.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
+		guard status == errSecSuccess else { throw AccretionAccount.AccountError.server(String.localized("Couldn't secure the backup.")) }
+		guard let key = _key(passphrase, salt: salt, rounds: rounds),
+			  let combined = try AES.GCM.seal(data, using: key).combined
+		else {
+			throw AccretionAccount.AccountError.server(String.localized("Couldn't secure the backup."))
+		}
 		return (combined.base64EncodedString(), salt.base64EncodedString(), rounds)
 	}
 
 	static func open(_ payload: String, salt: String, rounds: Int, passphrase: String) -> Data? {
 		guard
+			acceptedRounds.contains(rounds),
 			let combined = Data(base64Encoded: payload),
-			let saltData = Data(base64Encoded: salt),
-			let box = try? AES.GCM.SealedBox(combined: combined)
+			let saltData = Data(base64Encoded: salt), saltData.count >= 16,
+			let box = try? AES.GCM.SealedBox(combined: combined),
+			let key = _key(passphrase, salt: saltData, rounds: rounds)
 		else {
 			return nil
 		}
-		return try? AES.GCM.open(box, using: _key(passphrase, salt: saltData, rounds: rounds))
+		return try? AES.GCM.open(box, using: key)
 	}
 
-	private static func _key(_ passphrase: String, salt: Data, rounds: Int) -> SymmetricKey {
+	/// nil when derivation fails, so a failure can never silently become an all-zero key
+	private static func _key(_ passphrase: String, salt: Data, rounds: Int) -> SymmetricKey? {
+		guard rounds > 0, rounds <= Int(UInt32.max), !salt.isEmpty else { return nil }
 		var derived = Data(count: 32)
 		let password = Array(passphrase.utf8)
-		_ = derived.withUnsafeMutableBytes { out in
+		let status = derived.withUnsafeMutableBytes { out in
 			salt.withUnsafeBytes { saltBytes in
 				CCKeyDerivationPBKDF(
 					CCPBKDFAlgorithm(kCCPBKDF2),
@@ -609,6 +621,7 @@ enum CertificateSeal {
 				)
 			}
 		}
+		guard status == kCCSuccess else { return nil }
 		return SymmetricKey(data: derived)
 	}
 }

@@ -32,7 +32,7 @@ struct FeatherApp: App {
 			}
 			.animation(.smooth, value: downloadManager.manualDownloads.description)
 			.sheet(item: $pipeline.pendingInstall) { app in
-				InstallPreviewView(app: app.base, isSharing: false)
+				InstallPreviewView(app: app.base, isSharing: app.archive)
 					.presentationDetents([.height(200)])
 					.presentationDragIndicator(.visible)
 			}

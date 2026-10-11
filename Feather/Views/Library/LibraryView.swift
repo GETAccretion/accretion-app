@@ -19,6 +19,7 @@ struct LibraryView: View {
 	@State private var _selectedSigningAppPresenting: AnyApp?
 	@State private var _selectedInstallAppPresenting: AnyApp?
 	@State private var _isImportingPresenting = false
+	@State private var _isInjectingPresenting = false // Accretion: Inject Tweaks
 	@State private var _isDownloadingPresenting = false
 	@State private var _alertDownloadString: String = "" // for _isDownloadingPresenting
 	@State private var _updateCheckRotation = 0.0
@@ -191,6 +192,11 @@ struct LibraryView: View {
 								Label(.localized("Re-sign All"), systemImage: "signature")
 							}
 							.disabled(_signedApps.isEmpty)
+							Button {
+								_isInjectingPresenting = true
+							} label: {
+								Label(.localized("Inject Tweaks"), systemImage: "syringe")
+							}
 						} label: {
 							Image(systemName: "wand.and.stars")
 						}
@@ -234,6 +240,9 @@ struct LibraryView: View {
 			.fullScreenCover(item: $_selectedSigningAppPresenting) { app in
 				SigningView(app: app.base)
 					.compatNavigationTransition(id: app.base.uuid ?? "", ns: _namespace)
+			}
+			.sheet(isPresented: $_isInjectingPresenting) {
+				InjectView() // Accretion
 			}
 			.sheet(isPresented: $_isImportingPresenting) {
 				FileImporterRepresentableView(

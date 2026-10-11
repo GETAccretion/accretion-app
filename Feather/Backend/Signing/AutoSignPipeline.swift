@@ -212,6 +212,52 @@ final class AutoSignPipeline: ObservableObject {
 		return Storage.shared.getProvisionFileDecoded(for: cert)?.TeamIdentifier.first
 	}
 
+	// MARK: Inject (Library → ✨ → Inject Tweaks)
+	/// Injects tweaks into an imported, decrypted app. Signs it with the selected certificate and
+	/// opens the install screen, or with `exportOnly` only modifies it (no certificate needed) and
+	/// opens the share sheet with the modded IPA for another signer.
+	func inject(_ app: Imported, options: Options, remember: Bool, exportOnly: Bool) {
+		guard !isRunning else { return }
+		Task {
+			status = String.localized("Injecting into %@…", arguments: app.name ?? "")
+			let started = Date().addingTimeInterval(-1)
+			do {
+				var options = options
+				options.post_installAppAfterSigned = false
+				options.post_deleteAppAfterSigned = false // keep the original to inject into again
+				if exportOnly {
+					options.signingOption = .onlyModify
+					if let problem = Preflight.problems(for: app, certificate: nil, options: options).first(where: \.isBlocking) {
+						throw PipelineError.blocked("\(problem.title). \(problem.message)")
+					}
+					try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+						FR.signPackageFile(app, using: options, icon: nil, certificate: nil) { error in
+							if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+						}
+					}
+				} else {
+					options.signingOption = .default
+					try await _sign(app, replacing: [], updating: nil, optionsOverride: options)
+				}
+				if remember {
+					options.signingOption = .default
+					RecipeStore.save(options: options, icon: nil, for: app)
+				}
+				status = nil
+				let request: NSFetchRequest<Signed> = Signed.fetchRequest()
+				request.predicate = NSPredicate(format: "date >= %@", started as NSDate)
+				request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+				request.fetchLimit = 1
+				if let result = (try? Storage.shared.context.fetch(request))?.first {
+					pendingInstall = AnyApp(base: result, archive: exportOnly)
+				}
+			} catch {
+				status = nil
+				UIAlertController.showAlertWithOk(title: String.localized("Couldn't inject"), message: InstallErrorText.describe(error))
+			}
+		}
+	}
+
 	// MARK: Steps
 	private func _download(_ url: URL) async throws -> URL {
 		let (temp, response) = try await URLSession.shared.download(from: url)
@@ -244,7 +290,8 @@ final class AutoSignPipeline: ObservableObject {
 		replacing old: [AppInfoPresentable],
 		updating installed: Signed?,
 		preferInstalledCertificate: Bool = false,
-		requireSameTeam: Bool = true
+		requireSameTeam: Bool = true,
+		optionsOverride: Options? = nil
 	) async throws -> Bool {
 		// updates keep the certificate the installed copy was signed with while it's still good
 		let preferred = preferInstalledCertificate ? _usableCertificate(installed?.certificate) : nil
@@ -257,8 +304,8 @@ final class AutoSignPipeline: ObservableObject {
 		}
 
 		let base = OptionsManager.shared.options
-		let recipe = RecipeStore.load(for: app, base: base)
-		var options = recipe?.options ?? base
+		let recipe = optionsOverride == nil ? RecipeStore.load(for: app, base: base) : nil
+		var options = optionsOverride ?? recipe?.options ?? base
 		let icon = recipe?.icon
 		var kind = CertificateSlots.kind(of: cert)
 		// several profiles: this app keeps its own, so its bundle ID (and in-place updates) stay stable

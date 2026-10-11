@@ -105,7 +105,7 @@ struct InstallServerProbe {
 					: String.localized("%@ didn't answer: %@", arguments: components.url!.absoluteString, error.localizedDescription)
 			))
 		}
-		app.server.shutdown()
+		await app.server.shutdown()
 		app.shutdown()
 
 		// the most common non-server cause: Accretion holds the certificate's only app slot

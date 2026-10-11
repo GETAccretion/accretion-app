@@ -10,6 +10,7 @@ import SwiftUI
 /// Every row opens Feather's existing page for that setting, so nothing that works is rebuilt.
 struct AccretionSettingsView: View {
 	@AppStorage("feather.selectedCert") private var _storedSelectedCert: Int = 0
+	@ObservedObject private var _account = AccretionAccount.shared
 	@AppStorage(UpdateManager.autoCheckKey) private var _autoUpdateCheck: Bool = true
 	@AppStorage(UpdateManager.autoInstallKey) private var _autoInstallUpdates: Bool = false
 	@State private var _currentIcon: String? = UIApplication.shared.alternateIconName
@@ -29,6 +30,15 @@ struct AccretionSettingsView: View {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 22) {
 					_header()
+					
+					_group(String.localized("Account")) {
+						_link(
+							String.localized("Accretion Account"),
+							_account.email ?? String.localized("Sign in to back up your certificates"),
+							"person.crop.circle",
+							tint: AccretionTheme.accent2
+						) { AccretionAccountView() }
+					}
 
 					_group(String.localized("Signing")) {
 						_certificateRow()

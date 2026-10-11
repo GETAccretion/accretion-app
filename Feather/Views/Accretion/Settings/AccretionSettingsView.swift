@@ -11,6 +11,7 @@ import SwiftUI
 struct AccretionSettingsView: View {
 	@AppStorage("feather.selectedCert") private var _storedSelectedCert: Int = 0
 	@AppStorage(UpdateManager.autoCheckKey) private var _autoUpdateCheck: Bool = true
+	@AppStorage(UpdateManager.autoInstallKey) private var _autoInstallUpdates: Bool = false
 	@State private var _currentIcon: String? = UIApplication.shared.alternateIconName
 
 	@FetchRequest(
@@ -43,6 +44,8 @@ struct AccretionSettingsView: View {
 						_link(String.localized("Archive & Compression"), String.localized("How IPAs are packed"), "archivebox") { ArchiveView() }
 						_divider()
 						_toggle(String.localized("Check for Updates Automatically"), String.localized("Every source, at most once an hour"), "arrow.triangle.2.circlepath", $_autoUpdateCheck)
+						_divider()
+						_toggle(String.localized("Update Apps Automatically"), String.localized("Download and sign updates; you just tap Install"), "bolt.badge.automatic", $_autoInstallUpdates)
 					}
 
 					_group(String.localized("Look")) {

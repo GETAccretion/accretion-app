@@ -100,14 +100,59 @@ extension UpdateManager {
 		let signedRequest: NSFetchRequest<Signed> = Signed.fetchRequest()
 		let importedRequest: NSFetchRequest<Imported> = Imported.fetchRequest()
 		let sources = (try? context.fetch(sourceRequest)) ?? []
-		guard !sources.isEmpty else { return }
 		let localApps =
 			((try? context.fetch(signedRequest)) ?? []).map { $0 as AppInfoPresentable } +
 			((try? context.fetch(importedRequest)) ?? []).map { $0 as AppInfoPresentable }
-
-		await checkForUpdates(sources: sources, localApps: localApps)
-		_alertNewUpdates()
+		
+		if !sources.isEmpty {
+			await checkForUpdates(sources: sources, localApps: localApps)
+			// "Update apps automatically": download and sign right away, so only iOS's install
+			// prompt is left; signing replaces the old copies, so the same update won't repeat
+			if UserDefaults.standard.bool(forKey: Self.autoInstallKey), !updates.isEmpty {
+				AutoSignPipeline.shared.update(Array(updates.values))
+			} else {
+				_alertNewUpdates()
+			}
+		}
 		_recheckSelectedCertificate()
+		await _checkSelfUpdate()
+	}
+	
+	// MARK: Accretion's own updates
+	nonisolated static let autoInstallKey = "accretion.autoInstallUpdates"
+	private static let _selfAlertedKey = "accretion.alertedSelfUpdate"
+	private static let _selfSource = URL(string: "https://raw.githubusercontent.com/GETAccretion/accretion-app/main/app-repo.json")!
+	
+	/// Accretion can't install over itself with the server method, so a new version is announced
+	/// once with its download link; with the idevice method it can install itself directly.
+	private func _checkSelfUpdate() async {
+		guard
+			let response = try? await URLSession.shared.data(from: Self._selfSource),
+			let json = try? JSONSerialization.jsonObject(with: response.0) as? [String: Any],
+			let app = (json["apps"] as? [[String: Any]])?.first,
+			let latest = app["version"] as? String,
+			let link = (app["downloadURL"] as? String).flatMap(URL.init(string:)),
+			Self.isVersion(latest, newerThan: Bundle.main.version),
+			UserDefaults.standard.string(forKey: Self._selfAlertedKey) != latest,
+			UIApplication.topViewController() != nil
+		else {
+			return
+		}
+		UserDefaults.standard.set(latest, forKey: Self._selfAlertedKey)
+		
+		var actions = [UIAlertAction(title: String.localized("Get Update"), style: .default) { _ in
+			UIApplication.shared.open(link)
+		}]
+		if UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1 {
+			actions.insert(UIAlertAction(title: String.localized("Install Now"), style: .default) { _ in
+				AutoSignPipeline.shared.install(name: "Accretion", bundleID: Bundle.main.bundleIdentifier ?? "", downloadURL: link)
+			}, at: 0)
+		}
+		UIAlertController.showAlertWithCancel(
+			title: String.localized("Accretion %@ is available", arguments: latest),
+			message: String.localized("You have %@. Get Update opens the new IPA: install it with the tool you used for Accretion (for example your certificate seller's signer).", arguments: Bundle.main.version),
+			actions: actions
+		)
 	}
 
 	/// Re-asks OCSP about the certificate used for signing; warns once when it becomes revoked,

@@ -308,6 +308,7 @@ struct StoreAppCard: View {
 }
 
 // MARK: - Formatting (same wording as the web store)
+@MainActor
 enum StoreFormat {
 	static func since(_ app: StoreApp) -> String {
 		guard app.u == nil, let date = StoreService.day(app.t) else { return String.localized("date unknown") }

@@ -56,6 +56,11 @@ extension ServerInstaller {
 	}
 	
 	func tls() throws -> TLSConfiguration? {
+		try Self.tlsConfiguration()
+	}
+
+	/// Accretion: shared with the install server test (Settings → Installation)
+	static func tlsConfiguration() throws -> TLSConfiguration? {
 		guard
 			let crt = Self.getUrl("server", ext: "crt"),
 			let pem = Self.getUrl("server", ext: "pem")
@@ -74,6 +79,11 @@ extension ServerInstaller {
 	}
 	
 	func readCommonName() -> String? {
+		Self.installHostName()
+	}
+
+	/// Accretion: the host name Fully Local installs use (shared with the install server test)
+	static func installHostName() -> String? {
 		guard let url = Self.getUrl("commonName", ext: "txt") else {
 			return nil
 		}

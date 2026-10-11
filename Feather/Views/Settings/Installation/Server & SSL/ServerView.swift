@@ -71,6 +71,12 @@ struct ServerView: View {
 			}
 			
 			Section {
+				// Accretion: check the install server step by step on this network
+				NavigationLink {
+					InstallServerTestView().accretionList()
+				} label: {
+					Label(String.localized("Test Install Server"), systemImage: "stethoscope")
+				}
 				Button(.localized("Update SSL Certificates"), systemImage: "arrow.down.doc") {
 					FR.downloadSSLCertificates(from: _serverPackUrl) { success in
 						if success {

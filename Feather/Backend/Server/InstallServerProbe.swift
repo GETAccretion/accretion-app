@@ -46,6 +46,19 @@ struct InstallServerProbe {
 				return checks
 			}
 			host = name
+			// which certificate file the server uses and whether it carries the full chain
+			if let crt = ServerInstaller.getUrl("server", ext: "crt") {
+				let text = (try? String(contentsOf: crt, encoding: .utf8)) ?? ""
+				let count = text.components(separatedBy: "BEGIN CERTIFICATE").count - 1
+				let origin = crt.path.hasPrefix(URL.documentsDirectory.path) ? String.localized("saved copy") : String.localized("built into this version")
+				let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+				checks.append(.init(
+					state: count >= 2 ? .pass : .fail,
+					title: count >= 2 ? String.localized("Certificate chain complete") : String.localized("Certificate chain incomplete"),
+					detail: String.localized("%@ certificate(s), %@, Accretion %@.", arguments: String(count), origin, version)
+						+ (count >= 2 ? "" : " " + String.localized("Tap Update SSL Certificates, then test again."))
+				))
+			}
 			let addresses = _resolve(name)
 			if addresses.contains("127.0.0.1") {
 				checks.append(.init(state: .pass, title: String.localized("Name resolves to this iPhone"), detail: "\(name) → 127.0.0.1"))
@@ -89,7 +102,13 @@ struct InstallServerProbe {
 		do {
 			let (data, _) = try await session.data(from: components.url!)
 			if String(data: data, encoding: .utf8) == "ok" {
-				checks.append(.init(state: .pass, title: String.localized("Server answers"), detail: String.localized("%@ works, with a valid certificate.", arguments: components.url!.absoluteString)))
+				checks.append(.init(
+					state: .pass,
+					title: String.localized("Server answers"),
+					detail: fullyLocal
+						? String.localized("%@ works, with a valid certificate.", arguments: components.url!.absoluteString)
+						: String.localized("%@ works.", arguments: components.url!.absoluteString)
+				))
 			} else {
 				checks.append(.init(state: .fail, title: String.localized("Server answered oddly"), detail: String.localized("Something else answered on that address.")))
 			}
@@ -100,9 +119,10 @@ struct InstallServerProbe {
 			checks.append(.init(
 				state: .fail,
 				title: tlsProblem ? String.localized("Certificate rejected") : String.localized("Server can't be reached"),
-				detail: tlsProblem
+				detail: (tlsProblem
 					? String.localized("The install certificate is expired or invalid. Tap Update SSL Certificates, then test again.")
-					: String.localized("%@ didn't answer: %@", arguments: components.url!.absoluteString, error.localizedDescription)
+					: String.localized("%@ didn't answer.", arguments: components.url!.absoluteString))
+					+ "\n\n" + String.localized("Details: %@ (%@ %@)", arguments: error.localizedDescription, ns.domain, String(ns.code))
 			))
 		}
 		await app.server.shutdown()

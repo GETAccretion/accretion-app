@@ -461,6 +461,24 @@ final class AccretionAccount: ObservableObject {
 		return ids
 	}
 
+	/// The SHA-256 recorded when one of Accretion's own builds was published, for a download-server
+	/// link (the version in the link, or the newest; Accretion itself is always the newest). nil
+	/// for other links and for builds published before fingerprints existed.
+	func expectedSHA256(for url: URL, bundleID: String) async -> String? {
+		guard url.path.hasSuffix("/functions/v1/download"),
+			  let data = try? await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(bundleID))", anonymous: true),
+			  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+		else { return nil }
+		let builds = rows.compactMap { row -> (version: String, sha: String?)? in
+			guard let version = row["version"] as? String else { return nil }
+			return (version, row["sha256"] as? String)
+		}
+		let wanted = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "version" }?.value
+		let pick = wanted.flatMap { version in bundleID == "io.github.getaccretion.Accretion" ? nil : builds.first { $0.version == version } }
+			?? builds.max { UpdateManager.isVersion($1.version, newerThan: $0.version) }
+		return pick?.sha
+	}
+
 	/// Forget the personal key, e.g. after the server refused it because it was replaced on the website
 	func forgetDownloadKey() {
 		_downloadKey = nil

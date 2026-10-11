@@ -4,6 +4,7 @@
 //
 
 import CoreData
+import CryptoKit
 import Foundation
 import UIKit
 import Zsign
@@ -126,13 +127,24 @@ final class AutoSignPipeline: ObservableObject {
 		// Accretion: Accretion's own builds come from the store's download server. A refused key
 		// was probably replaced on the website, so fetch the current one and try once more.
 		let ipa: URL
+		var source = await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL)
 		do {
-			ipa = try await _download(await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL))
+			ipa = try await _download(source)
 		} catch PipelineError.unauthorized {
 			AccretionAccount.shared.forgetDownloadKey()
-			ipa = try await _download(await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL))
+			source = await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL)
+			ipa = try await _download(source)
 		}
 		defer { try? FileManager.default.removeItem(at: ipa) }
+		// Accretion's own builds: the file must match the fingerprint recorded when it was published
+		if let expected = await AccretionAccount.shared.expectedSHA256(for: source, bundleID: bundleID) {
+			let actual = try await Task.detached(priority: .userInitiated) {
+				SHA256.hash(data: try Data(contentsOf: ipa, options: .mappedIfSafe)).map { String(format: "%02x", $0) }.joined()
+			}.value
+			guard actual == expected else {
+				throw PipelineError.blocked(String.localized("The download doesn't match the published build, so it wasn't installed. Try again later."))
+			}
+		}
 		
 		let started = Date().addingTimeInterval(-1)
 		try await _import(ipa, provenance: provenance)

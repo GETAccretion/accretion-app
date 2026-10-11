@@ -315,6 +315,22 @@ final class StoreService: ObservableObject {
 					app.n.lowercased().contains(word) || app.d.lowercased().contains(word) || app.i.lowercased().contains(word)
 				}
 			}
-		return sorted(matches, by: sort)
+		guard let first = words.first else { return sorted(matches, by: sort) }
+		// like the website: names starting with the search first, then names containing it, then
+		// popularity, then the chosen sort
+		let ordered = sorted(matches, by: sort)
+		let rank: (StoreApp) -> Int = { app in
+			let name = app.n.lowercased()
+			return name.hasPrefix(first) ? 0 : name.contains(first) ? 1 : 2
+		}
+		return ordered.enumerated()
+			.sorted { lhs, rhs in
+				let (l, r) = (rank(lhs.element), rank(rhs.element))
+				if l != r { return l < r }
+				let (lp, rp) = (lhs.element.p ?? 0, rhs.element.p ?? 0)
+				if lp != rp { return lp > rp }
+				return lhs.offset < rhs.offset
+			}
+			.map(\.element)
 	}
 }

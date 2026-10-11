@@ -18,13 +18,15 @@ struct DiscoverView: View {
 	@AppStorage("accretion.discover.onlyFitting") private var _onlyFitting = true
 	@AppStorage("accretion.discover.sort") private var _sort: StoreService.Sort = .updated
 	@State private var _query = ""
+	/// What the list searches for: the typed text once typing pauses (150 ms, like the website)
+	@State private var _search = ""
 	@State private var _category: String?
 	@State private var _shown = 60
 	@State private var _isSigningIn = false
 	@State private var _isAddingSource = false
 	@State private var _path = NavigationPath()
 
-	private var _isBrowsing: Bool { !_query.isEmpty || _category != nil }
+	private var _isBrowsing: Bool { !_search.isEmpty || _category != nil }
 
 	var body: some View {
 		NavigationStack(path: $_path) {
@@ -59,6 +61,12 @@ struct DiscoverView: View {
 		}
 		.tint(AccretionTheme.accent)
 		.task { await _store.load() }
+		.task(id: _query) {
+			if !_query.isEmpty { try? await Task.sleep(nanoseconds: 150_000_000) }
+			guard !Task.isCancelled else { return }
+			_search = _query.trimmingCharacters(in: .whitespaces)
+			_shown = 60
+		}
 		.sheet(isPresented: $_isSigningIn) { NavigationStack { AccretionAccountView() } }
 		.sheet(isPresented: $_isAddingSource) { SourcesAddView() }
 	}
@@ -229,11 +237,11 @@ struct DiscoverView: View {
 	// MARK: All apps (.all): title, count, chips, iOS filter, sort, cards
 	@ViewBuilder
 	private func _all() -> some View {
-		let apps = _store.apps(matching: _query, category: _category, onlyFitting: _onlyFitting, sort: _sort)
+		let apps = _store.apps(matching: _search, category: _category, onlyFitting: _onlyFitting, sort: _sort)
 		VStack(alignment: .leading, spacing: 0) {
-			Text(verbatim: _query.isEmpty
+			Text(verbatim: _search.isEmpty
 				? (_category.flatMap { StoreService.categoryNames[$0] } ?? String.localized("All apps"))
-				: String.localized("Results for “%@”", arguments: _query))
+				: String.localized("Results for “%@”", arguments: _search))
 				.font(.accretionDisplay(20))
 				.foregroundStyle(AccretionTheme.fg)
 				.padding(.top, _isBrowsing ? 18 : 0)

@@ -28,6 +28,10 @@ struct StoreAppView: View {
 	@State private var _replyTo: AccretionAccount.Post?
 	@State private var _isPosting = false
 	@State private var _isLiking = false
+	/// Worked out once per page, not on every redraw (typing a comment redraws the page)
+	@State private var _sameDeveloper: [StoreApp] = []
+	@State private var _similar: [StoreApp] = []
+	@State private var _replies: [Int: [AccretionAccount.Post]] = [:]
 	@State private var _threadError: String?
 	@State private var _toast: String?
 
@@ -62,6 +66,9 @@ struct StoreAppView: View {
 		.overlay(alignment: .bottom) { _toastView() }
 		.task {
 			_store.markSeen(app)
+			let others = _store.index?.apps ?? []
+			_sameDeveloper = Array(others.filter { $0.d == app.d && $0.i != app.i }.sorted { $0.t > $1.t }.prefix(20))
+			_similar = Array(others.filter { $0.c == app.c && $0.i != app.i && $0.d != app.d && $0.c != "other" }.sorted { $0.t > $1.t }.prefix(20))
 			_detail = await _store.detail(for: app)
 			_detailLoaded = true
 		}
@@ -327,9 +334,8 @@ struct StoreAppView: View {
 			}
 		}
 
-		let others = _store.index?.apps ?? []
-		let sameDeveloper = others.filter { $0.d == app.d && $0.i != app.i }.sorted { $0.t > $1.t }
-		let similar = others.filter { $0.c == app.c && $0.i != app.i && $0.d != app.d && $0.c != "other" }.sorted { $0.t > $1.t }
+		let sameDeveloper = _sameDeveloper
+		let similar = _similar
 		if !sameDeveloper.isEmpty {
 			StoreShelfView(shelf: .init(id: "dev", title: String.localized("More from %@", arguments: app.d), note: nil, apps: Array(sameDeveloper.prefix(20))))
 				.padding(.top, 8)
@@ -473,7 +479,7 @@ struct StoreAppView: View {
 				} else {
 					ForEach(Array(top)) { post in
 						_post(post)
-						ForEach(posts.filter { $0.parent_id == post.id }) { reply in
+						ForEach(_replies[post.id] ?? []) { reply in
 							_post(reply).padding(.leading, 48)
 						}
 					}
@@ -576,7 +582,9 @@ struct StoreAppView: View {
 
 	private func _loadThread() async {
 		do {
-			_posts = try await _account.thread(app.i)
+			let posts = try await _account.thread(app.i)
+			_replies = Dictionary(grouping: posts.filter { $0.parent_id != nil }) { $0.parent_id ?? 0 }
+			_posts = posts
 			_threadError = nil
 		} catch {
 			_threadError = String.localized("Couldn't load comments: %@", arguments: error.localizedDescription)

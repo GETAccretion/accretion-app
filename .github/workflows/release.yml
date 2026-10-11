@@ -35,7 +35,7 @@ jobs:
       # derived data paths the Makefile builds from.
       - name: Resolve Swift packages
         run: |
-          for platform in iphoneos maccatalyst; do
+          for platform in iphoneos; do
             for attempt in 1 2 3; do
               if xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather \
                    -derivedDataPath "$TMPDIR/Feather/$platform" -skipPackagePluginValidation; then
@@ -54,7 +54,7 @@ jobs:
 
       - name: Get Version
         id: get_version
-        # read it from the .ipa: the Mac Catalyst build runs last and replaces _build
+        # read it from the .ipa
         run: |
           unzip -p packages/Accretion.ipa Payload/Accretion.app/Info.plist > "$RUNNER_TEMP/Info.plist"
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$RUNNER_TEMP/Info.plist")

@@ -26,6 +26,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: 'true'
+          fetch-depth: 0 # the whole history, so release notes can list the changes since the last tag
 
       - name: Prepare dependencies (Xcode)
         run: |
@@ -74,7 +75,10 @@ jobs:
           FN="https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/upload"
           SIZE=$(stat -f%z packages/Accretion.ipa)
           SHA=$(shasum -a 256 packages/Accretion.ipa | cut -d' ' -f1)
-          BODY=$(jq -n --arg v "$VERSION" --argjson s "$SIZE" --arg h "$SHA" '{bundle_id: "io.github.getaccretion.Accretion", version: $v, size: $s, sha256: $h}')
+          # What's new post: commit titles since the previous release, minus housekeeping
+          PREV=$(git describe --tags --abbrev=0 --match 'accretion-v*' "$GITHUB_SHA^" 2>/dev/null || true)
+          NOTES=$(git log --no-merges --format='• %s' ${PREV:+"$PREV..$GITHUB_SHA"} | grep -v -e '^• Version ' -e '^• Point app-repo' | head -25 || true)
+          BODY=$(jq -n --arg v "$VERSION" --argjson s "$SIZE" --arg h "$SHA" --arg n "$NOTES" '{bundle_id: "io.github.getaccretion.Accretion", version: $v, size: $s, sha256: $h, name: "Accretion", notes: $n}')
           SIGNED=$(curl -fsS -X POST "$FN" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY" | jq -r .signedUrl)
           curl -fsS -X PUT "$SIGNED" -H "Content-Type: application/octet-stream" --data-binary @packages/Accretion.ipa > /dev/null
           curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"

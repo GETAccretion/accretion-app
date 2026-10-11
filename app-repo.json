@@ -18,19 +18,19 @@
       "tintColor": "848ef9",
       "versions": [
         {
-          "version": "1.0.4",
-          "date": "2026-10-11T15:58:53Z",
-          "size": 15107629,
-          "downloadURL": "https://github.com/GETAccretion/accretion-app/releases/download/accretion-v1.0.4/Accretion.ipa",
+          "version": "1.0.5",
+          "date": "2026-10-11T16:38:32Z",
+          "size": 15158299,
+          "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.5",
           "minOSVersion": "16.0"
         }
       ],
       "appPermissions": {},
       "screenshots": [],
-      "version": "1.0.4",
-      "versionDate": "2026-10-11T15:58:53Z",
-      "downloadURL": "https://github.com/GETAccretion/accretion-app/releases/download/accretion-v1.0.4/Accretion.ipa",
-      "size": 15107629
+      "version": "1.0.5",
+      "versionDate": "2026-10-11T16:38:32Z",
+      "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.5",
+      "size": 15158299
     }
   ],
   "news": []

@@ -269,6 +269,10 @@ final class AccretionAccount: ObservableObject {
 		let role: String?
 		let likes: Int?
 		let replies: Int?
+		let author: String?
+		let hidden: Bool?
+		let edited_at: String?
+		let supporter: Bool?
 	}
 
 	private static func _quoted(_ value: String) -> String {
@@ -321,9 +325,60 @@ final class AccretionAccount: ObservableObject {
 	}
 
 	func thread(_ appID: String) async throws -> [Post] {
-		let columns = "id,parent_id,body,created_at,username,display_name,color,role,likes,replies"
+		let columns = "id,parent_id,body,created_at,username,display_name,color,role,likes,replies,author,hidden,edited_at,supporter"
 		let data = try await _rest("post_feed?select=\(columns)&app_id=eq.\(Self._quoted(appID))&order=created_at.asc&limit=500", anonymous: true)
 		return try JSONDecoder().decode([Post].self, from: data)
+	}
+
+	/// Unread notifications (likes, replies, follows), for the bell; RLS shows only your own
+	func unreadNotifications() async -> Int {
+		guard isSignedIn,
+			  let data = try? await _rest("notifications?select=id&read=eq.false&limit=100"),
+			  let rows = try? JSONSerialization.jsonObject(with: data) as? [Any]
+		else { return 0 }
+		return rows.count
+	}
+
+	/// Your role on the store ("user", "mod", "admin"), for the moderator Hide action
+	func myRole() async -> String? {
+		guard isSignedIn, let uid = try? await _uid(),
+			  let data = try? await _rest("profiles?select=role&id=eq.\(uid)"),
+			  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+		else { return nil }
+		return rows.first?["role"] as? String
+	}
+
+	/// Which of these posts you've liked
+	func likedPosts(_ ids: [Int]) async -> Set<Int> {
+		guard isSignedIn, !ids.isEmpty, let uid = try? await _uid() else { return [] }
+		let list = ids.map(String.init).joined(separator: ",")
+		guard
+			let data = try? await _rest("post_likes?select=post_id&user_id=eq.\(uid)&post_id=in.(\(list))"),
+			let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+		else { return [] }
+		return Set(rows.compactMap { $0["post_id"] as? Int })
+	}
+
+	func likePost(_ id: Int, _ on: Bool) async throws {
+		let uid = try await _uid()
+		if on {
+			_ = try await _rest("post_likes", method: "POST", body: ["post_id": id], prefer: "return=minimal")
+		} else {
+			_ = try await _rest("post_likes?post_id=eq.\(id)&user_id=eq.\(uid)", method: "DELETE")
+		}
+	}
+
+	func deletePost(_ id: Int) async throws {
+		_ = try await _rest("posts?id=eq.\(id)", method: "DELETE")
+	}
+
+	/// Moderators: hide or show a post (row level security only lets mods do this)
+	func hidePost(_ id: Int, _ hidden: Bool) async throws {
+		_ = try await _rest("posts?id=eq.\(id)", method: "PATCH", body: ["hidden": hidden], prefer: "return=minimal")
+	}
+
+	func report(post id: Int, reason: String) async throws {
+		_ = try await _rest("reports", method: "POST", body: ["post_id": id, "reason": reason], prefer: "return=minimal")
 	}
 
 	func comment(on appID: String, body: String, replyTo parent: Int? = nil) async throws {

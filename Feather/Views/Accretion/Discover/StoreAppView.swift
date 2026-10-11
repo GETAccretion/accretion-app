@@ -32,6 +32,10 @@ struct StoreAppView: View {
 	@State private var _sameDeveloper: [StoreApp] = []
 	@State private var _similar: [StoreApp] = []
 	@State private var _replies: [Int: [AccretionAccount.Post]] = [:]
+	@State private var _likedPosts: Set<Int> = []
+	@State private var _myRole: String?
+	@State private var _reporting: AccretionAccount.Post?
+	@State private var _reportReason = ""
 	@State private var _threadError: String?
 	@State private var _toast: String?
 	/// The installer the Install button uses, remembered like the website's choice
@@ -80,6 +84,19 @@ struct StoreAppView: View {
 		.task(id: _account.email) { await _loadCommunity() }
 		.sheet(isPresented: $_isSigningIn) {
 			NavigationStack { AccretionAccountView() }
+		}
+		.alert(String.localized("Report this comment"), isPresented: Binding(get: { _reporting != nil }, set: { if !$0 { _reporting = nil } })) {
+			TextField(String.localized("What's wrong? (spam, harassment, malware link…)"), text: $_reportReason)
+			Button(String.localized("Cancel"), role: .cancel) { _reporting = nil }
+			Button(String.localized("Report")) {
+				guard let post = _reporting else { return }
+				let reason = _reportReason.trimmingCharacters(in: .whitespacesAndNewlines)
+				_reporting = nil
+				guard !reason.isEmpty else { return }
+				Task {
+					do { try await _account.report(post: post.id, reason: reason); _show(String.localized("Thanks. A moderator will look at it.")) } catch { _show(error.localizedDescription) }
+				}
+			}
 		}
 	}
 
@@ -564,25 +581,95 @@ struct StoreAppView: View {
 					if let role = post.role, role == "admin" || role == "mod" {
 						AccretionBadge(text: role, color: role == "admin" ? Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255) : AccretionTheme.good)
 					}
-					Text(verbatim: "· " + StoreFormat.ago(post.created_at))
+					if post.supporter == true {
+						AccretionBadge(text: "♥ supporter", color: Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255))
+					}
+					if post.hidden == true {
+						AccretionBadge(text: "hidden", color: AccretionTheme.warn)
+					}
+					Text(verbatim: "· " + StoreFormat.ago(post.created_at) + (post.edited_at != nil ? " · " + String.localized("edited") : ""))
 						.font(.system(size: 13))
 						.foregroundStyle(AccretionTheme.muted)
 				}
-				Text(verbatim: post.body)
+				Text(_linked(post.body))
 					.foregroundStyle(AccretionTheme.fg)
+					.tint(AccretionTheme.accent2)
 					.fixedSize(horizontal: false, vertical: true)
-				if post.parent_id == nil {
-					Button(String.localized("Reply")) {
-						guard _needsAccount() else { return }
-						_replyTo = post
-					}
-					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
-				}
+				_postActions(post)
 			}
 			.frame(maxWidth: .infinity, alignment: .leading)
 		}
 		.padding(.vertical, 12)
 		.padding(.horizontal, 4)
+	}
+
+	/// ♥ N, Reply · N, Delete (yours), Report (others'), Hide/Unhide (moderators), like the website
+	private func _postActions(_ post: AccretionAccount.Post) -> some View {
+		let liked = _likedPosts.contains(post.id)
+		let mine = post.author != nil && post.author == _account.userID
+		let moderator = _myRole == "mod" || _myRole == "admin"
+		return AccretionFlow(spacing: 4) {
+			Button {
+				guard _needsAccount() else { return }
+				Task {
+					do {
+						try await _account.likePost(post.id, !liked)
+						if liked { _likedPosts.remove(post.id) } else { _likedPosts.insert(post.id) }
+						await _loadThread()
+					} catch { _show(error.localizedDescription) }
+				}
+			} label: {
+				Text(verbatim: "♥" + ((post.likes ?? 0) > 0 ? " \(post.likes ?? 0)" : ""))
+					.foregroundStyle(liked ? Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255) : AccretionTheme.muted)
+			}
+			.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+			if post.parent_id == nil {
+				Button(String.localized("Reply") + ((post.replies ?? 0) > 0 ? " · \(post.replies ?? 0)" : "")) {
+					guard _needsAccount() else { return }
+					_replyTo = post
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+			}
+			if mine {
+				Button(String.localized("Delete")) {
+					ConfirmDelete.ask(String.localized("Delete this comment?")) {
+						Task {
+							do { try await _account.deletePost(post.id); _social?.comments -= 1; await _loadThread() } catch { _show(error.localizedDescription) }
+						}
+					}
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+			} else if _account.isSignedIn {
+				Button(String.localized("Report")) { _reportReason = ""; _reporting = post }
+					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+			}
+			if moderator {
+				Button(post.hidden == true ? String.localized("Unhide") : String.localized("Hide")) {
+					Task {
+						do { try await _account.hidePost(post.id, !(post.hidden ?? false)); await _loadThread() } catch { _show(error.localizedDescription) }
+					}
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+				.foregroundStyle(AccretionTheme.warn)
+			}
+		}
+	}
+
+	/// Links in comments become tappable, like the website
+	private func _linked(_ text: String) -> AttributedString {
+		var result = AttributedString(text)
+		guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return result }
+		for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+			guard
+				let url = match.url, url.scheme == "https",
+				let range = Range(match.range, in: text),
+				let lower = AttributedString.Index(range.lowerBound, within: result),
+				let upper = AttributedString.Index(range.upperBound, within: result)
+			else { continue }
+			result[lower..<upper].link = url
+			result[lower..<upper].underlineStyle = .single
+		}
+		return result
 	}
 
 	private func _avatar(name: String, color: String?) -> some View {
@@ -612,6 +699,8 @@ struct StoreAppView: View {
 			_replies = Dictionary(grouping: posts.filter { $0.parent_id != nil }) { $0.parent_id ?? 0 }
 			_posts = posts
 			_threadError = nil
+			_likedPosts = await _account.likedPosts(posts.map(\.id))
+			if _myRole == nil { _myRole = await _account.myRole() }
 		} catch {
 			_threadError = String.localized("Couldn't load comments: %@", arguments: error.localizedDescription)
 		}

@@ -24,6 +24,7 @@ struct DiscoverView: View {
 	@State private var _shown = 60
 	@State private var _isSigningIn = false
 	@State private var _isAddingSource = false
+	@State private var _unread = 0
 	@State private var _path = NavigationPath()
 
 	private var _isBrowsing: Bool { !_search.isEmpty || _category != nil }
@@ -87,6 +88,37 @@ struct DiscoverView: View {
 						.foregroundStyle(AccretionTheme.fg)
 				}
 				Spacer(minLength: 0)
+				if _account.isSignedIn {
+					// the website's bell: unread likes, replies and follows
+					Button {
+						_unread = 0
+						_openURL(URL(string: "https://getaccretion.github.io/#/notifications")!)
+					} label: {
+						Image(systemName: "bell")
+							.font(.system(size: 17, weight: .semibold))
+							.foregroundStyle(AccretionTheme.fg)
+							.frame(width: 36, height: 36)
+							.overlay(alignment: .topTrailing) {
+								if _unread > 0 {
+									Text(verbatim: _unread > 9 ? "9+" : "\(_unread)")
+										.font(.system(size: 10, weight: .bold))
+										.foregroundStyle(Color.white)
+										.padding(.horizontal, 4)
+										.frame(minWidth: 16, minHeight: 16)
+										.background(Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255), in: Capsule())
+								}
+							}
+					}
+					.buttonStyle(.plain)
+					.accessibilityLabel(String.localized("Notifications"))
+					.task(id: _account.email) {
+						// every minute while Discover is showing, like the website
+						while !Task.isCancelled {
+							_unread = await _account.unreadNotifications()
+							try? await Task.sleep(nanoseconds: 60_000_000_000)
+						}
+					}
+				}
 				Button(_account.isSignedIn ? String.localized("Account") : String.localized("Sign in")) { _isSigningIn = true }
 					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
 				Button(String.localized("Add source")) { _isAddingSource = true }

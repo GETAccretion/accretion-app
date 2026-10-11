@@ -16,9 +16,21 @@
       "iconURL": "https://getaccretion.github.io/assets/icon.png",
       "category": "utilities",
       "tintColor": "848ef9",
-      "versions": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "date": "2026-10-11T02:07:38Z",
+          "size": 14819088,
+          "downloadURL": "https://github.com/GETAccretion/accretion-app/releases/download/accretion-v1.0.0/Accretion.ipa",
+          "minOSVersion": "16.0"
+        }
+      ],
       "appPermissions": {},
-      "screenshots": []
+      "screenshots": [],
+      "version": "1.0.0",
+      "versionDate": "2026-10-11T02:07:38Z",
+      "downloadURL": "https://github.com/GETAccretion/accretion-app/releases/download/accretion-v1.0.0/Accretion.ipa",
+      "size": 14819088
     }
   ],
   "news": []

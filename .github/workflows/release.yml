@@ -1,7 +1,8 @@
 name: Release
 
-# Every push to main builds Accretion.ipa and keeps it as a downloadable artifact.
-# Pushing a tag like accretion-v1.0.0 also publishes a release and points app-repo.json at it.
+# Every push to main builds Accretion.ipa as a check (nothing is kept: builds are private).
+# Pushing a tag like accretion-v1.0.5 uploads it to the store's private storage, publishes a
+# notes-only release and points app-repo.json at the store's download server.
 on:
   push:
     branches:

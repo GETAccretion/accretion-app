@@ -3,10 +3,12 @@
 //  Accretion
 //
 
+import AuthenticationServices
 import CommonCrypto
 import CryptoKit
 import Foundation
 import Security
+import UIKit
 
 // MARK: - Account
 /// The Accretion account (the web store's community login, on Supabase), used here to back up
@@ -78,6 +80,69 @@ final class AccretionAccount: ObservableObject {
 		_Keychain.write(email, for: "email")
 	}
 
+	// MARK: Google, GitHub, Discord
+	/// The web store's "Continue with …" providers. The page opens in a private sign-in sheet and
+	/// returns to accretion://auth-callback with a one-time code, swapped for a session (PKCE).
+	enum Provider: String, CaseIterable, Identifiable {
+		case google, github, discord
+		var id: String { rawValue }
+		var title: String {
+			switch self {
+			case .google: return "Google"
+			case .github: return "GitHub"
+			case .discord: return "Discord"
+			}
+		}
+	}
+
+	/// Providers switched on in the Supabase project (the same check the website does)
+	func enabledProviders() async -> [Provider] {
+		guard let config = try? await _configuration() else { return [] }
+		var request = URLRequest(url: config.url.appendingPathComponent("auth/v1/settings"))
+		request.setValue(config.key, forHTTPHeaderField: "apikey")
+		guard
+			let (data, _) = try? await URLSession.shared.data(for: request),
+			let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+			let external = json["external"] as? [String: Any]
+		else {
+			return []
+		}
+		return Provider.allCases.filter { external[$0.rawValue] as? Bool == true }
+	}
+
+	func signIn(with provider: Provider) async throws {
+		let config = try await _configuration()
+		var bytes = [UInt8](repeating: 0, count: 32)
+		_ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+		let verifier = Self._base64URL(Data(bytes))
+		let challenge = Self._base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
+
+		var authorize = URLComponents(url: config.url.appendingPathComponent("auth/v1/authorize"), resolvingAgainstBaseURL: false)!
+		authorize.queryItems = [
+			URLQueryItem(name: "provider", value: provider.rawValue),
+			URLQueryItem(name: "redirect_to", value: "accretion://auth-callback"),
+			URLQueryItem(name: "code_challenge", value: challenge),
+			URLQueryItem(name: "code_challenge_method", value: "s256"),
+		]
+		let callback = try await _WebSignIn.run(authorize.url!, scheme: "accretion")
+		let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
+		guard let code = items.first(where: { $0.name == "code" })?.value else {
+			let reason = items.first(where: { $0.name == "error_description" })?.value
+			throw AccountError.server(reason ?? String.localized("Sign-in was cancelled."))
+		}
+		let user = try await _token(["auth_code": code, "code_verifier": verifier], grant: "pkce")
+		let email = (user?["email"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? provider.title
+		self.email = email
+		_Keychain.write(email, for: "email")
+	}
+
+	private static func _base64URL(_ data: Data) -> String {
+		data.base64EncodedString()
+			.replacingOccurrences(of: "+", with: "-")
+			.replacingOccurrences(of: "/", with: "_")
+			.replacingOccurrences(of: "=", with: "")
+	}
+
 	func signOut() {
 		_downloadKey = nil
 		userID = nil
@@ -89,7 +154,9 @@ final class AccretionAccount: ObservableObject {
 		_Keychain.delete("refresh")
 	}
 
-	private func _token(_ body: [String: String], grant: String) async throws {
+	/// Returns the signed-in user object from the response.
+	@discardableResult
+	private func _token(_ body: [String: String], grant: String) async throws -> [String: Any]? {
 		let config = try await _configuration()
 		var request = URLRequest(url: config.url.appendingPathComponent("auth/v1/token"))
 		request.url = URL(string: request.url!.absoluteString + "?grant_type=\(grant)")
@@ -107,10 +174,12 @@ final class AccretionAccount: ObservableObject {
 		_accessToken = access
 		_expiresAt = Date().addingTimeInterval(TimeInterval((json["expires_in"] as? Int) ?? 3600) - 60)
 		if let refresh = json["refresh_token"] as? String { _Keychain.write(refresh, for: "refresh") }
-		if let user = json["user"] as? [String: Any], let id = user["id"] as? String {
+		let user = json["user"] as? [String: Any]
+		if let id = user?["id"] as? String {
 			userID = id
 			_Keychain.write(id, for: "uid")
 		}
+		return user
 	}
 
 	/// A valid access token, refreshed with the saved refresh token when needed.
@@ -322,6 +391,46 @@ final class AccretionAccount: ObservableObject {
 				if let error { continuation.resume(throwing: error) } else { continuation.resume() }
 			}
 		}
+	}
+}
+
+// MARK: - Web sign-in sheet
+/// ASWebAuthenticationSession wrapped for async/await. Uses a private session so the provider's
+/// cookies don't leak between accounts.
+private final class _WebSignIn: NSObject, ASWebAuthenticationPresentationContextProviding {
+	@MainActor private static var _current: _WebSignIn?
+	private let _anchor: ASPresentationAnchor
+	private var _session: ASWebAuthenticationSession?
+
+	private init(anchor: ASPresentationAnchor) {
+		_anchor = anchor
+	}
+
+	@MainActor
+	static func run(_ url: URL, scheme: String) async throws -> URL {
+		let window = UIApplication.shared.connectedScenes
+			.compactMap { ($0 as? UIWindowScene)?.keyWindow }
+			.first ?? UIWindow()
+		let runner = _WebSignIn(anchor: window)
+		_current = runner
+		defer { _current = nil }
+		return try await withCheckedThrowingContinuation { continuation in
+			let session = ASWebAuthenticationSession(url: url, callbackURLScheme: scheme) { callback, error in
+				if let callback {
+					continuation.resume(returning: callback)
+				} else {
+					continuation.resume(throwing: error ?? AccretionAccount.AccountError.server(String.localized("Sign-in was cancelled.")))
+				}
+			}
+			session.presentationContextProvider = runner
+			session.prefersEphemeralWebBrowserSession = true
+			runner._session = session
+			session.start()
+		}
+	}
+
+	func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+		_anchor
 	}
 }
 

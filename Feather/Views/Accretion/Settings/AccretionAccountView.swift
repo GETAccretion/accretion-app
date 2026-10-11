@@ -19,6 +19,7 @@ struct AccretionAccountView: View {
 	@State private var _email = ""
 	@State private var _password = ""
 	@State private var _busy = false
+	@State private var _providers: [AccretionAccount.Provider] = []
 	@State private var _message: String?
 	@State private var _backups: [AccretionAccount.Backup] = []
 	@State private var _passphraseFor: PassphraseRequest?
@@ -67,9 +68,28 @@ struct AccretionAccountView: View {
 	// MARK: Signed out
 	private func _signIn() -> some View {
 		VStack(alignment: .leading, spacing: 12) {
+			Color.clear.frame(height: 0).task { _providers = await _account.enabledProviders() }
 			Text(verbatim: String.localized("Sign in with your Accretion store account to back up your certificates. They're sealed on this iPhone with a passphrase only you know before anything is uploaded."))
 				.font(.subheadline)
 				.foregroundStyle(AccretionTheme.muted)
+			if !_providers.isEmpty {
+				ForEach(_providers) { provider in
+					Button(String.localized("Continue with %@", arguments: provider.title)) {
+						Task {
+							await _work {
+								try await _account.signIn(with: provider)
+								await _reload()
+							}
+						}
+					}
+					.buttonStyle(AccretionButtonStyle(prominent: false))
+					.frame(maxWidth: .infinity)
+				}
+				Text(verbatim: String.localized("or with email"))
+					.font(.accretionMono(11, weight: .regular))
+					.foregroundStyle(AccretionTheme.muted)
+					.frame(maxWidth: .infinity)
+			}
 			TextField(String.localized("Email"), text: $_email)
 				.textContentType(.username)
 				.keyboardType(.emailAddress)

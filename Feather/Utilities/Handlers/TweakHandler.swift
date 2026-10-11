@@ -142,8 +142,11 @@ class TweakHandler {
 		
 		destinationURL = destinationURL.appendingPathComponent(url.lastPathComponent)
 		
-		
-		try _fileManager.moveFileIfNeeded(from: url, to: destinationURL)
+		// Accretion: copy, don't move. The same .dylib is reused by recipes, updates and Re-sign
+		// All; moving it into the app left the recipe without its tweak.
+		if !_fileManager.fileExists(atPath: destinationURL.path) {
+			try _fileManager.copyItem(at: url, to: destinationURL)
+		}
 		
 		guard let appexe = Bundle(url: _app)?.executableURL else {
 			return

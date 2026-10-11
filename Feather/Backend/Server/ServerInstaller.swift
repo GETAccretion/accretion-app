@@ -45,7 +45,8 @@ class ServerInstaller: Identifiable, ObservableObject {
 	}
 	
 	private func _setup() throws {
-		self._server = try? setupApp(port: port)
+		// Accretion: a TLS or set-up failure is an error, not a silent no-op server
+		self._server = try setupApp(port: port)
 	}
 		
 	private func _configureRoutes() throws {

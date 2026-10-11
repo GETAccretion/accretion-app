@@ -169,6 +169,8 @@ struct InstallPreviewView: View {
 					if await _installationMethod == 0 {
 						await MainActor.run {
 							installer.packageUrl = packageUrl
+							// Accretion: keep a server start-up error instead of showing Ready for a dead server
+							if case .broken = viewModel.status { return }
 							viewModel.status = .ready
 						}
 						
@@ -239,8 +241,6 @@ struct InstallPreviewView: View {
 					? _normalizeInstallProgress(rawProgress)
 					: 0.0
 
-				Logger.misc.info("Install progress for \(bundleID): \(progress)")
-
 				await MainActor.run {
 					viewModel.installProgress = progress
 				}
@@ -253,7 +253,7 @@ struct InstallPreviewView: View {
 					break
 				}
 
-				try? await Task.sleep(nanoseconds: 1_000_000) // 1 ms
+				try? await Task.sleep(nanoseconds: 400_000_000) // Accretion: was 1 ms, a busy loop that drained battery
 			}
 		}
 	}

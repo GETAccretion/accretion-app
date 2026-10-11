@@ -360,11 +360,21 @@ extension SigningView {
 			return
 		}
 
-		// Accretion: explain problems before signing; blocking ones stop here
-		Preflight.confirm(
-			Preflight.problems(for: app, certificate: _selectedCert(), options: _temporaryOptions)
-		) {
+		// Accretion: explain problems before signing; blocking ones stop here. Checked against the
+		// profile this app will actually be signed with when the certificate has several.
+		let cert = _selectedCert()
+		_useAppProfile(cert)
+		let problems = Preflight.problems(for: app, certificate: cert, options: _temporaryOptions)
+		if let cert { ProfileOverride.set(nil, for: cert) }
+		Preflight.confirm(problems) {
 			_sign()
+		}
+	}
+
+	/// Accretion: sign with this app's own profile when the certificate has several
+	private func _useAppProfile(_ cert: CertificatePair?) {
+		if let cert, let key = RecipeStore.key(for: app) ?? app.identifier, ProfileStore.profiles(for: cert).count > 1 {
+			ProfileOverride.set(ProfileStore.choose(for: key, cert: cert, assign: true)?.profile.url, for: cert)
 		}
 	}
 
@@ -373,11 +383,8 @@ extension SigningView {
 		generator.impactOccurred()
 		_isSigning = true
 
-		// Accretion: sign with this app's own profile when the certificate has several
 		let cert = _selectedCert()
-		if let cert, let key = RecipeStore.key(for: app) ?? app.identifier, ProfileStore.profiles(for: cert).count > 1 {
-			ProfileOverride.set(ProfileStore.choose(for: key, cert: cert, assign: true)?.profile.url, for: cert)
-		}
+		_useAppProfile(cert)
 
 		FR.signPackageFile(
 			app,
@@ -392,8 +399,8 @@ extension SigningView {
 				}
 				
 				UIAlertController.showAlert(
-					title: "Error",
-					message: error.localizedDescription,
+					title: .localized("Couldn't sign"),
+					message: InstallErrorText.describe(error), // Accretion: readable, not the raw error
 					actions: [ok]
 				)
 			} else {

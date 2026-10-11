@@ -19,7 +19,20 @@ final class AutoSignPipeline: ObservableObject {
 	static let shared = AutoSignPipeline()
 
 	/// What's happening now, for the Library banner; nil when idle
-	@Published private(set) var status: String?
+	@Published private(set) var status: String? { didSet { _keepRunningInBackground(status != nil) } }
+	private var _backgroundTask: UIBackgroundTaskIdentifier = .invalid
+
+	/// Downloading and signing take a while; keep going for a bit if the user switches apps
+	private func _keepRunningInBackground(_ running: Bool) {
+		if running, _backgroundTask == .invalid {
+			_backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Accretion signing") { [weak self] in
+				self?._keepRunningInBackground(false)
+			}
+		} else if !running, _backgroundTask != .invalid {
+			UIApplication.shared.endBackgroundTask(_backgroundTask)
+			_backgroundTask = .invalid
+		}
+	}
 	/// A signed app ready for its install screen; the app root presents it from any tab
 	@Published var pendingInstall: AnyApp?
 	/// The store app being installed, so only its page shows the status line
@@ -94,8 +107,8 @@ final class AutoSignPipeline: ObservableObject {
 	/// and open the install screen. Already installed? Then this is an in-place update.
 	func install(name: String, bundleID: String, downloadURL: URL) {
 		guard !isRunning else { return }
+		status = String.localized("Getting %@…", arguments: name) // set before the Task, so a double tap can't start a second run
 		Task {
-			status = String.localized("Getting %@…", arguments: name)
 			activeBundleID = bundleID
 			defer { activeBundleID = nil }
 			do {
@@ -205,7 +218,8 @@ final class AutoSignPipeline: ObservableObject {
 	private func _installedCopy(uuid: String?, bundleID: String) -> Signed? {
 		let request: NSFetchRequest<Signed> = Signed.fetchRequest()
 		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-		let signed = (try? Storage.shared.context.fetch(request)) ?? []
+		// only real signed copies: an unsigned export (Inject → Export) is never an update target
+		let signed = ((try? Storage.shared.context.fetch(request)) ?? []).filter { $0.certificate != nil }
 		return signed.first { uuid != nil && $0.uuid == uuid }
 			?? signed.first { $0.identifier == bundleID || RecipeStore.key(for: $0) == bundleID }
 	}
@@ -243,8 +257,8 @@ final class AutoSignPipeline: ObservableObject {
 	/// opens the share sheet with the modded IPA for another signer.
 	func inject(_ app: Imported, options: Options, remember: Bool, exportOnly: Bool) {
 		guard !isRunning else { return }
+		status = String.localized("Injecting into %@…", arguments: app.name ?? "")
 		Task {
-			status = String.localized("Injecting into %@…", arguments: app.name ?? "")
 			let started = Date().addingTimeInterval(-1)
 			do {
 				var options = options
@@ -359,6 +373,7 @@ final class AutoSignPipeline: ObservableObject {
 		let base = OptionsManager.shared.options
 		let recipe = optionsOverride == nil ? RecipeStore.load(for: app, base: base) : nil
 		var options = optionsOverride ?? recipe?.options ?? base
+		options.signingOption = .default // a recipe saved in "Modify only" mode must not make updates unsigned
 		let icon = recipe?.icon
 		var kind = CertificateSlots.kind(of: cert)
 		// several profiles: this app keeps its own, so its bundle ID (and in-place updates) stay stable

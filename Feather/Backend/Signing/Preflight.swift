@@ -69,12 +69,26 @@ enum Preflight {
 			))
 		}
 
+		// The bundle ID must be one the profile allows, or iOS refuses the install at the very end
+		if let cert, options.signingOption == .default, let original = app.identifier {
+			let effective = options.appIdentifier ?? original
+			let kind = CertificateSlots.kind(of: cert)
+			let fitted = CertificateSlots.bundleID(effective, for: kind)
+			if fitted != effective {
+				problems.append(.init(
+					title: .localized("Bundle ID not allowed"),
+					message: .localized("This certificate's profile doesn't allow %@. Use %@ as the identifier, or pick another certificate.", arguments: effective, fitted),
+					isBlocking: true
+				))
+			}
+		}
+
 		// Single-app certificates: extensions are left out (SigningHandler), so say what goes missing
 		if options.signingOption == .default, case .explicit = CertificateSlots.kind(of: cert) {
-			let extensions = ["PlugIns", "Extensions"].flatMap { folder -> [String] in
+			let extensions = ["PlugIns", "Extensions", "Watch"].flatMap { folder -> [String] in
 				let url = appURL.appendingPathComponent(folder)
 				let items = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
-				return items.filter { $0.hasSuffix(".appex") }.map { ($0 as NSString).deletingPathExtension }
+				return items.filter { $0.hasSuffix(".appex") || $0.hasSuffix(".app") }.map { ($0 as NSString).deletingPathExtension }
 			}
 			if !extensions.isEmpty {
 				problems.append(.init(
@@ -224,9 +238,11 @@ enum InstallErrorText {
 	
 	static func describe(_ error: Error) -> String {
 		let raw = String(describing: error)
-		guard let hit = _known.first(where: { entry in entry.match.contains { raw.localizedCaseInsensitiveContains($0) } }) else {
-			return raw
+		// the error's own message (not its case name, like "signFailed"), unless a known pattern explains it better
+		let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+		guard let hit = _known.first(where: { entry in entry.match.contains { raw.localizedCaseInsensitiveContains($0) || message.localizedCaseInsensitiveContains($0) } }) else {
+			return message
 		}
-		return String.localized(hit.text) + "\n\n" + String.localized("Details:") + " " + raw
+		return String.localized(hit.text) + "\n\n" + String.localized("Details:") + " " + message
 	}
 }

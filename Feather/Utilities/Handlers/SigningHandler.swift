@@ -59,7 +59,7 @@ final class SigningHandler: NSObject {
 		guard
 			let infoDictionary = NSDictionary(
 				contentsOf: movedAppPath.appendingPathComponent("Info.plist")
-			)!.mutableCopy() as? NSMutableDictionary
+			)?.mutableCopy() as? NSMutableDictionary // Accretion: a malformed IPA is an error, not a crash
 		else {
 			throw SigningFileHandlerError.infoPlistNotFound
 		}
@@ -92,7 +92,7 @@ final class SigningHandler: NSObject {
 		// (which need IDs of their own) can't be signed with it, and iOS then refuses the whole
 		// app ("integrity could not be verified"). Leave them out so the app itself installs.
 		if _options.signingOption == .default, case .explicit = CertificateSlots.kind(of: appCertificate) {
-			try await _removeFiles(for: movedAppPath, from: ["PlugIns", "Extensions"])
+			try await _removeFiles(for: movedAppPath, from: ["PlugIns", "Extensions", "Watch"])
 		}
 		
 		if _options.experiment_supportLiquidGlass {
@@ -130,12 +130,14 @@ final class SigningHandler: NSObject {
 			throw SigningFileHandlerError.missingCertifcate
 		}
 		
-		try await self.move()
-		try await self.addToDatabase()
-		
+		// Accretion: a failed sign stops here, before the app is moved into Library > Signed (a
+		// broken copy there became the target of later updates)
 		if let error = handler.hadError {
 			throw error
 		}
+		
+		try await self.move()
+		try await self.addToDatabase()
 	}
 	
 	func move() async throws {
@@ -580,7 +582,7 @@ enum SigningFileHandlerError: Error, LocalizedError {
 		case .infoPlistNotFound: "Unable to locate info.plist path."
 		case .missingCertifcate: "No certificate was specified."
 		case .disinjectFailed: "Removing mach-O load paths failed."
-		case .signFailed: "Signing failed."
+		case .signFailed: "Signing failed. Check the certificate password, and that the .p12 and .mobileprovision belong together and haven't expired." // Accretion
 		}
 	}
 }

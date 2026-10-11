@@ -54,7 +54,7 @@ struct StoreAppView: View {
 					if let url = _latest.flatMap({ URL(string: $0.url) }) {
 						Button {
 							guard _account.isSignedIn else { _isSigningIn = true; return }
-							LiveContainer.install(from: url)
+							Task { LiveContainer.install(from: await _account.downloadURL(for: app.i, fallback: url)) }
 						} label: {
 							Label(String.localized("LiveContainer"), systemImage: "shippingbox")
 						}

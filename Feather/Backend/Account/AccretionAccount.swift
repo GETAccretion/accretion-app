@@ -76,6 +76,7 @@ final class AccretionAccount: ObservableObject {
 	}
 
 	func signOut() {
+		_downloadKey = nil
 		email = nil
 		_accessToken = nil
 		_expiresAt = .distantPast
@@ -136,6 +137,32 @@ final class AccretionAccount: ObservableObject {
 
 	func deleteBackup(_ id: String) async throws {
 		_ = try await _rest("certificate_backups?id=eq.\(id)", method: "DELETE")
+	}
+
+	// MARK: Downloads
+	private var _downloadKey: String?
+
+	/// Accretion's own builds (Accretion Mods, the Accretion app) live on the store's download
+	/// server, which hands them only to account holders. For those apps this returns the server
+	/// link with the user's personal key; every other app keeps `url`.
+	func downloadURL(for bundleID: String, fallback url: URL) async -> URL {
+		guard isSignedIn else { return url }
+		do {
+			let config = try await _configuration()
+			let hostedData = try await _rest("hosted_builds?select=bundle_id&bundle_id=eq.\(bundleID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? bundleID)")
+			let hosted = (try? JSONSerialization.jsonObject(with: hostedData) as? [[String: Any]]) ?? []
+			guard !hosted.isEmpty else { return url }
+			if _downloadKey == nil {
+				let keyData = try await _rest("rpc/my_download_key", method: "POST", body: ["rotate": false])
+				_downloadKey = try JSONDecoder().decode(String.self, from: keyData)
+			}
+			guard let key = _downloadKey else { return url }
+			var link = URLComponents(url: config.url.appendingPathComponent("functions/v1/download"), resolvingAgainstBaseURL: false)!
+			link.queryItems = [URLQueryItem(name: "app", value: bundleID), URLQueryItem(name: "key", value: key)]
+			return link.url ?? url
+		} catch {
+			return url
+		}
 	}
 
 	// MARK: Back up and restore

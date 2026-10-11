@@ -117,7 +117,8 @@ final class AutoSignPipeline: ObservableObject {
 			throw PipelineError.noCertificate
 		}
 		
-		let ipa = try await _download(downloadURL)
+		// Accretion: Accretion's own builds come from the store's download server
+		let ipa = try await _download(await AccretionAccount.shared.downloadURL(for: bundleID, fallback: downloadURL))
 		defer { try? FileManager.default.removeItem(at: ipa) }
 		
 		let started = Date().addingTimeInterval(-1)
@@ -215,6 +216,9 @@ final class AutoSignPipeline: ObservableObject {
 	private func _download(_ url: URL) async throws -> URL {
 		let (temp, response) = try await URLSession.shared.download(from: url)
 		if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+			if http.statusCode == 401 {
+				throw PipelineError.download(String.localized("Sign in to your Accretion account to download this app."))
+			}
 			throw PipelineError.download("HTTP \(http.statusCode)")
 		}
 		let ipa = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).ipa")

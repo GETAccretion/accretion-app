@@ -17,6 +17,8 @@ import UIKit
 @MainActor
 final class AccretionAccount: ObservableObject {
 	static let shared = AccretionAccount()
+	/// The store's Supabase project. config.js must point here, or the account stays off.
+	static let accountHost = "bbcjpinhvlxocjxlyplt.supabase.co"
 
 	@Published private(set) var email: String?
 	/// The signed-in user's id, for the community tables' `user_id` columns
@@ -65,7 +67,9 @@ final class AccretionAccount: ObservableObject {
 			let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
 			let json = try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8)) as? [String: String],
 			let url = json["supabaseUrl"].flatMap(URL.init(string:)),
-			let key = json["supabaseKey"]
+			let key = json["supabaseKey"],
+			// pinned: a changed config.js can't send sign-ins and passwords to another server
+			url.scheme == "https", url.host == Self.accountHost
 		else {
 			throw AccountError.notConfigured
 		}
@@ -148,6 +152,15 @@ final class AccretionAccount: ObservableObject {
 	}
 
 	func signOut() {
+		// end the session on the server too, so the saved refresh token stops working
+		if let token = _accessToken, let config = _config {
+			var request = URLRequest(url: config.url.appendingPathComponent("auth/v1/logout"))
+			request.url = URL(string: request.url!.absoluteString + "?scope=local")
+			request.httpMethod = "POST"
+			request.setValue(config.key, forHTTPHeaderField: "apikey")
+			request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+			URLSession.shared.dataTask(with: request).resume()
+		}
 		_downloadKey = nil
 		userID = nil
 		_Keychain.delete("uid")

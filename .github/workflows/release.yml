@@ -60,12 +60,22 @@ jobs:
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$RUNNER_TEMP/Info.plist")
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
-      - name: Upload build
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: Accretion-${{ env.VERSION }}-${{ github.sha }}
-          path: packages/*
-          if-no-files-found: error
+      # The .ipa is private: it goes straight into the store's private bucket, served only to
+      # signed-in users (and personal source links) by the download server. Builds aren't kept
+      # as workflow artifacts, which anyone signed in to GitHub could download.
+      - name: Upload to private storage
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
+        env:
+          UPLOAD_KEY: ${{ secrets.ACCRETION_UPLOAD_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$UPLOAD_KEY" || { echo "ACCRETION_UPLOAD_KEY is not set"; exit 1; }
+          FN="https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/upload"
+          SIZE=$(stat -f%z packages/Accretion.ipa)
+          BODY=$(jq -n --arg v "$VERSION" --argjson s "$SIZE" '{bundle_id: "io.github.getaccretion.Accretion", version: $v, size: $s}')
+          SIGNED=$(curl -fsS -X POST "$FN" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY" | jq -r .signedUrl)
+          curl -fsS -X PUT "$SIGNED" -H "Content-Type: application/octet-stream" --data-binary @packages/Accretion.ipa > /dev/null
+          curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
 
       - name: Create Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
@@ -73,10 +83,8 @@ jobs:
         with:
           name: Accretion v${{ env.VERSION }}
           tag_name: ${{ github.ref_name }}
-          files: |
-            packages/*
+          body: "Download Accretion from the store (sign in first): https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion"
           generate_release_notes: true
-          fail_on_unmatched_files: true
 
       # Releases made with GITHUB_TOKEN don't trigger other workflows, so the app source is updated here.
       - name: Update app-repo.json
@@ -86,7 +94,7 @@ jobs:
           git checkout --quiet main
           SIZE=$(stat -f%z packages/Accretion.ipa)
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Accretion.ipa"
+          URL="https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=$VERSION"
           jq --arg version "$VERSION" --arg date "$DATE" --arg url "$URL" --argjson size "$SIZE" '
             .apps[0].version = $version | .apps[0].versionDate = $date |
             .apps[0].downloadURL = $url | .apps[0].size = $size |

@@ -339,7 +339,7 @@ final class AccretionAccount: ObservableObject {
 	/// server, which hands them only to account holders. For those apps this returns the server
 	/// link with the user's personal key; every other app keeps `url`.
 	func downloadURL(for bundleID: String, fallback url: URL) async -> URL {
-		guard isSignedIn else { return url }
+		guard isSignedIn else { return Self.tagged(url) }
 		do {
 			let config = try await _configuration()
 			guard try await _hostedBundleIDs().contains(bundleID) else { return url }
@@ -350,10 +350,25 @@ final class AccretionAccount: ObservableObject {
 			guard let key = _downloadKey else { return url }
 			var link = URLComponents(url: config.url.appendingPathComponent("functions/v1/download"), resolvingAgainstBaseURL: false)!
 			link.queryItems = [URLQueryItem(name: "app", value: bundleID), URLQueryItem(name: "key", value: key)]
-			return link.url ?? url
+			return Self.tagged(link.url ?? url)
 		} catch {
+			return Self.tagged(url)
+		}
+	}
+
+	/// Adds this app's version to download-server links. The server refuses Accretion requests
+	/// without it (versions before 1.0.5) and versions below the store's minimum.
+	nonisolated static func tagged(_ url: URL) -> URL {
+		guard
+			url.path.hasSuffix("/functions/v1/download"),
+			var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+			!(components.queryItems ?? []).contains(where: { $0.name == "av" })
+		else {
 			return url
 		}
+		let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+		components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "av", value: version)]
+		return components.url ?? url
 	}
 
 	/// Which apps the download server hosts, fetched once every 10 minutes (the website does the

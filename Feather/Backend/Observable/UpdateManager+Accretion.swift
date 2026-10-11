@@ -140,14 +140,12 @@ extension UpdateManager {
 		}
 		UserDefaults.standard.set(latest, forKey: Self._selfAlertedKey)
 		
-		var actions = [UIAlertAction(title: String.localized("Get Update"), style: .default) { _ in
-			UIApplication.shared.open(link)
+		// the link goes through the download server with the personal key (AppPolicy)
+		_ = link
+		let installsDirectly = UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1
+		let actions = [UIAlertAction(title: installsDirectly ? String.localized("Install Now") : String.localized("Get Update"), style: .default) { _ in
+			Task { await AppPolicy.shared.getUpdate() }
 		}]
-		if UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1 {
-			actions.insert(UIAlertAction(title: String.localized("Install Now"), style: .default) { _ in
-				AutoSignPipeline.shared.install(name: "Accretion", bundleID: Bundle.main.bundleIdentifier ?? "", downloadURL: link)
-			}, at: 0)
-		}
 		UIAlertController.showAlertWithCancel(
 			title: String.localized("Accretion %@ is available", arguments: latest),
 			message: String.localized("You have %@. Get Update opens the new IPA: install it with the tool you used for Accretion (for example your certificate seller's signer).", arguments: Bundle.main.version),

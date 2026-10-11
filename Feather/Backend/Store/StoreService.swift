@@ -141,7 +141,7 @@ final class StoreService: ObservableObject {
 		isLoading = true
 		defer { isLoading = false }
 		do {
-			let (data, _) = try await URLSession.shared.data(from: Self.base.appendingPathComponent("data/index.json"))
+			let (data, _) = try await URLSession.shared.data(from: Self.base.appendingPathComponent("data/store.json") /* Accretion 1.0.5+: data/index.json now lists only Accretion, for old copies */)
 			index = try JSONDecoder().decode(StoreIndex.self, from: data)
 			try? data.write(to: _cacheFile, options: .atomic)
 			_shards = [:]

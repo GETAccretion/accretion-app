@@ -18,6 +18,7 @@ struct FeatherApp: App {
 	
 	@StateObject var downloadManager = DownloadManager.shared
 	@StateObject var pipeline = AutoSignPipeline.shared // Accretion: install screen from any tab
+	@StateObject var policy = AppPolicy.shared // Accretion: minimum supported version
 	let storage = Storage.shared
 	
 	var body: some Scene {
@@ -39,7 +40,13 @@ struct FeatherApp: App {
 			// Accretion: check every source for updates at launch and when the app comes back (hourly at most)
 			.onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
 				Task { await UpdateManager.shared.checkAutomatically() }
+				Task { await policy.refresh() }
 			}
+			// Accretion: versions older than the store's minimum can't be used
+			.fullScreenCover(isPresented: Binding(get: { policy.isOutdated }, set: { _ in })) {
+				RequiredUpdateView()
+			}
+			.task { await policy.refresh() }
 			.onReceive(NotificationCenter.default.publisher(for: .heartbeatInvalidHost)) { _ in
 				DispatchQueue.main.async {
 					UIAlertController.showAlertWithOk(
@@ -147,7 +154,7 @@ struct FeatherApp: App {
 					message: .localized("Do you want to download and install this file?") + "\n\n\(downloadURL)",
 					actions: [
 						UIAlertAction(title: .localized("Install"), style: .default) { _ in
-							_ = DownloadManager.shared.startDownload(from: downloadURL)
+							_ = DownloadManager.shared.startDownload(from: AccretionAccount.tagged(downloadURL)) // Accretion
 						}
 					]
 				)

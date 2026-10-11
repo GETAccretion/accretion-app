@@ -74,6 +74,16 @@ enum Preflight {
 			let effective = options.appIdentifier ?? original
 			let kind = CertificateSlots.kind(of: cert)
 			let fitted = CertificateSlots.bundleID(effective, for: kind)
+			// Accretion installed with this same single-app certificate holds its one slot: signing
+			// another app into it would replace Accretion while it's serving the install, and iOS
+			// never shows the install prompt
+			if fitted == Bundle.main.bundleIdentifier, original != Bundle.main.bundleIdentifier {
+				problems.append(.init(
+					title: .localized("Accretion uses this certificate's only slot"),
+					message: .localized("Accretion itself was installed with this certificate, so its one app ID is taken by Accretion. Installing this app would replace Accretion, and iOS won't do that while Accretion is open. Install Accretion another way (AltStore, SideStore or Sideloadly with your Apple ID), add another profile to the certificate, or use a wildcard certificate."),
+					isBlocking: true
+				))
+			}
 			if fitted != effective {
 				problems.append(.init(
 					title: .localized("Bundle ID not allowed"),

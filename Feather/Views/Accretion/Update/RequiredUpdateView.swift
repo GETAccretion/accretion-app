@@ -73,7 +73,7 @@ struct RequiredUpdateView: View {
 		.accretionBackground()
 		.interactiveDismissDisabled()
 		.sheet(isPresented: $_isSigningIn) {
-			NavigationStack { AccretionAccountView() }
+			AccountSheet()
 		}
 	}
 }

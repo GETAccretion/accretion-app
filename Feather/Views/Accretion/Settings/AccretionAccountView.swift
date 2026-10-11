@@ -260,3 +260,27 @@ private struct PassphraseSheet: View {
 		.presentationDetents([.medium])
 	}
 }
+
+// MARK: - Sign-in sheet
+/// The account screen as a sheet (from Discover, app pages, Update required): a Close button, and
+/// it closes itself once you're signed in so you're back where you were.
+struct AccountSheet: View {
+	@Environment(\.dismiss) private var _dismiss
+	@ObservedObject private var _account = AccretionAccount.shared
+	@State private var _wasSignedIn = AccretionAccount.shared.isSignedIn
+
+	var body: some View {
+		NavigationStack {
+			AccretionAccountView()
+				.toolbar {
+					ToolbarItem(placement: .cancellationAction) {
+						Button(String.localized("Close")) { _dismiss() }
+					}
+				}
+		}
+		.onChange(of: _account.isSignedIn) { signedIn in
+			if signedIn && !_wasSignedIn { _dismiss() }
+			_wasSignedIn = signedIn
+		}
+	}
+}

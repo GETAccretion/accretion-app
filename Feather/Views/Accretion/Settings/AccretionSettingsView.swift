@@ -181,7 +181,7 @@ struct AccretionSettingsView: View {
 	private func _toggle(_ title: String, _ subtitle: String, _ icon: String, _ isOn: Binding<Bool>) -> some View {
 		HStack(spacing: 0) {
 			_label(title, subtitle, icon, AccretionTheme.good)
-			Toggle("", isOn: isOn).labelsHidden().padding(.trailing, 14)
+			Toggle(title, isOn: isOn).labelsHidden().padding(.trailing, 14) // named for VoiceOver
 		}
 	}
 

@@ -76,7 +76,7 @@ struct DiscoverView: View {
 			_search = _query.trimmingCharacters(in: .whitespaces)
 			_shown = 60
 		}
-		.sheet(isPresented: $_isSigningIn) { NavigationStack { AccretionAccountView() } }
+		.sheet(isPresented: $_isSigningIn) { AccountSheet() }
 		.sheet(isPresented: $_isAddingSource) { SourcesAddView() }
 	}
 
@@ -449,6 +449,7 @@ struct StoreShelfView: View {
 							.foregroundStyle(AccretionTheme.accent2)
 					}
 					.buttonStyle(.plain)
+					.accessibilityLabel(String.localized("See all %@", arguments: shelf.title))
 				}
 			}
 			if _pages.count > 1 {
@@ -551,6 +552,7 @@ struct StoreAppRow: View {
 				Text(verbatim: "›")
 					.font(.system(size: 22))
 					.foregroundStyle(AccretionTheme.muted)
+					.accessibilityHidden(true)
 			}
 			.frame(maxHeight: .infinity)
 			.overlay(alignment: .top) { if divider { AccretionTheme.line.frame(height: 1) } }

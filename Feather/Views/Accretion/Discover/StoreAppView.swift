@@ -83,7 +83,7 @@ struct StoreAppView: View {
 		}
 		.task(id: _account.email) { await _loadCommunity() }
 		.sheet(isPresented: $_isSigningIn) {
-			NavigationStack { AccretionAccountView() }
+			AccountSheet()
 		}
 		.alert(String.localized("Report this comment"), isPresented: Binding(get: { _reporting != nil }, set: { if !$0 { _reporting = nil } })) {
 			TextField(String.localized("What's wrong? (spam, harassment, malware link…)"), text: $_reportReason)
@@ -655,10 +655,12 @@ struct StoreAppView: View {
 		}
 	}
 
+	private static let _linkDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
 	/// Links in comments become tappable, like the website
 	private func _linked(_ text: String) -> AttributedString {
 		var result = AttributedString(text)
-		guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return result }
+		guard let detector = Self._linkDetector else { return result }
 		for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
 			guard
 				let url = match.url, url.scheme == "https",

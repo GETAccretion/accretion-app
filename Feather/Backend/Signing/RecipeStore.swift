@@ -32,7 +32,34 @@ enum RecipeStore {
 	static func key(for app: AppInfoPresentable) -> String? {
 		guard let id = app.identifier else { return nil }
 		if !app.isSigned || FileManager.default.fileExists(atPath: _file(id).path) { return id }
-		return _allKeys().first { _read($0)?.signedIdentifier == id }
+		return _signedIndex()[id]
+	}
+
+	/// signed bundle ID → recipe key, read from disk once and kept until a recipe changes (Library
+	/// asks for every row on every redraw). With a single-app certificate several recipes can sign
+	/// as the same ID; the most recently used one wins.
+	nonisolated(unsafe) private static var _index: [String: String]? // guarded by _indexLock
+	private static let _indexLock = NSLock()
+
+	private static func _signedIndex() -> [String: String] {
+		_indexLock.lock()
+		defer { _indexLock.unlock() }
+		if let index = _index { return index }
+		var newest: [String: (key: String, updated: Date)] = [:]
+		for key in _allKeys() {
+			guard let recipe = _read(key), let signed = recipe.signedIdentifier else { continue }
+			if let current = newest[signed], current.updated >= recipe.updated { continue }
+			newest[signed] = (key, recipe.updated)
+		}
+		let index = newest.mapValues(\.key)
+		_index = index
+		return index
+	}
+
+	private static func _invalidateIndex() {
+		_indexLock.lock()
+		_index = nil
+		_indexLock.unlock()
 	}
 
 	static func hasRecipe(for app: AppInfoPresentable) -> Bool {
@@ -97,17 +124,32 @@ enum RecipeStore {
 		if let data = try? JSONEncoder().encode(recipe) {
 			try? data.write(to: _file(key), options: .atomic)
 		}
+		_invalidateIndex()
 	}
 
 	static func forget(for app: AppInfoPresentable) {
 		guard let key = key(for: app) else { return }
 		try? FileManager.default.removeItem(at: _folder(key))
+		_invalidateIndex()
 	}
 
 	// MARK: Private
 	private static func _read(_ key: String) -> Recipe? {
 		guard let data = try? Data(contentsOf: _file(key)) else { return nil }
-		return try? JSONDecoder().decode(Recipe.self, from: data)
+		if let recipe = try? JSONDecoder().decode(Recipe.self, from: data) { return recipe }
+		// a recipe saved before a newer version added signing options: fill those from the defaults
+		guard
+			var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+			let saved = json["options"] as? [String: Any],
+			let defaults = try? JSONEncoder().encode(Options.defaultOptions),
+			var merged = try? JSONSerialization.jsonObject(with: defaults) as? [String: Any]
+		else {
+			return nil
+		}
+		merged.merge(saved) { _, recipeValue in recipeValue }
+		json["options"] = merged
+		guard let fixed = try? JSONSerialization.data(withJSONObject: json) else { return nil }
+		return try? JSONDecoder().decode(Recipe.self, from: fixed)
 	}
 
 	private static func _allKeys() -> [String] {

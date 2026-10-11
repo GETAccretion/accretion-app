@@ -28,3 +28,20 @@ enum TempCleanup {
 		}
 	}
 }
+
+/// Install certificates saved by older versions held only the server certificate, without the
+/// Let's Encrypt intermediates, so iOS rejected the install server. Those saved copies override
+/// the full set bundled with the app; remove them (all three files together, so the key and name
+/// still match) and the bundled chain is used. "Update SSL Certificates" now saves the full chain.
+enum InstallCertificateUpgrade {
+	static func run() {
+		let documents = URL.documentsDirectory
+		let crt = documents.appendingPathComponent("server.crt")
+		guard let text = try? String(contentsOf: crt, encoding: .utf8),
+			  text.components(separatedBy: "BEGIN CERTIFICATE").count - 1 < 2
+		else { return }
+		for name in ["server.crt", "server.pem", "commonName.txt"] {
+			try? FileManager.default.removeItem(at: documents.appendingPathComponent(name))
+		}
+	}
+}

@@ -47,7 +47,7 @@ struct FeatherApp: App {
 				RequiredUpdateView()
 			}
 			.task { await policy.refresh() }
-			.task { TempCleanup.run() } // Accretion: leftover working folders
+			.task { TempCleanup.run(); InstallCertificateUpgrade.run() } // Accretion: leftover working folders, old install certificates
 			.onReceive(NotificationCenter.default.publisher(for: .heartbeatInvalidHost)) { _ in
 				DispatchQueue.main.async {
 					UIAlertController.showAlertWithOk(

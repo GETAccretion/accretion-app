@@ -78,8 +78,15 @@ extension ServerInstaller {
 			return nil
 		}
 		
-		return try? String(contentsOf: url, encoding: .utf8)
-			.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard let name = try? String(contentsOf: url, encoding: .utf8)
+			.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty
+		else {
+			return nil
+		}
+		// Accretion: backloop.dev's certificate is now issued for "*.backloop.dev". Used as-is, the
+		// install link pointed at https://*.backloop.dev/… and Fully Local installs never started.
+		// Any name under it resolves to this device and is covered by the certificate.
+		return name.hasPrefix("*.") ? "local" + name.dropFirst() : name
 	}
 }
 

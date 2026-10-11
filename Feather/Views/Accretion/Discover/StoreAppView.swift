@@ -12,6 +12,8 @@ import NukeUI
 struct StoreAppView: View {
 	@ObservedObject private var _store = StoreService.shared
 	@ObservedObject private var _pipeline = AutoSignPipeline.shared
+	@ObservedObject private var _account = AccretionAccount.shared
+	@State private var _isSigningIn = false
 	let app: StoreApp
 	@State private var _detail: StoreAppDetail?
 
@@ -38,6 +40,8 @@ struct StoreAppView: View {
 
 				HStack(spacing: 10) {
 					Button {
+						// downloads need an Accretion account, like on the web store
+						guard _account.isSignedIn else { _isSigningIn = true; return }
 						if let url = _latest.flatMap({ URL(string: $0.url) }) {
 							_pipeline.install(name: app.n, bundleID: app.i, downloadURL: url)
 						}
@@ -49,6 +53,7 @@ struct StoreAppView: View {
 
 					if let url = _latest.flatMap({ URL(string: $0.url) }) {
 						Button {
+							guard _account.isSignedIn else { _isSigningIn = true; return }
 							LiveContainer.install(from: url)
 						} label: {
 							Label(String.localized("LiveContainer"), systemImage: "shippingbox")
@@ -100,6 +105,9 @@ struct StoreAppView: View {
 		.accretionBackground()
 		.navigationBarTitleDisplayMode(.inline)
 		.task { _detail = await _store.detail(for: app) }
+		.sheet(isPresented: $_isSigningIn) {
+			NavigationStack { AccretionAccountView() }
+		}
 	}
 
 	private func _facts() -> some View {

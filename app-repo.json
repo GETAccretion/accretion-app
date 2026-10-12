@@ -18,19 +18,19 @@
       "tintColor": "848ef9",
       "versions": [
         {
-          "version": "1.0.16",
-          "date": "2026-10-12T03:39:56Z",
-          "size": 15418486,
-          "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.16",
+          "version": "1.0.17",
+          "date": "2026-10-12T04:21:59Z",
+          "size": 15423464,
+          "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.17",
           "minOSVersion": "16.0"
         }
       ],
       "appPermissions": {},
       "screenshots": [],
-      "version": "1.0.16",
-      "versionDate": "2026-10-12T03:39:56Z",
-      "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.16",
-      "size": 15418486
+      "version": "1.0.17",
+      "versionDate": "2026-10-12T04:21:59Z",
+      "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.17",
+      "size": 15423464
     }
   ],
   "news": []

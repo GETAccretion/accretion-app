@@ -115,10 +115,16 @@ final class StoreService: ObservableObject {
 	]
 	static let categoryOrder = ["games", "entertainment", "utilities", "photo-video", "social", "lifestyle", "developer", "other"]
 
-	@Published private(set) var index: StoreIndex?
+	@Published private(set) var index: StoreIndex? {
+		didSet { _clearCaches() }
+	}
 	@Published private(set) var stats: StoreStats?
-	/// Saved apps (bundle ID → version when saved), like the web store's Save button
-	@Published private(set) var saved: [String: String] = UserDefaults.standard.dictionary(forKey: "accretion.saved") as? [String: String] ?? [:]
+	/// Saved apps (bundle ID → version when saved), like the web store's Save button.
+	/// Any change (saving, or opening a saved app's page) clears the caches, so the
+	/// "Updates for your saved apps" shelf stays right.
+	@Published private(set) var saved: [String: String] = UserDefaults.standard.dictionary(forKey: "accretion.saved") as? [String: String] ?? [:] {
+		didSet { _clearCaches() }
+	}
 	@Published private(set) var isLoading = false
 	@Published private(set) var loadFailed = false
 	private var _shards: [Int: [String: StoreAppDetail]] = [:]
@@ -253,7 +259,44 @@ final class StoreService: ObservableObject {
 
 	static let shelfSize = 20
 
+	// MARK: Caches
+	// Discover and search redraw often; sorting the whole index each time made them lag. Results
+	// are kept until the index or the saved apps change. Shelves also depend on the day ("Fresh
+	// today", "New this month"), so they're keyed by it. StoreService is @MainActor: no locking.
+	private struct _SearchKey: Hashable {
+		let query: String
+		let category: String?
+		let onlyFitting: Bool
+		let sort: Sort
+	}
+	private var _shelfCache: [Bool: (day: String, shelves: [Shelf])] = [:]
+	private var _searchCache: [_SearchKey: [StoreApp]] = [:]
+	/// Oldest first, so typing a long search keeps only the most recent queries
+	private var _searchOrder: [_SearchKey] = []
+	private static let _searchCacheSize = 24
+
+	private func _clearCaches() {
+		_shelfCache.removeAll()
+		_searchCache.removeAll()
+		_searchOrder.removeAll()
+	}
+
+	private static func _today() -> String {
+		var calendar = Calendar(identifier: .gregorian)
+		calendar.timeZone = TimeZone(identifier: "UTC")!
+		let parts = calendar.dateComponents([.year, .month, .day], from: Date())
+		return "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+	}
+
 	func shelves(onlyFitting: Bool) -> [Shelf] {
+		let today = Self._today()
+		if let cached = _shelfCache[onlyFitting], cached.day == today { return cached.shelves }
+		let shelves = _makeShelves(onlyFitting: onlyFitting)
+		_shelfCache[onlyFitting] = (today, shelves)
+		return shelves
+	}
+
+	private func _makeShelves(onlyFitting: Bool) -> [Shelf] {
 		guard let all = index?.apps else { return [] }
 		let pool = onlyFitting ? all.filter(fits) : all
 		let byUpdated = sorted(pool, by: .updated)
@@ -316,6 +359,25 @@ final class StoreService: ObservableObject {
 
 	/// Search and category filter for the full list
 	func apps(matching query: String, category: String?, onlyFitting: Bool, sort: Sort = .updated) -> [StoreApp] {
+		// "Apollo " and "apollo" are the same search
+		let key = _SearchKey(
+			query: query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+			category: category,
+			onlyFitting: onlyFitting,
+			sort: sort
+		)
+		if let cached = _searchCache[key] { return cached }
+		let result = _matchApps(key.query, category: category, onlyFitting: onlyFitting, sort: sort)
+		guard index != nil else { return result } // don't remember an empty result from before the index loads
+		_searchCache[key] = result
+		_searchOrder.append(key)
+		if _searchOrder.count > Self._searchCacheSize {
+			_searchCache[_searchOrder.removeFirst()] = nil
+		}
+		return result
+	}
+
+	private func _matchApps(_ query: String, category: String?, onlyFitting: Bool, sort: Sort) -> [StoreApp] {
 		guard let all = index?.apps else { return [] }
 		let words = query.lowercased().split(separator: " ").map(String.init)
 		let matches = all

@@ -1,0 +1,81 @@
+name: Ship
+
+# Release Accretion from anywhere, including the GitHub app on a phone: Actions → Ship → Run.
+# Checks that main's latest build passed, raises the version (next patch unless one is given),
+# tags it, and starts the Release run for that tag, which uploads it privately, publishes the
+# notes-only release and points app-repo.json at it. The store picks it up on its next build.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, like 1.0.20 (leave empty for the next patch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: ship
+  cancel-in-progress: false
+
+jobs:
+  ship:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      # Main's latest build must have passed, with no code changed since
+      - name: Check the latest build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r conclusion built < <(gh run list --workflow release.yml --branch main --event push --limit 1 \
+            --json conclusion,headSha --jq '.[0] | "\(.conclusion) \(.headSha)"')
+          if [ "$conclusion" != success ]; then
+            echo "::error::Main's latest build (${built:0:7}) didn't pass ($conclusion). Fix it, then ship."
+            exit 1
+          fi
+          # version bumps and app-repo.json updates are made by workflows, which don't start builds
+          changed=$(git diff --name-only "$built" HEAD | grep -vx -e 'app-repo.json' -e 'Feather.xcconfig' || true)
+          if [ -n "$changed" ]; then
+            echo "::error::These changed after main's last build and haven't been built yet: $changed"
+            exit 1
+          fi
+
+      - name: Raise the version, tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          current=$(sed -n 's/^FEATHER_PROJECT_VERSION=//p' Feather.xcconfig)
+          next="$INPUT_VERSION"
+          if [ -z "$next" ]; then
+            IFS=. read -r major minor patch <<< "$current"
+            next="$major.$minor.$((patch + 1))"
+          fi
+          if ! [[ "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::\"$next\" isn't a version like 1.0.20"
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/accretion-v$next" > /dev/null; then
+            echo "::error::accretion-v$next already exists"
+            exit 1
+          fi
+          sed -i "s/^FEATHER_PROJECT_VERSION=.*/FEATHER_PROJECT_VERSION=$next/" Feather.xcconfig
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Version $next"
+          git tag "accretion-v$next"
+          git push -q origin main "accretion-v$next"
+          # pushes made with this token don't start workflows; a dispatch does
+          gh workflow run release.yml --ref "accretion-v$next"
+          echo "### Shipping Accretion $next" >> "$GITHUB_STEP_SUMMARY"
+          echo "Follow the **Release** run for \`accretion-v$next\`. It takes about 20 minutes." >> "$GITHUB_STEP_SUMMARY"

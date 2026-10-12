@@ -45,6 +45,9 @@ struct InstallProgressView: View {
 				)
 				.animation(.smooth, value: viewModel.overallProgress)
 		}
+		// Accretion: a soft green glow when the install finishes
+		.shadow(color: AccretionTheme.good.opacity(viewModel.isCompleted ? 0.7 : 0), radius: viewModel.isCompleted ? 18 : 0)
+		.animation(.easeOut(duration: 0.6), value: viewModel.isCompleted)
 	}
 	
 	struct PieShape: Shape {

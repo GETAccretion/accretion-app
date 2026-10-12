@@ -66,7 +66,7 @@ jobs:
       # signed-in users (and personal source links) by the download server. Builds aren't kept
       # as workflow artifacts, which anyone signed in to GitHub could download.
       - name: Upload to private storage
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
+        if: startsWith(github.ref, 'refs/tags/accretion-v')
         env:
           UPLOAD_KEY: ${{ secrets.ACCRETION_UPLOAD_KEY }}
         run: |
@@ -84,7 +84,7 @@ jobs:
           curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
 
       - name: Create Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
+        if: startsWith(github.ref, 'refs/tags/accretion-v')
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v3.0.2
         with:
           name: Accretion v${{ env.VERSION }}
@@ -94,7 +94,7 @@ jobs:
 
       # Releases made with GITHUB_TOKEN don't trigger other workflows, so the app source is updated here.
       - name: Update app-repo.json
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/accretion-v')
+        if: startsWith(github.ref, 'refs/tags/accretion-v')
         env:
           REF_NAME: ${{ github.ref_name }} # never expanded into the script text
         run: |

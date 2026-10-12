@@ -248,7 +248,7 @@ struct DiscoverView: View {
 		let stats = _store.stats
 		VStack(alignment: .leading, spacing: 0) {
 			HStack(spacing: 8) {
-				LiveDot()
+				LiveDot(tone: .freshness(stats?.updated))
 				Text(verbatim: (String.localized("Live index") + " · " + (stats?.updated.map { String.localized("built %@", arguments: $0) } ?? String.localized("live"))).uppercased())
 					.font(.accretionMono(12, weight: .regular))
 					.tracking(1)

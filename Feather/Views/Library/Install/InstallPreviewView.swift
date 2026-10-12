@@ -74,6 +74,12 @@ struct InstallPreviewView: View {
 		.onReceive(viewModel.$status) { newStatus in
 			if _installationMethod == 0 {
 				if case .ready = newStatus {
+					// Accretion: iOS won't accept this install's certificate: say so now, with the fix,
+					// instead of opening an install iOS will silently refuse
+					if installer.getServerMethod() != 1, let check = ServerInstaller.lastCheck, !check.trusted {
+						_offerFix(certificateProblem: true)
+						return
+					}
 					// Accretion: if iOS never asks to install, say why instead of waiting forever
 					let link = installer.iTunesLink
 					DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
@@ -117,6 +123,22 @@ struct InstallPreviewView: View {
 					}
 				}
 				
+				// Accretion: feel the result; a server that couldn't start gets its fix offered
+				switch newStatus {
+				case .completed:
+					UINotificationFeedbackGenerator().notificationOccurred(.success)
+				case .broken(let error):
+					UINotificationFeedbackGenerator().notificationOccurred(.error)
+					// only certificate set-up failures; other errors keep their own message
+					let certificateError = error is ServerInstaller.InstallCertificateError
+						|| String(describing: type(of: error)).contains("NIOSSL")
+					if installer.getServerMethod() != 1, certificateError {
+						_offerFix(certificateProblem: false)
+					}
+				default:
+					break
+				}
+
 				switch newStatus {
 				case .completed, .broken(_):
 					progressTask?.cancel()
@@ -147,6 +169,39 @@ struct InstallPreviewView: View {
 		}
 	}
 	
+	/// Accretion: the install can't work in the current mode; offer the mode that will, in one tap
+	private func _offerFix(certificateProblem: Bool) {
+		let offline = installer.getServerMethod() == 2
+		let reason: String
+		if offline {
+			reason = String.localized("Offline installs aren't set up yet: iOS doesn't trust this iPhone's install certificate. Finish Settings → Installation → Server & SSL → Set Up Offline Installs, or use Semi Local now.")
+		} else if certificateProblem, ServerInstaller.lastCheck?.revoked == true {
+			reason = String.localized("Fully Local's certificate was withdrawn by its issuer, so iOS refuses it. Use Semi Local, or set up Offline installs.")
+		} else {
+			reason = String.localized("The local install server can't use its certificate, so iOS would refuse this install. Use Semi Local, or check Settings → Installation → Test Install Server.")
+		}
+		var actions = [
+			UIAlertAction(title: String.localized("Use Semi Local"), style: .default) { _ in
+				UserDefaults.standard.set(1, forKey: "Feather.serverMethod")
+				UIAlertController.showAlertWithOk(
+					title: String.localized("Switched to Semi Local"),
+					message: String.localized("Close this install card and tap Install again. You can switch back in Settings → Installation.")
+				)
+			},
+		]
+		if certificateProblem {
+			let link = installer.iTunesLink
+			actions.append(UIAlertAction(title: String.localized("Try Anyway"), style: .default) { _ in
+				if let url = URL(string: link) { UIApplication.shared.open(url) }
+			})
+		}
+		UIAlertController.showAlertWithCancel(
+			title: String.localized("This install won't work yet"),
+			message: reason,
+			actions: actions
+		)
+	}
+
 	@ViewBuilder
 	private func _status() -> some View {
 		Label(viewModel.statusLabel, systemImage: viewModel.statusImage)

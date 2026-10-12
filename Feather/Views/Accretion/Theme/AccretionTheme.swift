@@ -20,6 +20,7 @@ enum AccretionTheme {
 	static let accent2 = _dynamic(dark: 0x22D3EE, light: 0x0E8FB0)
 	static let good = _dynamic(dark: 0x34D399, light: 0x078A5E)
 	static let warn = _dynamic(dark: 0xF59E0B, light: 0xB76A00)
+	static let bad = _dynamic(dark: 0xF87171, light: 0xC2410C)
 	static let star = Color(red: 245.0 / 255, green: 184.0 / 255, blue: 59.0 / 255)
 	/// color-mix(accent 55%, accent-2): the far end of the primary button's gradient
 	static let accentMix = _dynamic(dark: 0x5C93F2, light: 0x4568C8)
@@ -167,6 +168,7 @@ extension View {
 		background(
 			ZStack {
 				AccretionTheme.bg
+				AccretionAmbientGlow()
 				Image(uiImage: AccretionTheme.gridTile)
 					.resizable(resizingMode: .tile)
 			}
@@ -348,20 +350,47 @@ struct AccretionEmptyState<Actions: View>: View {
 	}
 }
 
-/// The store's "live" dot: green, with a ring that pulses outward every 2.4 s like the website's
-/// .live animation. Still when Reduce Motion is on.
+/// The store's "live" dot, with a ring that pulses outward every 2.4 s like the website's .live
+/// animation. Its colour carries meaning: green working, amber behind or needs attention, red down.
+/// Still when Reduce Motion is on.
 struct LiveDot: View {
+	enum Tone {
+		case good, warn, bad
+
+		var color: Color {
+			switch self {
+			case .good: return AccretionTheme.good
+			case .warn: return AccretionTheme.warn
+			case .bad: return AccretionTheme.bad
+			}
+		}
+
+		/// How fresh the store index is, from its "2026-10-11 13:12 UTC" build time: green within
+		/// 8 hours (it rebuilds every 6), amber within a day, red after that
+		static func freshness(_ updated: String?) -> Tone {
+			guard let updated else { return .good }
+			let formatter = DateFormatter()
+			formatter.locale = Locale(identifier: "en_US_POSIX")
+			formatter.timeZone = TimeZone(identifier: "UTC")
+			formatter.dateFormat = "yyyy-MM-dd HH:mm 'UTC'"
+			guard let date = formatter.date(from: updated) else { return .good }
+			let age = -date.timeIntervalSinceNow
+			return age < 8 * 3600 ? .good : age < 24 * 3600 ? .warn : .bad
+		}
+	}
+
+	var tone: Tone = .good
 	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
 	@State private var _pulse = false
 
 	var body: some View {
 		Circle()
-			.fill(AccretionTheme.good)
+			.fill(tone.color)
 			.frame(width: 8, height: 8)
 			.background {
 				if !_reduceMotion {
 					Circle()
-						.fill(AccretionTheme.good.opacity(_pulse ? 0 : 0.55))
+						.fill(tone.color.opacity(_pulse ? 0 : 0.55))
 						.frame(width: 8, height: 8)
 						.scaleEffect(_pulse ? 3.2 : 1)
 				}
@@ -371,5 +400,61 @@ struct LiveDot: View {
 				withAnimation(.easeOut(duration: 1.7).repeatForever(autoreverses: false)) { _pulse = true }
 			}
 			.accessibilityHidden(true)
+	}
+}
+
+/// The page background's slow-moving light: two soft accent glows (violet and cyan) drifting behind
+/// the grid on a long loop. Drawn at 15 frames a second, and still with Reduce Motion or Low Power
+/// Mode on, so it costs next to nothing.
+struct AccretionAmbientGlow: View {
+	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
+	@Environment(\.colorScheme) private var _colorScheme
+	@State private var _lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+
+	var body: some View {
+		let still = _reduceMotion || _lowPower
+		TimelineView(.animation(minimumInterval: 1.0 / 15, paused: still)) { context in
+			Canvas { canvas, size in
+				let t = still ? 0 : context.date.timeIntervalSinceReferenceDate
+				let strength = _colorScheme == .dark ? 0.16 : 0.09
+				let radius = max(size.width, size.height) * 0.62
+				_glow(
+					in: &canvas,
+					center: CGPoint(
+						x: size.width * (0.22 + 0.16 * sin(t / 11)),
+						y: size.height * (0.18 + 0.10 * cos(t / 13))
+					),
+					radius: radius,
+					color: AccretionTheme.accent.opacity(strength)
+				)
+				_glow(
+					in: &canvas,
+					center: CGPoint(
+						x: size.width * (0.82 + 0.12 * cos(t / 17)),
+						y: size.height * (0.62 + 0.14 * sin(t / 19))
+					),
+					radius: radius * 0.85,
+					color: AccretionTheme.accent2.opacity(strength * 0.7)
+				)
+			}
+		}
+		.allowsHitTesting(false)
+		.accessibilityHidden(true)
+		.onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
+			_lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+		}
+	}
+
+	private func _glow(in canvas: inout GraphicsContext, center: CGPoint, radius: CGFloat, color: Color) {
+		let rect = CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
+		canvas.fill(
+			Path(ellipseIn: rect),
+			with: .radialGradient(
+				Gradient(colors: [color, color.opacity(0)]),
+				center: center,
+				startRadius: 0,
+				endRadius: radius
+			)
+		)
 	}
 }

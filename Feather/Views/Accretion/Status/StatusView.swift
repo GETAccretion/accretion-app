@@ -89,7 +89,7 @@ struct StatusView: View {
 		let down = (s.sources_failed ?? 0) + (s.sources_cached ?? 0)
 		let total = s.sources_total ?? 0
 		HStack(spacing: 8) {
-			LiveDot()
+			LiveDot(tone: .freshness(s.updated))
 			Text(verbatim: (String.localized("Live index") + " · " + String.localized("build %@", arguments: s.updated ?? "")).uppercased())
 				.font(.accretionMono(12, weight: .regular))
 				.tracking(1)

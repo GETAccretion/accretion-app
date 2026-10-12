@@ -19,6 +19,7 @@ struct InstallPreviewView: View {
 	@AppStorage("Feather.serverMethod") private var _serverMethod: Int = 0
 	@State private var _isWebviewPresenting = false
 	@State private var progressTask: Task<Void, Never>?
+	@State private var _payloadCheckScheduled = false // Accretion: stall check runs once per install
 	
 	var app: AppInfoPresentable
 	@StateObject var viewModel: InstallerStatusViewModel
@@ -116,6 +117,24 @@ struct InstallPreviewView: View {
 				
 				if case .sendingPayload = newStatus, installer.getServerMethod() == 1 {
 					_isWebviewPresenting = false
+				}
+
+				// Accretion: if the app file transfer stalls, say where it stopped (once per install)
+				if case .sendingPayload = newStatus, !_payloadCheckScheduled {
+					_payloadCheckScheduled = true
+					DispatchQueue.main.asyncAfter(deadline: .now() + 45) {
+						guard case .sendingPayload = viewModel.status else { return }
+						let details = InstallServerLog.shared.payloadSummary
+						UIAlertController.showAlertWithCancel(
+							title: String.localized("Still sending the app"),
+							message: String.localized("iOS started downloading the app from Accretion but hasn't finished. What Accretion sees:") + "\n\n" + details,
+							actions: [
+								UIAlertAction(title: String.localized("Copy Details"), style: .default) { _ in
+									UIPasteboard.general.string = details
+								},
+							]
+						)
+					}
 				}
 				
 				if case .installing = newStatus {

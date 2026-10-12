@@ -76,14 +76,19 @@ class ServerInstaller: Identifiable, ObservableObject {
 				}
 				
 				self._updateStatus(.sendingPayload)
-				
+				// Accretion: follow the transfer, so a stall can say where it stopped
+				let size = (try? FileManager.default.attributesOfItem(atPath: packageUrl.path)[.size] as? NSNumber)?.int64Value
+				InstallServerLog.shared.payloadRequested(range: req.headers.first(name: .range), size: size)
+
 				return req.fileio.streamFile(
 					at: packageUrl.path
 				) { result in
 					switch result {
 					case .success:
+						InstallServerLog.shared.payloadFinished(error: nil)
 						self._updateStatus(.installing)
 					case .failure(let error):
+						InstallServerLog.shared.payloadFinished(error: error)
 						self._updateStatus(.broken(error))
 					}
 

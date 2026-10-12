@@ -46,6 +46,18 @@ struct InstallServerProbe {
 
 		// the same host an install's link uses
 		var host = method == 2 ? LocalCertificateAuthority.host : "127.0.0.1"
+		if method == 2 {
+			let addresses = _resolve(host)
+			if addresses.contains("127.0.0.1") || addresses.contains("::1") {
+				checks.append(.init(state: .pass, title: String.localized("Name points to this iPhone"), detail: "\(host) → \(addresses.joined(separator: ", "))"))
+			} else {
+				checks.append(.init(
+					state: .fail,
+					title: String.localized("The install name doesn't point to this iPhone"),
+					detail: String.localized("%@ resolved to %@ instead of this iPhone.", arguments: host, addresses.isEmpty ? String.localized("nothing") : addresses.joined(separator: ", "))
+				))
+			}
+		}
 		if fullyLocal {
 			let hasFiles = ServerInstaller.getUrl("server", ext: "crt") != nil && ServerInstaller.getUrl("server", ext: "pem") != nil
 			guard hasFiles, let name = ServerInstaller.installHostName() else {
@@ -87,7 +99,7 @@ struct InstallServerProbe {
 				app.http.server.configuration.tlsConfiguration = tls
 			}
 			app.http.server.configuration.hostname = host
-			app.http.server.configuration.address = .hostname("0.0.0.0", port: port)
+			app.http.server.configuration.address = .hostname(method == 2 ? "::" : "0.0.0.0", port: port)
 			app.http.server.configuration.port = port
 			app.get("accretion-probe") { _ in "ok" }
 			try app.server.start()

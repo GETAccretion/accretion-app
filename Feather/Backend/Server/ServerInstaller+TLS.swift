@@ -41,7 +41,8 @@ extension ServerInstaller {
 		
 		app.http.server.configuration.hostname = sni()
 		app.http.server.configuration.tcpNoDelay = true
-		app.http.server.configuration.address = .hostname("0.0.0.0", port: port)
+		// Accretion: Offline listens on IPv6 too (dual-stack "::"), in case accretion.localhost resolves to ::1
+		app.http.server.configuration.address = .hostname(getServerMethod() == 2 ? "::" : "0.0.0.0", port: port)
 		app.http.server.configuration.port = port
 		app.routes.defaultMaxBodySize = "128mb"
 		app.routes.caseInsensitive = false

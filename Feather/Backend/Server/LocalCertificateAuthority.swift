@@ -16,9 +16,10 @@ import UIKit
 /// profile and turns on full trust for it, iOS accepts the local install server with no internet
 /// and no third-party certificate. The keys never leave the device and aren't backed up.
 enum LocalCertificateAuthority {
-	/// The install link's host. A name, not 127.0.0.1: iOS's installer didn't connect to an IP
-	/// address over HTTPS, while the probe (inside the app) did. The certificate covers both.
-	static let host = "localhost"
+	/// The install link's host. iOS refuses an install manifest at "localhost" or 127.0.0.1 without
+	/// even connecting, but accepts a name; any name under .localhost points at this iPhone, with no
+	/// network needed. The certificate covers it, plus localhost and 127.0.0.1.
+	static let host = "accretion.localhost"
 	/// Where the profile download server listens (Safari only needs plain HTTP here)
 	static let loopback = "127.0.0.1"
 
@@ -27,8 +28,9 @@ enum LocalCertificateAuthority {
 	}
 	private static var _caCert: URL { _folder.appendingPathComponent("ca.crt") }
 	private static var _caKey: URL { _folder.appendingPathComponent("ca.key") }
-	static var serverCert: URL { _folder.appendingPathComponent("server.crt") }
-	static var serverKey: URL { _folder.appendingPathComponent("server.key") }
+	// v3: the server certificate covers accretion.localhost (a new file name makes older ones get replaced)
+	static var serverCert: URL { _folder.appendingPathComponent("server-v3.crt") }
+	static var serverKey: URL { _folder.appendingPathComponent("server-v3.key") }
 
 	static var isCreated: Bool {
 		FileManager.default.fileExists(atPath: _caCert.path) && FileManager.default.fileExists(atPath: _caKey.path)
@@ -207,6 +209,7 @@ enum LocalCertificateAuthority {
 		let key = try _RSAKey()
 		let now = Date()
 		let san = DER.sequence([
+			DER.tlv(0x82, Data(host.utf8)),               // dNSName
 			DER.tlv(0x82, Data("localhost".utf8)),        // dNSName
 			DER.tlv(0x87, Data([127, 0, 0, 1])),          // iPAddress
 		])

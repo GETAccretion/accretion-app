@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UIKit
+import CoreText
 
 // MARK: - Colours
 /// The Accretion web store's design tokens (site/style.css in getaccretion.github.io), with the
@@ -117,14 +118,41 @@ enum AccretionTheme {
 }
 
 // MARK: - Type
+/// The store's own typefaces, bundled in Resources/Fonts (SIL Open Font License): Sora 600/700 for
+/// headings and JetBrains Mono 400/500 for labels, the same weights the website loads. Registered
+/// once in code, so they work wherever the build puts them; if one ever fails to load, the
+/// matching system font is used instead. (A lazy static: registered once, safely from any thread.)
+enum AccretionFonts {
+	static let available: Set<String> = {
+		var names = Set<String>()
+		let urls = (Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [])
+			+ (Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: "Fonts") ?? [])
+		for url in urls {
+			// already registered (or registered by Info.plist) is fine too
+			CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+		}
+		for name in ["Sora-SemiBold", "Sora-Bold", "JetBrainsMono-Regular", "JetBrainsMono-Medium"]
+		where UIFont(name: name, size: 12) != nil {
+			names.insert(name)
+		}
+		return names
+	}()
+}
+
 extension Font {
-	/// Headings, like the store's Sora display face
+	/// Headings, in the store's Sora (600 or 700, like the website)
 	static func accretionDisplay(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
-		.system(size: size, weight: weight, design: .rounded)
+		let name = weight == .bold || weight == .heavy || weight == .black ? "Sora-Bold" : "Sora-SemiBold"
+		guard AccretionFonts.available.contains(name) else { return .system(size: size, weight: weight, design: .rounded) }
+		return .custom(name, fixedSize: size)
 	}
-	/// Badges and small labels, like the store's JetBrains Mono
+	/// Badges and small labels, in the store's JetBrains Mono (400, or 500 for anything heavier,
+	/// the nearest weight the website loads)
 	static func accretionMono(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-		.system(size: size, weight: weight, design: .monospaced)
+		let name = weight == .regular || weight == .light || weight == .thin || weight == .ultraLight
+			? "JetBrainsMono-Regular" : "JetBrainsMono-Medium"
+		guard AccretionFonts.available.contains(name) else { return .system(size: size, weight: weight, design: .monospaced) }
+		return .custom(name, fixedSize: size)
 	}
 }
 

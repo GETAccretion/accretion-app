@@ -56,7 +56,7 @@ enum AccretionTheme {
 
 	/// One 32-pt grid cell: a faint line on the top and left edges, adapting to light and dark.
 	static let gridTile: UIImage = {
-		let size = CGSize(width: 32, height: 32)
+		let size = CGSize(width: 28, height: 28) // background-size: 28px 28px
 		let line = uiDynamic(dark: 0xFFFFFF, light: 0x1E1B4B)
 		let renderer = UIGraphicsImageRenderer(size: size)
 		let draw: (UIColor, CGFloat) -> UIImage = { color, alpha in
@@ -162,7 +162,7 @@ extension View {
 		scrollContentBackground(.hidden).accretionBackground()
 	}
 
-	/// The store's page background: near-black with a faint grid. The grid is one 32-pt tile
+	/// The store's page background: near-black with a faint grid. The grid is one 28-pt tile
 	/// drawn once and repeated, so long lists don't redraw hundreds of lines on every update.
 	func accretionBackground() -> some View {
 		background(
@@ -203,8 +203,29 @@ struct AccretionButtonStyle: ButtonStyle {
 			}
 			.overlay(shape.stroke(prominent ? Color.clear : on ? AccretionTheme.good : AccretionTheme.line, lineWidth: 1))
 			.contentShape(shape)
-			.opacity(configuration.isPressed ? 0.75 : 1)
+			// Accretion: a quick give under the finger, like a native button
+			.opacity(configuration.isPressed ? 0.85 : 1)
+			.scaleEffect(configuration.isPressed ? 0.96 : 1)
+			.animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
 	}
+}
+
+/// Tappable rows and cards (the store's links): dim and shrink slightly while pressed, spring back
+/// on release. Looks identical to `.plain` at rest.
+struct AccretionPressStyle: ButtonStyle {
+	func makeBody(configuration: Configuration) -> some View {
+		configuration.label
+			.opacity(configuration.isPressed ? 0.8 : 1)
+			.scaleEffect(configuration.isPressed ? 0.98 : 1)
+			.animation(.spring(response: 0.25, dampingFraction: 0.75), value: configuration.isPressed)
+	}
+}
+
+/// Light haptics for taps that change what's on screen (tabs, chips, filters)
+@MainActor
+enum AccretionHaptics {
+	private static let _selection = UISelectionFeedbackGenerator()
+	static func select() { _selection.selectionChanged() }
 }
 
 /// The store's `.sec` card: surface, 14-pt corners, and a small mono uppercase heading.
@@ -403,9 +424,11 @@ struct LiveDot: View {
 	}
 }
 
-/// The page background's slow-moving light: two soft accent glows (violet and cyan) drifting behind
-/// the grid on a long loop. Drawn at 15 frames a second, and still with Reduce Motion or Low Power
-/// Mode on, so it costs next to nothing.
+/// The page background's slow-moving light, drawn exactly like the website's `body::before`: a box
+/// 20vmax larger than the screen on every side, a violet glow at 30% 25% of it and a cyan one at
+/// 75% 70%, each fading out at 70% of its 42vmax / 36vmax radius, drifting on the 40-second
+/// `drift` keyframes (alternating, ease-in-out). Drawn at 15 frames a second, and still with
+/// Reduce Motion or Low Power Mode on, so it costs next to nothing.
 struct AccretionAmbientGlow: View {
 	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
 	@Environment(\.colorScheme) private var _colorScheme
@@ -415,25 +438,21 @@ struct AccretionAmbientGlow: View {
 		let still = _reduceMotion || _lowPower
 		TimelineView(.animation(minimumInterval: 1.0 / 15, paused: still)) { context in
 			Canvas { canvas, size in
-				let t = still ? 0 : context.date.timeIntervalSinceReferenceDate
-				let strength = _colorScheme == .dark ? 0.16 : 0.09
-				let radius = max(size.width, size.height) * 0.62
+				let vmax = max(size.width, size.height)
+				let drift = still ? .zero : Self._drift(at: context.date.timeIntervalSinceReferenceDate, vmax: vmax)
+				// inset: -20vmax
+				let box = CGRect(origin: .zero, size: size).insetBy(dx: -0.2 * vmax, dy: -0.2 * vmax).offsetBy(dx: drift.x, dy: drift.y)
+				let strength = _colorScheme == .dark ? 0.16 : 0.09 // --glow
 				_glow(
 					in: &canvas,
-					center: CGPoint(
-						x: size.width * (0.22 + 0.16 * sin(t / 11)),
-						y: size.height * (0.18 + 0.10 * cos(t / 13))
-					),
-					radius: radius,
+					center: CGPoint(x: box.minX + box.width * 0.30, y: box.minY + box.height * 0.25),
+					radius: 0.42 * vmax * 0.7,
 					color: AccretionTheme.accent.opacity(strength)
 				)
 				_glow(
 					in: &canvas,
-					center: CGPoint(
-						x: size.width * (0.82 + 0.12 * cos(t / 17)),
-						y: size.height * (0.62 + 0.14 * sin(t / 19))
-					),
-					radius: radius * 0.85,
+					center: CGPoint(x: box.minX + box.width * 0.75, y: box.minY + box.height * 0.70),
+					radius: 0.36 * vmax * 0.7,
 					color: AccretionTheme.accent2.opacity(strength * 0.7)
 				)
 			}
@@ -443,6 +462,17 @@ struct AccretionAmbientGlow: View {
 		.onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
 			_lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 		}
+	}
+
+	/// `@keyframes drift`: 0% (0, 0), 50% (6vmax, -4vmax), 100% (-5vmax, 5vmax), 40 s each way,
+	/// alternating, eased in and out between keyframes like CSS's ease-in-out
+	private static func _drift(at time: TimeInterval, vmax: CGFloat) -> CGPoint {
+		let cycle = time.truncatingRemainder(dividingBy: 80)
+		let progress = cycle <= 40 ? cycle / 40 : (80 - cycle) / 40
+		let ease = { (x: Double) in (1 - cos(Double.pi * x)) / 2 }
+		let a = CGPoint.zero, b = CGPoint(x: 6, y: -4), c = CGPoint(x: -5, y: 5)
+		let (from, to, k) = progress <= 0.5 ? (a, b, ease(progress * 2)) : (b, c, ease(progress * 2 - 1))
+		return CGPoint(x: (from.x + (to.x - from.x) * k) / 100 * vmax, y: (from.y + (to.y - from.y) * k) / 100 * vmax)
 	}
 
 	private func _glow(in canvas: inout GraphicsContext, center: CGPoint, radius: CGFloat, color: Color) {

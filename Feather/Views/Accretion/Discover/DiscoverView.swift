@@ -234,7 +234,10 @@ struct DiscoverView: View {
 	}
 
 	private func _navItem(_ title: String, on: Bool = false, badge: String? = nil, hot: Bool = false, action: @escaping () -> Void) -> some View {
-		Button(action: action) {
+		Button {
+			AccretionHaptics.select()
+			withAnimation(.easeOut(duration: 0.2)) { action() }
+		} label: {
 			HStack(spacing: 6) {
 				Text(verbatim: title)
 				if let badge {
@@ -389,7 +392,7 @@ struct DiscoverView: View {
 			LazyVStack(spacing: 12) {
 				ForEach(apps.prefix(_shown)) { app in
 					NavigationLink(value: app) { StoreAppCard(app: app) }
-						.buttonStyle(.plain)
+						.buttonStyle(AccretionPressStyle())
 				}
 			}
 			if apps.count > _shown {
@@ -426,7 +429,10 @@ struct DiscoverView: View {
 	}
 
 	private func _chip(_ title: String, count: Int, selected: Bool, action: @escaping () -> Void) -> some View {
-		Button(action: action) {
+		Button {
+			AccretionHaptics.select()
+			withAnimation(.easeOut(duration: 0.2)) { action() }
+		} label: {
 			HStack(spacing: 6) {
 				Text(verbatim: title).font(.system(size: 13, weight: .medium))
 				Text(verbatim: count.formatted())
@@ -439,7 +445,7 @@ struct DiscoverView: View {
 			.background(selected ? AccretionTheme.fg : AccretionTheme.surface, in: Capsule())
 			.overlay(Capsule().stroke(selected ? AccretionTheme.fg : AccretionTheme.line, lineWidth: 1))
 		}
-		.buttonStyle(.plain)
+		.buttonStyle(AccretionPressStyle())
 		.accessibilityAddTraits(selected ? .isSelected : [])
 	}
 
@@ -545,7 +551,7 @@ struct StoreShelfView: View {
 				NavigationLink(value: shelf.apps[index]) {
 					StoreAppRow(app: shelf.apps[index], rank: shelf.ranked ? index + 1 : nil, divider: index != start)
 				}
-				.buttonStyle(.plain)
+				.buttonStyle(AccretionPressStyle())
 			}
 		}
 	}

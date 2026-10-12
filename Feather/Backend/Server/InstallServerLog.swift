@@ -14,12 +14,14 @@ final class InstallServerLog: @unchecked Sendable {
 
 	private let _lock = NSLock()
 	private var _handshakeStarted = false
+	private var _hello: String??
 	private var _requests: [String] = []
 	private var _messages: [String] = []
 
 	func reset() {
 		_lock.lock(); defer { _lock.unlock() }
 		_handshakeStarted = false
+		_hello = nil
 		_requests = []
 		_messages = []
 	}
@@ -28,6 +30,12 @@ final class InstallServerLog: @unchecked Sendable {
 	func handshake() {
 		_lock.lock(); defer { _lock.unlock() }
 		_handshakeStarted = true
+	}
+
+	/// The first message of a secure connection arrived, naming this host (SNI)
+	func hello(_ host: String?) {
+		_lock.lock(); defer { _lock.unlock() }
+		_hello = .some(host)
 	}
 
 	func request(_ path: String) {
@@ -49,6 +57,8 @@ final class InstallServerLog: @unchecked Sendable {
 			lines.append(String.localized("iOS asked the install server for: %@", arguments: _requests.joined(separator: ", ")))
 		} else if _handshakeStarted {
 			lines.append(String.localized("iOS started a secure connection to the install server but asked for nothing: it didn't accept the certificate."))
+		} else if let hello = _hello {
+			lines.append(String.localized("iOS connected to the install server (for %@) but stopped at the start of the secure connection.", arguments: hello ?? String.localized("no name")))
 		} else {
 			lines.append(String.localized("iOS never completed a connection to the install server."))
 		}

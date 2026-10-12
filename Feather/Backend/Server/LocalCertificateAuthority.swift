@@ -182,7 +182,7 @@ enum LocalCertificateAuthority {
 			subject: name,
 			notBefore: now.addingTimeInterval(-3600),
 			notAfter: now.addingTimeInterval(10 * 365 * 86400),
-			publicKey: key.publicKey,
+			spki: key.publicKey.derRepresentation,
 			extensions: [
 				_extension("2.5.29.19", critical: true, DER.sequence([DER.bool(true)])),
 				_extension("2.5.29.15", critical: true, DER.bits(Data([0x06]), unused: 1)), // keyCertSign, cRLSign
@@ -202,7 +202,9 @@ enum LocalCertificateAuthority {
 		else { throw CocoaError(.fileReadCorruptFile) }
 		let caKey = try P256.Signing.PrivateKey(pemRepresentation: caPEM)
 		let issuer = try _subject(ofCertificate: caDER)
-		let key = P256.Signing.PrivateKey()
+		// An RSA server key, like the public certificates iOS's installer has always accepted
+		// (the authority above stays P-256, so a trusted profile keeps working)
+		let key = try _RSAKey()
 		let now = Date()
 		let san = DER.sequence([
 			DER.tlv(0x82, Data("localhost".utf8)),        // dNSName
@@ -213,18 +215,18 @@ enum LocalCertificateAuthority {
 			subject: _name("Accretion Local Install Server"),
 			notBefore: now.addingTimeInterval(-3600),
 			notAfter: now.addingTimeInterval(390 * 86400),
-			publicKey: key.publicKey,
+			spki: key.spki,
 			extensions: [
 				_extension("2.5.29.19", critical: true, DER.sequence([])),
-				_extension("2.5.29.15", critical: true, DER.bits(Data([0x80]), unused: 7)), // digitalSignature
+				_extension("2.5.29.15", critical: true, DER.bits(Data([0xA0]), unused: 5)), // digitalSignature, keyEncipherment
 				_extension("2.5.29.37", critical: false, DER.sequence([DER.oid("1.3.6.1.5.5.7.3.1")])), // serverAuth
 				_extension("2.5.29.17", critical: false, san),
-				_extension("2.5.29.14", critical: false, DER.octet(_keyIdentifier(key.publicKey))),
+				_extension("2.5.29.14", critical: false, DER.octet(Data(Insecure.SHA1.hash(data: key.publicPKCS1)))),
 				_extension("2.5.29.35", critical: false, DER.sequence([DER.tlv(0x80, _keyIdentifier(caKey.publicKey))])),
 			],
 			signer: caKey
 		)
-		try _write(key.pemRepresentation, to: serverKey)
+		try _write(_pem(key.privatePKCS1, label: "RSA PRIVATE KEY"), to: serverKey)
 		try _write(_pem(der, label: "CERTIFICATE") + _pem(caDER, label: "CERTIFICATE"), to: serverCert)
 	}
 
@@ -232,8 +234,38 @@ enum LocalCertificateAuthority {
 		guard FileManager.default.fileExists(atPath: serverKey.path),
 		      let leaf = try? NIOSSLCertificate.fromPEMFile(serverCert.path).first
 		else { return true }
+		// server certificates made before 1.0.19 used P-256; replace them with RSA
+		if let key = try? String(contentsOf: serverKey, encoding: .utf8), !key.contains("RSA PRIVATE KEY") { return true }
 		let expires = Date(timeIntervalSince1970: TimeInterval(leaf.notValidAfter))
 		return expires.timeIntervalSinceNow < 30 * 86400
+	}
+
+	/// A 2048-bit RSA key from the Security framework, in the forms a certificate and NIOSSL need
+	private struct _RSAKey {
+		let privatePKCS1: Data
+		let publicPKCS1: Data
+		/// SubjectPublicKeyInfo: rsaEncryption with NULL parameters, then the PKCS#1 public key
+		var spki: Data {
+			DER.sequence([
+				DER.sequence([DER.oid("1.2.840.113549.1.1.1"), Data([0x05, 0x00])]),
+				DER.bits(publicPKCS1),
+			])
+		}
+
+		init() throws {
+			let attributes: [String: Any] = [
+				kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+				kSecAttrKeySizeInBits as String: 2048,
+			]
+			var error: Unmanaged<CFError>?
+			guard let privateKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error),
+			      let publicKey = SecKeyCopyPublicKey(privateKey),
+			      let privateData = SecKeyCopyExternalRepresentation(privateKey, &error) as Data?,
+			      let publicData = SecKeyCopyExternalRepresentation(publicKey, &error) as Data?
+			else { throw error?.takeRetainedValue() ?? CocoaError(.featureUnsupported) }
+			privatePKCS1 = privateData
+			publicPKCS1 = publicData
+		}
 	}
 
 	private static func _certificate(
@@ -241,7 +273,7 @@ enum LocalCertificateAuthority {
 		subject: Data,
 		notBefore: Date,
 		notAfter: Date,
-		publicKey: P256.Signing.PublicKey,
+		spki: Data,
 		extensions: [Data],
 		signer: P256.Signing.PrivateKey
 	) throws -> Data {
@@ -255,7 +287,7 @@ enum LocalCertificateAuthority {
 			issuer,
 			DER.sequence([DER.utcTime(notBefore), DER.utcTime(notAfter)]),
 			subject,
-			publicKey.derRepresentation,
+			spki,
 			DER.explicit(3, DER.sequence(extensions)),
 		])
 		let signature = try signer.signature(for: tbs).derRepresentation

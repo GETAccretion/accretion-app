@@ -26,6 +26,11 @@ extension ServerInstaller {
 				if var tls = try tls() {
 					// called once a TLS handshake agrees keys: proof iOS got that far
 					tls.keyLogCallback = { _ in InstallServerLog.shared.handshake() }
+					// called on the very first message of a secure connection: proof iOS connected
+					tls.sslContextCallback = { values, promise in
+						InstallServerLog.shared.hello(values.serverHostname)
+						promise.succeed(.noChanges)
+					}
 					app.http.server.configuration.tlsConfiguration = tls
 				}
 			} catch {

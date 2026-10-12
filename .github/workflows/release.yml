@@ -80,6 +80,11 @@ jobs:
           done
           rm packages/Accretion.ipa
           ditto -c -k --sequesterRsrc --keepParent "$WORK/Payload" packages/Accretion.ipa
+          # never release a damaged or mislabelled build
+          unzip -tq packages/Accretion.ipa
+          check=$(unzip -p packages/Accretion.ipa Payload/Accretion.app/Info.plist > "$RUNNER_TEMP/check.plist" \
+            && /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$RUNNER_TEMP/check.plist")
+          [ "$check" = "$NEW" ] || { echo "::error::Stamped build says $check, expected $NEW"; exit 1; }
           echo "done=true" >> "$GITHUB_OUTPUT"
           echo "Reused main's build ${{ steps.reuse.outputs.sha }}: $OLD → $NEW" >> "$GITHUB_STEP_SUMMARY"
 

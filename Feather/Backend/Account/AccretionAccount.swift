@@ -402,6 +402,25 @@ final class AccretionAccount: ObservableObject {
 		return rows.count
 	}
 
+	/// Community numbers for moderators and admins (public.mod_stats refuses everyone else)
+	struct CommunityStats: Decodable {
+		struct Top: Decodable, Hashable { let app: String; let n: Int }
+		struct Day: Decodable, Hashable { let day: String; let n: Int }
+		let users: Int?, new_7d: Int?, new_30d: Int?, signed_in_7d: Int?, active_30d: Int?
+		let banned: Int?, moderators: Int?, supporters: Int?
+		let posts: Int?, comments: Int?, posts_7d: Int?, likes: Int?, ratings: Int?, follows: Int?
+		let reports_open: Int?, downloads: Int?, downloads_7d: Int?, downloaders_30d: Int?
+		let downloads_by_key_30d: Int?, download_keys: Int?, backups: Int?, backup_accounts: Int?
+		let views_7d: Int?, installs_7d: Int?
+		let top_downloads_30d: [Top]?
+		let signups_by_day: [Day]?
+	}
+
+	func communityStats() async throws -> CommunityStats {
+		let data = try await _rest("rpc/mod_stats", method: "POST", body: [String: String]())
+		return try JSONDecoder().decode(CommunityStats.self, from: data)
+	}
+
 	/// Your role on the store ("user", "mod", "admin"), for the moderator Hide action
 	func myRole() async -> String? {
 		guard isSignedIn, let uid = try? await _uid(),

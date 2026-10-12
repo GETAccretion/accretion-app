@@ -42,6 +42,8 @@ struct StatusRoute: Hashable {}
 struct StatusView: View {
 	@State private var _status: StoreStatus?
 	@State private var _failed = false
+	/// Moderators and admins also see community numbers
+	@State private var _community: AccretionAccount.CommunityStats?
 
 	var body: some View {
 		ScrollView {
@@ -77,6 +79,9 @@ struct StatusView: View {
 			return
 		}
 		_status = status
+		if let role = await AccretionAccount.shared.myRole(), role == "mod" || role == "admin" {
+			_community = try? await AccretionAccount.shared.communityStats()
+		}
 	}
 
 	@ViewBuilder
@@ -128,10 +133,59 @@ struct StatusView: View {
 				}
 			}
 		}
+		if let community = _community {
+			_communitySection(community)
+		}
 		if let recent = s.recent, !recent.isEmpty {
 			AccretionSection(String.localized("Just updated")) {
 				ForEach(recent, id: \.self) { app in
 					_row("\(app.name) \(app.version)", StoreFormat.ago(app.date))
+				}
+			}
+		}
+	}
+
+	@ViewBuilder
+	private func _communitySection(_ c: AccretionAccount.CommunityStats) -> some View {
+		HStack(spacing: 10) {
+			Text(verbatim: String.localized("Community"))
+				.font(.accretionDisplay(20))
+				.foregroundStyle(AccretionTheme.fg)
+			AccretionBadge(text: "moderators only", color: AccretionTheme.accent)
+		}
+		.padding(.top, 8)
+		let n: (Int?) -> String = { ($0 ?? 0).formatted() }
+		Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+			GridRow {
+				_tile(String.localized("Users"), c.users, String.localized("+%@ this week · +%@ in 30 days", arguments: n(c.new_7d), n(c.new_30d)))
+				_tile(String.localized("Active 30d"), c.active_30d, String.localized("%@ signed in this week", arguments: n(c.signed_in_7d)), tone: AccretionTheme.good)
+			}
+			GridRow {
+				_tile(String.localized("Downloads"), c.downloads, String.localized("%@ this week · %@ people in 30 days", arguments: n(c.downloads_7d), n(c.downloaders_30d)))
+				_tile(String.localized("Personal links"), c.download_keys, String.localized("%@ downloads by link in 30 days", arguments: n(c.downloads_by_key_30d)))
+			}
+			GridRow {
+				_tile(String.localized("Posts"), c.posts, String.localized("%@ comments · %@ this week", arguments: n(c.comments), n(c.posts_7d)))
+				_tile(String.localized("Likes"), c.likes, String.localized("%@ ratings · %@ follows", arguments: n(c.ratings), n(c.follows)))
+			}
+			GridRow {
+				_tile(String.localized("Open reports"), c.reports_open, String.localized("%@ banned", arguments: n(c.banned)), tone: (c.reports_open ?? 0) > 0 ? AccretionTheme.warn : nil)
+				_tile(String.localized("Backups"), c.backups, String.localized("%@ accounts", arguments: n(c.backup_accounts)))
+			}
+			GridRow {
+				_tile(String.localized("Store, 7 days"), c.views_7d, String.localized("views · %@ installs", arguments: n(c.installs_7d)))
+				_tile(String.localized("Team"), c.moderators, String.localized("moderators and admins · %@ ♥ supporters", arguments: n(c.supporters)))
+			}
+		}
+		if let days = c.signups_by_day, days.count >= 2 {
+			AccretionSection(String.localized("Sign-ups, 30 days")) {
+				_GrowthChart(values: days.map(\.n)).frame(height: 80)
+			}
+		}
+		if let top = c.top_downloads_30d, !top.isEmpty {
+			AccretionSection(String.localized("Most downloaded, 30 days")) {
+				ForEach(top, id: \.self) { item in
+					_row(StoreService.shared.index?.apps.first { $0.i == item.app }?.n ?? item.app, item.n.formatted())
 				}
 			}
 		}

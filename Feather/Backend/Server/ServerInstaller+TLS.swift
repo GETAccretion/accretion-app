@@ -1,17 +1,9 @@
-//
-//  Server+TLS.swift
-//  feather
-//
-//  Created by samara on 22.08.2024.
-//  Copyright © 2024 Lakr Aream. All Rights Reserved.
-//  ORIGINALLY LICENSED UNDER GPL-3.0, MODIFIED FOR USE FOR FEATHER
-//
-
 import Foundation
 import NIOSSL
 import NIOTLS
 import Vapor
 import SystemConfiguration.CaptiveNetwork
+import Security
 
 // MARK: - Class extension: TLS/Setup
 extension ServerInstaller {
@@ -61,21 +53,96 @@ extension ServerInstaller {
 
 	/// Accretion: shared with the install server test (Settings → Installation)
 	static func tlsConfiguration() throws -> TLSConfiguration? {
+		let candidateFiles = [
+			("server", "crt"),
+			("server", "pem")
+		]
+		
+		for case let (name, ext) in candidateFiles {
+			guard let url = Self.getUrl(name, ext: ext) else {
+				continue
+			}
+			if url.path.hasPrefix(URL.documentsDirectory.path) {
+				if !Self.certificateChainIsValid(at: Self.getUrl("server", ext: "crt") ?? url) {
+					Self.deleteCertificateFilesFromDocuments()
+					break
+				}
+			}
+		}
+		
+		if let crt = Self.getUrl("server", ext: "crt"),
+		   let pem = Self.getUrl("server", ext: "pem"),
+		   Self.certificateChainIsValid(at: crt)
+		{
+			return try TLSConfiguration.makeServerConfiguration(
+				certificateChain: NIOSSLCertificate.fromPEMFile(crt.path).map {
+					NIOSSLCertificateSource.certificate($0)
+				},
+				privateKey: .privateKey(
+					try NIOSSLPrivateKey(file: pem.path, format: .pem)
+				)
+			)
+		}
+		
 		guard
-			let crt = Self.getUrl("server", ext: "crt"),
-			let pem = Self.getUrl("server", ext: "pem")
+			let bundleCrt = Bundle.main.url(forResource: "server", withExtension: "crt"),
+			let bundlePem = Bundle.main.url(forResource: "server", withExtension: "pem"),
+			Self.certificateChainIsValid(at: bundleCrt)
 		else {
 			return nil
 		}
 		
 		return try TLSConfiguration.makeServerConfiguration(
-			certificateChain: NIOSSLCertificate.fromPEMFile(crt.path).map {
+			certificateChain: NIOSSLCertificate.fromPEMFile(bundleCrt.path).map {
 				NIOSSLCertificateSource.certificate($0)
 			},
 			privateKey: .privateKey(
-				try NIOSSLPrivateKey(file: pem.path, format: .pem)
+				try NIOSSLPrivateKey(file: bundlePem.path, format: .pem)
 			)
 		)
+	}
+	
+	private static func certificateChainIsValid(at certURL: URL) -> Bool {
+		guard let data = try? Data(contentsOf: certURL),
+		      let pemText = String(data: data, encoding: .utf8)
+		else {
+			return false
+		}
+		
+		let certificates = pemText
+			.components(separatedBy: "-----END CERTIFICATE-----")
+			.compactMap { block -> SecCertificate? in
+				let cleaned = block.trimmingCharacters(in: .whitespacesAndNewlines)
+				guard cleaned.contains("BEGIN CERTIFICATE") else { return nil }
+				let base64 = cleaned
+					.replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
+					.replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
+					.replacingOccurrences(of: "\n", with: "")
+					.replacingOccurrences(of: "\r", with: "")
+					.trimmingCharacters(in: .whitespacesAndNewlines)
+				guard let der = Data(base64Encoded: base64) else { return nil }
+				return SecCertificateCreateWithData(nil, der as CFData)
+			}
+		
+		guard !certificates.isEmpty else { return false }
+		let policy = SecPolicyCreateBasicX509()
+		var trust: SecTrust?
+		guard SecTrustCreateWithCertificates(certificates as CFTypeRef, policy, &trust) == errSecSuccess,
+		      let trust
+		else {
+			return false
+		}
+		
+		var error: CFError?
+		return SecTrustEvaluateWithError(trust, &error)
+	}
+	
+	private static func deleteCertificateFilesFromDocuments() {
+		let docs = URL.documentsDirectory
+		for name in ["server.crt", "server.pem", "commonName.txt"] {
+			let url = docs.appendingPathComponent(name)
+			try? FileManager.default.removeItem(at: url)
+		}
 	}
 	
 	func readCommonName() -> String? {

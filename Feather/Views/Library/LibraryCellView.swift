@@ -217,6 +217,10 @@ extension LibraryCellView {
 				Button(.localized("Open"), systemImage: "app.badge.checkmark") {
 					UIApplication.openApp(with: id)
 				}
+				// Accretion: launch it through StikDebug with JIT on
+				Button(.localized("Open with JIT"), systemImage: "bolt") {
+					JITLauncher.open(bundleID: id, certificate: (app as? Signed)?.certificate)
+				}
 			}
 			Button(.localized("Install"), systemImage: "square.and.arrow.down") {
 				selectedInstallAppPresenting = AnyApp(base: app)

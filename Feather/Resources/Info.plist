@@ -125,6 +125,7 @@
 	<array>
 		<string>localdevvpn</string>
 		<string>livecontainer</string>
+		<string>stikjit</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

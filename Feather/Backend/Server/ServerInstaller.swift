@@ -55,6 +55,7 @@ class ServerInstaller: Identifiable, ObservableObject {
 	private func _configureRoutes() throws {
 		_server?.get("*") { [weak self] req in
 			guard let self else { return Response(status: .badGateway) }
+			InstallServerLog.shared.request(req.url.path) // Accretion
 			switch req.url.path {
 			case plistEndpoint.path:
 				self._updateStatus(.sendingManifest)

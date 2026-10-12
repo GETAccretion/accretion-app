@@ -17,10 +17,15 @@ extension ServerInstaller {
 	func setupApp(port: Int) throws -> Application {
 		let app = Application(Self.env)
 		app.threadPool = .init(numberOfThreads: 1)
-		
+		// Accretion: record what iOS does with this server (shown if an install doesn't start)
+		InstallServerLog.shared.reset()
+		app.logger = Logger(label: "accretion.install") { _ in InstallServerLogHandler() }
+
 		if getServerMethod() != 1 {
 			do {
-				if let tls = try tls() {
+				if var tls = try tls() {
+					// called once a TLS handshake agrees keys: proof iOS got that far
+					tls.keyLogCallback = { _ in InstallServerLog.shared.handshake() }
 					app.http.server.configuration.tlsConfiguration = tls
 				}
 			} catch {

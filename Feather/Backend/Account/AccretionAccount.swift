@@ -430,6 +430,20 @@ final class AccretionAccount: ObservableObject {
 		return rows.first?["role"] as? String
 	}
 
+	/// Your avatar as the website draws it: first letter of your display name (or username) and
+	/// your profile colour ("8B5CF6" when unset)
+	func myAvatar() async -> (letter: String, color: String)? {
+		guard isSignedIn, let uid = try? await _uid(),
+			  let data = try? await _rest("profiles?select=username,display_name,color&id=eq.\(uid)"),
+			  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+			  let row = rows.first
+		else { return nil }
+		let display = (row["display_name"] as? String)?.trimmingCharacters(in: .whitespaces)
+		let name = (display?.isEmpty == false ? display : row["username"] as? String) ?? "?"
+		let color = (row["color"] as? String).flatMap { $0.range(of: "^[0-9A-Fa-f]{6}$", options: .regularExpression) != nil ? $0 : nil } ?? "8B5CF6"
+		return (String(name.prefix(1)).uppercased(), color)
+	}
+
 	/// Which of these posts you've liked
 	func likedPosts(_ ids: [Int]) async -> Set<Int> {
 		guard isSignedIn, !ids.isEmpty, let uid = try? await _uid() else { return [] }

@@ -34,7 +34,7 @@ final class InstallServerLog: @unchecked Sendable {
 
 	init() {
 		_pathMonitor.pathUpdateHandler = { [weak self] path in
-			self?._networkChanged(Self._describe(path))
+			self?._networkChanged(Self._describe(path), noNetwork: path.status != .satisfied)
 		}
 		_pathMonitor.start(queue: DispatchQueue(label: "accretion.install.path"))
 	}
@@ -72,8 +72,17 @@ final class InstallServerLog: @unchecked Sendable {
 			?? "sent completely in \(seconds) s"
 	}
 
-	private func _networkChanged(_ text: String) {
+	/// iOS reports no usable network (no Wi-Fi joined, no cellular). Its installer then pauses the
+	/// app download until a network appears, even from this iPhone's own install server.
+	var hasNoNetwork: Bool {
 		_lock.lock(); defer { _lock.unlock() }
+		return _noNetwork
+	}
+	private var _noNetwork = false
+
+	private func _networkChanged(_ text: String, noNetwork: Bool) {
+		_lock.lock(); defer { _lock.unlock() }
+		_noNetwork = noNetwork
 		guard text != _network else { return }
 		_network = text
 		let time = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)

@@ -25,6 +25,7 @@ struct DiscoverView: View {
 	@State private var _isSigningIn = false
 	@State private var _isAddingSource = false
 	@State private var _unread = 0
+	@State private var _avatar: (letter: String, color: String)?
 	/// Most liked, Top rated, Most discussed (the website's community shelves)
 	@State private var _community: [StoreService.Shelf] = []
 	@State private var _path = NavigationPath()
@@ -117,6 +118,8 @@ struct DiscoverView: View {
 					Text(verbatim: "Accretion")
 						.font(.accretionDisplay(17))
 						.foregroundStyle(AccretionTheme.fg)
+						.lineLimit(1)
+						.fixedSize()
 				}
 				Spacer(minLength: 0)
 				if _account.isSignedIn {
@@ -150,10 +153,21 @@ struct DiscoverView: View {
 						}
 					}
 				}
-				Button(_account.isSignedIn ? String.localized("Account") : String.localized("Sign in")) { _isSigningIn = true }
-					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
+				// the website's account spot: your avatar when signed in, Sign in otherwise
+				if _account.isSignedIn {
+					Button { _isSigningIn = true } label: {
+						StoreAvatar(letter: _avatar?.letter ?? "", hex: _avatar?.color ?? "8B5CF6", size: 32)
+					}
+					.buttonStyle(.plain)
+					.accessibilityLabel(String.localized("Account"))
+					.task(id: _account.email) { _avatar = await _account.myAvatar() }
+				} else {
+					Button(String.localized("Sign in")) { _isSigningIn = true }
+						.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
+				}
 				Button(String.localized("Add source")) { _isAddingSource = true }
 					.buttonStyle(AccretionButtonStyle())
+					.fixedSize()
 			}
 			_searchField()
 			_nav()
@@ -173,7 +187,7 @@ struct DiscoverView: View {
 			Image(systemName: "magnifyingglass")
 				.font(.system(size: 15))
 				.foregroundStyle(AccretionTheme.muted)
-			TextField(String.localized("Search apps, developers, IDs"), text: $_query)
+			TextField(String.localized("Search apps, developers, bundle IDs"), text: $_query)
 				.font(.system(size: 15))
 				.submitLabel(.search)
 				.textInputAutocapitalization(.never)
@@ -191,14 +205,15 @@ struct DiscoverView: View {
 		.overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
 	}
 
-	/// Discover · Saved · Feed · ♥, spread across the width like the web store on a phone
+	/// Discover · Sources · Feed · Saved · ♥, spread across the width like the web store on a phone
 	private func _nav() -> some View {
 		HStack(spacing: 4) {
 			_navItem(String.localized("Discover"), on: !_isBrowsing) { _query = ""; _category = nil }
+			_navItem(String.localized("Sources")) { _openURL(URL(string: "https://getaccretion.github.io/#/sources")!) }
+			_navItem(String.localized("Feed")) { _openURL(URL(string: "https://getaccretion.github.io/#/feed")!) }
 			_navItem(String.localized("Saved"), badge: _savedBadge.text, hot: _savedBadge.hot) {
 				_path.append(StoreListRoute(title: String.localized("Saved"), saved: true))
 			}
-			_navItem(String.localized("Feed")) { _openURL(URL(string: "https://getaccretion.github.io/#/feed")!) }
 			Button { _openURL(URL(string: "https://getaccretion.github.io/#/support")!) } label: {
 				Text(verbatim: "♥")
 					.font(.system(size: 14, weight: .semibold))
@@ -233,6 +248,8 @@ struct DiscoverView: View {
 				}
 			}
 			.font(.system(size: 14, weight: .semibold))
+			.lineLimit(1)
+			.minimumScaleFactor(0.85)
 			.foregroundStyle(on ? AccretionTheme.fg : AccretionTheme.muted)
 			.frame(maxWidth: .infinity)
 			.padding(.vertical, 8)
@@ -258,13 +275,14 @@ struct DiscoverView: View {
 			}
 			.padding(.bottom, 10)
 			Text(verbatim: String.localized("Every source, pulled into one."))
-				.font(.accretionDisplay(30))
+				.font(.accretionDisplay(28)) // h1 on a phone: clamp(28px, 4.6vw, 46px)
 				.foregroundStyle(AccretionTheme.headline)
 				.fixedSize(horizontal: false, vertical: true)
 				.padding(.bottom, 12)
 			(Text(verbatim: String.localized("Apps from") + " ")
 			 + Text(verbatim: (stats?.sources ?? index?.sources.count ?? 0).formatted()).bold().foregroundColor(AccretionTheme.fg)
 			 + Text(verbatim: " " + String.localized("public AltStore and SideStore sources, merged and cleaned. One entry per app, always the newest version.")))
+				.font(.system(size: 15)) // .lede: the page's 15px body text
 				.foregroundStyle(AccretionTheme.muted)
 				.fixedSize(horizontal: false, vertical: true)
 			NavigationLink(value: SignGuideRoute()) {
@@ -439,6 +457,41 @@ struct DiscoverView: View {
 		} else {
 			ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
 		}
+	}
+}
+
+// MARK: - Avatar (.avatar)
+/// The website's avatar: a lit circle in the profile colour with the name's first letter
+struct StoreAvatar: View {
+	let letter: String
+	let hex: String
+	var size: CGFloat = 36
+
+	/// The profile colour mixed toward white (target 1) or black (target 0) by `amount`
+	private func _shade(toward target: Double, by amount: Double) -> Color {
+		let value = UInt32(hex, radix: 16) ?? 0x8B5CF6
+		func mix(_ channel: UInt32) -> Double {
+			let c = Double(channel & 0xFF) / 255
+			return c + (target - c) * amount
+		}
+		return Color(red: mix(value >> 16), green: mix(value >> 8), blue: mix(value))
+	}
+
+	var body: some View {
+		Circle()
+			.fill(RadialGradient(
+				colors: [_shade(toward: 1, by: 0.25), _shade(toward: 1, by: 0), _shade(toward: 0, by: 0.4)],
+				center: UnitPoint(x: 0.3, y: 0.25),
+				startRadius: 0,
+				endRadius: size * 0.75
+			))
+			.frame(width: size, height: size)
+			.overlay {
+				Text(verbatim: letter)
+					.font(.accretionDisplay(size * 0.42))
+					.foregroundStyle(Color.white)
+					.shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+			}
 	}
 }
 

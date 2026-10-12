@@ -83,8 +83,10 @@ struct InstallPreviewView: View {
 					}
 					// Accretion: if iOS never asks to install, say why instead of waiting forever
 					let link = installer.iTunesLink
+					// (not while the no-network notice below is waiting for the user)
+					let waitsForNetwork = installer.getServerMethod() != 1 && InstallServerLog.shared.hasNoNetwork
 					DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
-						guard case .ready = viewModel.status else { return }
+						guard !waitsForNetwork, case .ready = viewModel.status else { return }
 						UIAlertController.showAlertWithCancel(
 							title: String.localized("iOS didn't ask to install"),
 							message: (installer.getServerMethod() == 2
@@ -109,7 +111,21 @@ struct InstallPreviewView: View {
 					}
 					// Accretion: Fully Local and Offline serve the manifest themselves; Semi Local opens a page
 					if installer.getServerMethod() != 1 {
-						UIApplication.shared.open(URL(string: installer.iTunesLink)!)
+						if InstallServerLog.shared.hasNoNetwork {
+							// iOS pauses the app download while there's no network at all, even from this
+							// iPhone's own server: say so now instead of stalling on Sending Payload
+							UIAlertController.showAlertWithCancel(
+								title: String.localized("Turn on Wi-Fi or cellular"),
+								message: String.localized("iOS pauses app installs while the iPhone has no network at all, even though Accretion installs from this iPhone. Join any Wi-Fi network (it doesn't need internet) or turn on cellular, then tap Install. Airplane Mode is fine with Wi-Fi on."),
+								actions: [
+									UIAlertAction(title: String.localized("Install"), style: .default) { _ in
+										if let url = URL(string: link) { UIApplication.shared.open(url) }
+									},
+								]
+							)
+						} else {
+							UIApplication.shared.open(URL(string: installer.iTunesLink)!)
+						}
 					} else {
 						_isWebviewPresenting = true
 					}

@@ -56,7 +56,7 @@ enum LiveContainer {
 			message: String.localized("LiveContainer runs apps inside itself, so a certificate that covers one app can hold many. Install it once with your certificate, then try again."),
 			actions: [
 				UIAlertAction(title: String.localized("Get LiveContainer"), style: .default) { _ in
-					UIApplication.open("https://github.com/LiveContainer/LiveContainer/releases/latest")
+					UIApplication.open("https://github.com/LiveContainer/LiveContainer/releases")
 				}
 			]
 		)

@@ -86,7 +86,9 @@ struct InstallPreviewView: View {
 						guard case .ready = viewModel.status else { return }
 						UIAlertController.showAlertWithCancel(
 							title: String.localized("iOS didn't ask to install"),
-							message: String.localized("iOS couldn't reach Accretion's local install server. Usually:\n\n• iCloud Private Relay, a VPN or ad-blocking DNS blocks local addresses: turn it off and try again.\n• Or switch Settings → Installation → Server to Semi Local.\n• Or this app uses the same bundle ID as Accretion itself."),
+							message: installer.getServerMethod() == 2
+								? String.localized("iOS's installer didn't connect to Accretion's install server, so it never received the app. Check that the Accretion Local Install certificate is still on in Settings → General → About → Certificate Trust Settings, then try again, or use Semi Local for now.")
+								: String.localized("iOS couldn't reach Accretion's local install server. Usually:\n\n• iCloud Private Relay, a VPN or ad-blocking DNS blocks local addresses: turn it off and try again.\n• Or switch Settings → Installation → Server to Semi Local.\n• Or this app uses the same bundle ID as Accretion itself."),
 							actions: [
 								UIAlertAction(title: String.localized("Try Again"), style: .default) { _ in
 									if let url = URL(string: link) { UIApplication.shared.open(url) }

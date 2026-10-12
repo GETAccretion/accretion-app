@@ -16,7 +16,11 @@ import UIKit
 /// profile and turns on full trust for it, iOS accepts the local install server with no internet
 /// and no third-party certificate. The keys never leave the device and aren't backed up.
 enum LocalCertificateAuthority {
-	static let host = "127.0.0.1"
+	/// The install link's host. A name, not 127.0.0.1: iOS's installer didn't connect to an IP
+	/// address over HTTPS, while the probe (inside the app) did. The certificate covers both.
+	static let host = "localhost"
+	/// Where the profile download server listens (Safari only needs plain HTTP here)
+	static let loopback = "127.0.0.1"
 
 	private static var _folder: URL {
 		URL.applicationSupportDirectory.appendingPathComponent("LocalInstallCertificate", isDirectory: true)
@@ -368,8 +372,8 @@ final class LocalCertificateProfileServer {
 		let port = Int.random(in: 4000...8000)
 		let app = Application(ServerInstaller.env)
 		app.threadPool = .init(numberOfThreads: 1)
-		app.http.server.configuration.hostname = LocalCertificateAuthority.host
-		app.http.server.configuration.address = .hostname(LocalCertificateAuthority.host, port: port)
+		app.http.server.configuration.hostname = LocalCertificateAuthority.loopback
+		app.http.server.configuration.address = .hostname(LocalCertificateAuthority.loopback, port: port)
 		app.http.server.configuration.port = port
 		app.get("accretion-offline.mobileconfig") { _ in
 			Response(
@@ -387,7 +391,7 @@ final class LocalCertificateProfileServer {
 		_app = app
 		_task = UIApplication.shared.beginBackgroundTask { [weak self] in self?.stop() }
 		DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in self?.stop() }
-		if let url = URL(string: "http://\(LocalCertificateAuthority.host):\(port)/accretion-offline.mobileconfig") {
+		if let url = URL(string: "http://\(LocalCertificateAuthority.loopback):\(port)/accretion-offline.mobileconfig") {
 			UIApplication.shared.open(url)
 		}
 	}

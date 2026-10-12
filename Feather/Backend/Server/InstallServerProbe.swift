@@ -44,7 +44,8 @@ struct InstallServerProbe {
 			checks.append(.init(state: .pass, title: String.localized("Mode: Semi Local"), detail: String.localized("The install manifest comes from Accretion's server; the app itself is served from this iPhone.")))
 		}
 
-		var host = "127.0.0.1"
+		// the same host an install's link uses
+		var host = method == 2 ? LocalCertificateAuthority.host : "127.0.0.1"
 		if fullyLocal {
 			let hasFiles = ServerInstaller.getUrl("server", ext: "crt") != nil && ServerInstaller.getUrl("server", ext: "pem") != nil
 			guard hasFiles, let name = ServerInstaller.installHostName() else {

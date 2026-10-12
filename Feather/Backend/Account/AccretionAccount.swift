@@ -286,6 +286,8 @@ final class AccretionAccount: ObservableObject {
 		let hidden: Bool?
 		let edited_at: String?
 		let supporter: Bool?
+		/// The app a post is about (feed posts only; app threads leave it out)
+		var app_id: String?
 	}
 
 	private static func _quoted(_ value: String) -> String {
@@ -481,6 +483,62 @@ final class AccretionAccount: ObservableObject {
 		var row: [String: Any] = ["body": body, "app_id": appID]
 		if let parent { row["parent_id"] = parent }
 		_ = try await _rest("posts", method: "POST", body: row, prefer: "return=minimal")
+	}
+
+	// MARK: Community feed (the website's Feed, social.js)
+	private static let _feedColumns = "id,author,app_id,parent_id,body,hidden,created_at,edited_at,username,display_name,color,role,likes,replies,supporter"
+	static let feedPageSize = 20
+
+	/// Top-level posts, newest first: everyone's, or only people you follow
+	func feed(following: Bool, offset: Int = 0) async throws -> [Post] {
+		var query = "post_feed?select=\(Self._feedColumns)&parent_id=is.null&order=created_at.desc&limit=\(Self.feedPageSize)&offset=\(offset)"
+		if following {
+			let uid = try await _uid()
+			let data = try await _rest("follows?select=followee&follower=eq.\(uid)")
+			let rows = (try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]) ?? []
+			let ids = rows.compactMap { $0["followee"] as? String }
+			guard !ids.isEmpty else { return [] }
+			query += "&author=in.(\(ids.joined(separator: ",")))"
+		}
+		let data = try await _rest(query, anonymous: true)
+		return try JSONDecoder().decode([Post].self, from: data)
+	}
+
+	/// Replies to one post, oldest first
+	func replies(to postID: Int) async throws -> [Post] {
+		let data = try await _rest("post_feed?select=\(Self._feedColumns)&parent_id=eq.\(postID)&order=created_at.asc&limit=200", anonymous: true)
+		return try JSONDecoder().decode([Post].self, from: data)
+	}
+
+	/// A post on the feed (not about an app), or a reply to one
+	func post(_ body: String, replyTo parent: Int? = nil) async throws {
+		var row: [String: Any] = ["body": body]
+		if let parent { row["parent_id"] = parent }
+		_ = try await _rest("posts", method: "POST", body: row, prefer: "return=minimal")
+	}
+
+	struct Notice: Decodable, Identifiable {
+		struct Actor: Decodable {
+			let username: String
+			let display_name: String?
+			let color: String?
+		}
+		let id: Int
+		let kind: String
+		let post_id: Int?
+		let read: Bool
+		let created_at: String
+		let actor: Actor?
+	}
+
+	/// Your latest 60 notifications (likes, replies, follows)
+	func notifications() async throws -> [Notice] {
+		let data = try await _rest("notifications?select=id,kind,post_id,read,created_at,actor:profiles!notifications_actor_fkey(username,display_name,color)&order=created_at.desc&limit=60")
+		return try JSONDecoder().decode([Notice].self, from: data)
+	}
+
+	func markNotificationsRead() async {
+		_ = try? await _rest("notifications?read=eq.false", method: "PATCH", body: ["read": true], prefer: "return=minimal")
 	}
 
 	// MARK: Store counts

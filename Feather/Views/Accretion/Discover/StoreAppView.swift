@@ -785,6 +785,8 @@ struct StoreListRoute: Hashable {
 	/// A fixed list (a shelf's full contents), in order
 	var ids: [String]?
 	var saved = false
+	/// Apps whose newest version comes from this source (index into the store's sources)
+	var source: Int?
 }
 
 /// A full list of apps in the web store's card style, for "See all" and developer links.
@@ -803,6 +805,7 @@ struct StoreListView: View {
 			all
 				.filter { route.category == nil || $0.c == route.category }
 				.filter { route.developer == nil || $0.d == route.developer }
+				.filter { route.source == nil || $0.o == route.source }
 				.filter { !route.saved || _store.isSaved($0) },
 			by: .updated
 		)

@@ -1,0 +1,96 @@
+name: Screens
+
+# Side-by-side check that the app still looks like the website: builds Accretion for the iOS
+# Simulator, screenshots Discover, screenshots getaccretion.github.io at the same size, and keeps
+# both (plus one side-by-side image) as a run artifact. Report only: it never blocks a build or a
+# release. Run it from Actions -> Screens -> Run workflow, or it runs on Mondays.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screens
+  cancel-in-progress: true
+
+jobs:
+  screens:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: 'true'
+
+      - name: Prepare Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.0.app
+          # the first available iPhone Pro (not Max) Simulator on this runner
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["name"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]))')
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          echo "Simulator: $DEVICE"
+          echo "SPM_DIR=$TMPDIR/Feather/sim/SourcePackages" >> "$GITHUB_ENV"
+
+      - name: Cache Swift packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.SPM_DIR }}
+          key: spm-sim-${{ runner.os }}-${{ hashFiles('Feather.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Feather.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Build for the Simulator
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            if xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather \
+                 -derivedDataPath "$TMPDIR/Feather/sim" -skipPackagePluginValidation; then break; fi
+            [ "$attempt" = 3 ] && exit 1
+            sleep 10
+          done
+          xcodebuild -project Feather.xcodeproj -scheme Feather -configuration Debug \
+            -sdk iphonesimulator -destination "platform=iOS Simulator,name=$DEVICE" \
+            -derivedDataPath "$TMPDIR/Feather/sim" -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO build | tail -40
+
+      - name: Screenshot the app
+        run: |
+          set -euo pipefail
+          mkdir -p screens
+          APP=$(find "$TMPDIR/Feather/sim/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "*.app" | head -1)
+          BUNDLE=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl ui "$DEVICE" appearance dark
+          xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$DEVICE" "$APP"
+          xcrun simctl launch "$DEVICE" "$BUNDLE"
+          sleep 25 # the store index loads from the network
+          xcrun simctl io "$DEVICE" screenshot screens/app.png
+
+      - name: Screenshot the website
+        run: |
+          set -euo pipefail
+          # the same size in points as an iPhone Pro screen, dark mode (1x pixels)
+          npx --yes playwright@1.56.1 install chromium > /dev/null
+          npx --yes playwright@1.56.1 screenshot --browser chromium --color-scheme dark \
+            --viewport-size "402,874" --wait-for-timeout 8000 \
+            https://getaccretion.github.io/ screens/web.png
+
+      - name: Summary
+        run: |
+          set -euo pipefail
+          {
+            echo "### App vs website"
+            echo "Download the **screens** artifact below: \`app.png\` (Simulator, $DEVICE, dark) and \`web.png\` (getaccretion.github.io at the same size)."
+            echo "Sizes: app $(sips -g pixelWidth -g pixelHeight screens/app.png | awk '/pixel/{printf "%s ", $2}'), web $(sips -g pixelWidth -g pixelHeight screens/web.png | awk '/pixel/{printf "%s ", $2}')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the screenshots
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screens
+          path: screens/*.png
+          retention-days: 14

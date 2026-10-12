@@ -8,25 +8,26 @@ import UIKit
 import CoreText
 
 // MARK: - Colours
-/// The Accretion web store's design tokens (site/style.css in getaccretion.github.io), with the
-/// same light-mode values, so the app and the store look like one product.
+/// The Accretion web store's design tokens, from AccretionTokens.swift (generated from
+/// design/tokens.json in getaccretion.github.io, the same file that writes the website's colours),
+/// so the app and the store look like one product.
 enum AccretionTheme {
-	static let bg = _dynamic(dark: 0x07070D, light: 0xF7F6FC)
-	static let surface = _dynamic(dark: 0x0F0E1A, light: 0xFFFFFF)
-	static let raised = _dynamic(dark: 0x17152A, light: 0xF0EEF9)
-	static let line = _dynamic(dark: 0x262145, light: 0xDFDAF2)
-	static let fg = _dynamic(dark: 0xECEAFF, light: 0x15122B)
-	static let muted = _dynamic(dark: 0x8B87B3, light: 0x625E85)
-	static let accent = _dynamic(dark: 0x8B5CF6, light: 0x6D3FE0)
-	static let accent2 = _dynamic(dark: 0x22D3EE, light: 0x0E8FB0)
-	static let good = _dynamic(dark: 0x34D399, light: 0x078A5E)
-	static let warn = _dynamic(dark: 0xF59E0B, light: 0xB76A00)
-	static let bad = _dynamic(dark: 0xF87171, light: 0xC2410C)
+	static let bg = _dynamic(AccretionTokens.bg)
+	static let surface = _dynamic(AccretionTokens.surface)
+	static let raised = _dynamic(AccretionTokens.raised)
+	static let line = _dynamic(AccretionTokens.line)
+	static let fg = _dynamic(AccretionTokens.fg)
+	static let muted = _dynamic(AccretionTokens.muted)
+	static let accent = _dynamic(AccretionTokens.accent)
+	static let accent2 = _dynamic(AccretionTokens.accent2)
+	static let good = _dynamic(AccretionTokens.good)
+	static let warn = _dynamic(AccretionTokens.warn)
+	static let bad = _dynamic(AccretionTokens.bad)
 	static let star = Color(red: 245.0 / 255, green: 184.0 / 255, blue: 59.0 / 255)
 	/// color-mix(accent 55%, accent-2): the far end of the primary button's gradient
 	static let accentMix = _dynamic(dark: 0x5C93F2, light: 0x4568C8)
 
-	static let radius: CGFloat = 14
+	static let radius: CGFloat = AccretionTokens.radius
 
 	/// The store's headline and stat numbers: text fading from the foreground into the accents
 	static let headline = LinearGradient(
@@ -40,6 +41,10 @@ enum AccretionTheme {
 
 	private static func _dynamic(dark: UInt32, light: UInt32) -> Color {
 		Color(uiDynamic(dark: dark, light: light))
+	}
+
+	private static func _dynamic(_ pair: (dark: UInt32, light: UInt32)) -> Color {
+		_dynamic(dark: pair.dark, light: pair.light)
 	}
 
 	/// UIKit version, for appearance proxies (navigation bars, tab bar)
@@ -57,8 +62,8 @@ enum AccretionTheme {
 
 	/// One 32-pt grid cell: a faint line on the top and left edges, adapting to light and dark.
 	static let gridTile: UIImage = {
-		let size = CGSize(width: 28, height: 28) // background-size: 28px 28px
-		let line = uiDynamic(dark: 0xFFFFFF, light: 0x1E1B4B)
+		let size = CGSize(width: AccretionTokens.gridSize, height: AccretionTokens.gridSize) // background-size
+		let line = uiDynamic(dark: AccretionTokens.gridLineDark, light: AccretionTokens.gridLineLight)
 		let renderer = UIGraphicsImageRenderer(size: size)
 		let draw: (UIColor, CGFloat) -> UIImage = { color, alpha in
 			renderer.image { context in
@@ -67,8 +72,8 @@ enum AccretionTheme {
 				context.fill(CGRect(x: 0, y: 0, width: 1, height: size.height))
 			}
 		}
-		let dark = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)), 0.035)
-		let light = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), 0.05)
+		let dark = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)), AccretionTokens.gridAlphaDark)
+		let light = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), AccretionTokens.gridAlphaLight)
 		let asset = UIImageAsset()
 		asset.register(dark, with: UITraitCollection(userInterfaceStyle: .dark))
 		asset.register(light, with: UITraitCollection(userInterfaceStyle: .light))
@@ -79,7 +84,7 @@ enum AccretionTheme {
 	/// Navigation titles in the store's display style and colours, set once at launch so every
 	/// screen (including Feather's own) picks them up.
 	static func applyAppearance() {
-		let fg = uiDynamic(dark: 0xECEAFF, light: 0x15122B)
+		let fg = uiDynamic(dark: AccretionTokens.fg.dark, light: AccretionTokens.fg.light)
 		func rounded(_ size: CGFloat, _ weight: UIFont.Weight) -> UIFont {
 			let base = UIFont.systemFont(ofSize: size, weight: weight)
 			guard let descriptor = base.fontDescriptor.withDesign(.rounded) else { return base }
@@ -103,9 +108,9 @@ enum AccretionTheme {
 		// tab bar: the store's page colour with a hairline, violet when selected
 		let tabs = UITabBarAppearance()
 		tabs.configureWithDefaultBackground()
-		tabs.backgroundColor = uiDynamic(dark: 0x07070D, light: 0xF7F6FC).withAlphaComponent(0.92)
-		let muted = uiDynamic(dark: 0x8B87B3, light: 0x625E85)
-		let accent = uiDynamic(dark: 0x8B5CF6, light: 0x6D3FE0)
+		tabs.backgroundColor = uiDynamic(dark: AccretionTokens.bg.dark, light: AccretionTokens.bg.light).withAlphaComponent(0.92)
+		let muted = uiDynamic(dark: AccretionTokens.muted.dark, light: AccretionTokens.muted.light)
+		let accent = uiDynamic(dark: AccretionTokens.accent.dark, light: AccretionTokens.accent.light)
 		for item in [tabs.stackedLayoutAppearance, tabs.inlineLayoutAppearance, tabs.compactInlineLayoutAppearance] {
 			item.normal.iconColor = muted
 			item.normal.titleTextAttributes = [.foregroundColor: muted]
@@ -470,7 +475,7 @@ struct AccretionAmbientGlow: View {
 				let drift = still ? .zero : Self._drift(at: context.date.timeIntervalSinceReferenceDate, vmax: vmax)
 				// inset: -20vmax
 				let box = CGRect(origin: .zero, size: size).insetBy(dx: -0.2 * vmax, dy: -0.2 * vmax).offsetBy(dx: drift.x, dy: drift.y)
-				let strength = _colorScheme == .dark ? 0.16 : 0.09 // --glow
+				let strength = _colorScheme == .dark ? AccretionTokens.glow.dark : AccretionTokens.glow.light // --glow
 				_glow(
 					in: &canvas,
 					center: CGPoint(x: box.minX + box.width * 0.30, y: box.minY + box.height * 0.25),

@@ -71,6 +71,9 @@ struct DiscoverView: View {
 			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
 			.navigationDestination(for: WhatsNewRoute.self) { _ in WhatsNewView() }
 			.navigationDestination(for: StatusRoute.self) { _ in StatusView() }
+			.navigationDestination(for: CommunityFeedRoute.self) { _ in CommunityFeedView() }
+			.navigationDestination(for: NotificationsRoute.self) { _ in NotificationsView() }
+			.navigationDestination(for: StoreSourcesRoute.self) { _ in StoreSourcesView() }
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)
@@ -126,7 +129,7 @@ struct DiscoverView: View {
 					// the website's bell: unread likes, replies and follows
 					Button {
 						_unread = 0
-						_openURL(URL(string: "https://getaccretion.github.io/#/notifications")!)
+						_path.append(NotificationsRoute())
 					} label: {
 						Image(systemName: "bell")
 							.font(.system(size: 17, weight: .semibold))
@@ -209,8 +212,8 @@ struct DiscoverView: View {
 	private func _nav() -> some View {
 		HStack(spacing: 4) {
 			_navItem(String.localized("Discover"), on: !_isBrowsing) { _query = ""; _category = nil }
-			_navItem(String.localized("Sources")) { _openURL(URL(string: "https://getaccretion.github.io/#/sources")!) }
-			_navItem(String.localized("Feed")) { _openURL(URL(string: "https://getaccretion.github.io/#/feed")!) }
+			_navItem(String.localized("Sources")) { _path.append(StoreSourcesRoute()) }
+			_navItem(String.localized("Feed")) { _path.append(CommunityFeedRoute()) }
 			_navItem(String.localized("Saved"), badge: _savedBadge.text, hot: _savedBadge.hot) {
 				_path.append(StoreListRoute(title: String.localized("Saved"), saved: true))
 			}

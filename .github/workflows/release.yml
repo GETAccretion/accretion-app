@@ -28,6 +28,27 @@ jobs:
           submodules: 'true'
           fetch-depth: 0 # the whole history, so release notes can list the changes since the last tag
 
+      # The app's colours come from the store's design/tokens.json (one source for web and app).
+      # Warn when AccretionTokens.swift is behind it; never blocks a build.
+      - name: Check design tokens
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          STORE="$RUNNER_TEMP/store"
+          mkdir -p "$STORE/scripts" "$STORE/design" "$STORE/site"
+          RAW=https://raw.githubusercontent.com/GETAccretion/getaccretion.github.io/main
+          for f in scripts/design_tokens.py scripts/common.py design/tokens.json site/style.css; do
+            curl -fsSL "$RAW/$f" -o "$STORE/$f"
+          done
+          python3 "$STORE/scripts/design_tokens.py" --app "$GITHUB_WORKSPACE" > /dev/null
+          if ! git diff --quiet -- Feather/Views/Accretion/Theme/AccretionTokens.swift; then
+            echo "::warning::AccretionTokens.swift is behind the store's design/tokens.json. Run scripts/design_tokens.py --app in the store repo and commit the result here."
+            git checkout -- Feather/Views/Accretion/Theme/AccretionTokens.swift
+          else
+            echo "Design tokens match the store."
+          fi
+
       # A release reuses main's build of the same code instead of compiling it again: the main
       # build keeps its .ipa in the repo's Actions cache, encrypted with ACCRETION_UPLOAD_KEY
       # (caches can be read by fork pull requests, which never get secrets). The release only

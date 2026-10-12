@@ -48,13 +48,73 @@ enum LocalCertificateAuthority {
 		values.isExcludedFromBackup = true
 		try? folder.setResourceValues(values)
 
+		// Accretion was deleted and reinstalled: bring back the authority the profile trusts
+		if !isCreated, let key = _Keychain.read(_Keychain.caKey), let cert = _Keychain.read(_Keychain.caCert) {
+			try? FileManager.default.removeItem(at: serverCert)
+			try? FileManager.default.removeItem(at: serverKey)
+			try _write(key, to: _caKey)
+			try _write(cert, to: _caCert)
+		}
 		if !isCreated { try _makeAuthority() }
+		_keepInKeychain()
 		if _serverNeedsRenewal() { try _makeServerCertificate() }
 	}
 
 	/// Removes everything; the next prepare() makes a new authority, which must be installed and trusted again
 	static func reset() {
 		try? FileManager.default.removeItem(at: _folder)
+		_Keychain.delete(_Keychain.caKey)
+		_Keychain.delete(_Keychain.caCert)
+	}
+
+	/// The authority also lives in the Keychain, on this device only (never backed up or synced). The
+	/// Keychain survives deleting the app, so a reinstall signed with the same certificate finds the
+	/// authority the user already trusts and needs no new setup.
+	private static func _keepInKeychain() {
+		guard let key = try? String(contentsOf: _caKey, encoding: .utf8),
+		      let cert = try? String(contentsOf: _caCert, encoding: .utf8)
+		else { return }
+		if _Keychain.read(_Keychain.caCert) != cert || _Keychain.read(_Keychain.caKey) != key {
+			_Keychain.write(_Keychain.caKey, key)
+			_Keychain.write(_Keychain.caCert, cert)
+		}
+	}
+
+	private enum _Keychain {
+		static let service = "io.github.getaccretion.localinstall"
+		static let caKey = "ca.key"
+		static let caCert = "ca.crt"
+
+		private static func _query(_ account: String) -> [String: Any] {
+			[
+				kSecClass as String: kSecClassGenericPassword,
+				kSecAttrService as String: service,
+				kSecAttrAccount as String: account,
+			]
+		}
+
+		static func read(_ account: String) -> String? {
+			var query = _query(account)
+			query[kSecReturnData as String] = true
+			query[kSecMatchLimit as String] = kSecMatchLimitOne
+			var result: CFTypeRef?
+			guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+			      let data = result as? Data
+			else { return nil }
+			return String(data: data, encoding: .utf8)
+		}
+
+		static func write(_ account: String, _ value: String) {
+			delete(account)
+			var item = _query(account)
+			item[kSecValueData as String] = Data(value.utf8)
+			item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+			SecItemAdd(item as CFDictionary, nil)
+		}
+
+		static func delete(_ account: String) {
+			SecItemDelete(_query(account) as CFDictionary)
+		}
 	}
 
 	static func tlsConfiguration() throws -> TLSConfiguration {

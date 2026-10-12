@@ -23,6 +23,13 @@ struct OfflineInstallSetupView: View {
 					.foregroundStyle(AccretionTheme.muted)
 					.fixedSize(horizontal: false, vertical: true)
 
+				if !_trusted {
+					Text(verbatim: String.localized("Set this up before, then deleted Accretion or moved to a new iPhone? First remove the old \"Accretion Offline Installs\" profile in Settings → General → VPN & Device Management. It can't be used any more."))
+						.font(.system(size: 13))
+						.foregroundStyle(AccretionTheme.warn)
+						.fixedSize(horizontal: false, vertical: true)
+				}
+
 				_step(1, String.localized("Tap Install Profile. Safari opens and iOS says the profile was downloaded. Come back here."))
 				_step(2, String.localized("Open Settings → General → VPN & Device Management, tap \"Accretion Offline Installs\" and install it."))
 				_step(3, String.localized("Open Settings → General → About → Certificate Trust Settings and turn on %@.", arguments: _name ?? String.localized("the Accretion Local Install certificate")))

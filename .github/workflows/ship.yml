@@ -78,4 +78,4 @@ jobs:
           # pushes made with this token don't start workflows; a dispatch does
           gh workflow run release.yml --ref "accretion-v$next"
           echo "### Shipping Accretion $next" >> "$GITHUB_STEP_SUMMARY"
-          echo "Follow the **Release** run for \`accretion-v$next\`. It takes about 20 minutes." >> "$GITHUB_STEP_SUMMARY"
+          echo "Follow the **Release** run for \`accretion-v$next\`. It reuses main's build (a few minutes), or compiles again if that build isn't cached (about 10 minutes)." >> "$GITHUB_STEP_SUMMARY"

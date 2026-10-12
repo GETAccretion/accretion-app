@@ -45,3 +45,16 @@ enum InstallCertificateUpgrade {
 		}
 	}
 }
+
+/// Semi Local is the default install mode from 1.0.14 (Fully Local depends on a public certificate
+/// that iOS can stop accepting). Moves everyone on Fully Local, including new installs, once.
+enum InstallModeDefaults {
+	static func run() {
+		let defaults = UserDefaults.standard
+		guard !defaults.bool(forKey: "accretion.installModeDefaults.v1") else { return }
+		if defaults.integer(forKey: "Feather.serverMethod") == 0 {
+			defaults.set(1, forKey: "Feather.serverMethod")
+		}
+		defaults.set(true, forKey: "accretion.installModeDefaults.v1")
+	}
+}

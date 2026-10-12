@@ -58,6 +58,19 @@ struct InstallPreviewView: View {
 		.sheet(isPresented: $_isWebviewPresenting) {
 			SafariRepresentableView(url: installer.pageEndpoint).ignoresSafeArea()
 		}
+		.onAppear {
+			// Accretion: Fully Local's certificate was withdrawn, so this install moved to another mode
+			let defaults = UserDefaults.standard
+			let switchedTo = defaults.integer(forKey: "accretion.installModeSwitchedTo")
+			guard switchedTo != 0 else { return }
+			defaults.removeObject(forKey: "accretion.installModeSwitchedTo")
+			UIAlertController.showAlertWithOk(
+				title: String.localized("Install mode changed"),
+				message: switchedTo == 2
+					? String.localized("Fully Local's certificate is no longer accepted by iOS, so installs now use Offline. You can change this in Settings → Installation → Server & SSL.")
+					: String.localized("Fully Local's certificate is no longer accepted by iOS, so installs now use Semi Local. For installs without the internet, set up Offline in Settings → Installation → Server & SSL.")
+			)
+		}
 		.onReceive(viewModel.$status) { newStatus in
 			if _installationMethod == 0 {
 				if case .ready = newStatus {
@@ -83,14 +96,15 @@ struct InstallPreviewView: View {
 							]
 						)
 					}
-					if _serverMethod == 0 {
+					// Accretion: Fully Local and Offline serve the manifest themselves; Semi Local opens a page
+					if installer.getServerMethod() != 1 {
 						UIApplication.shared.open(URL(string: installer.iTunesLink)!)
-					} else if _serverMethod == 1 {
+					} else {
 						_isWebviewPresenting = true
 					}
 				}
 				
-				if case .sendingPayload = newStatus, _serverMethod == 1 {
+				if case .sendingPayload = newStatus, installer.getServerMethod() == 1 {
 					_isWebviewPresenting = false
 				}
 				

@@ -29,14 +29,20 @@ struct InstallServerProbe {
 
 	private static func _run() async -> [Check] {
 		var checks: [Check] = []
-		let fullyLocal = UserDefaults.standard.integer(forKey: "Feather.serverMethod") == 0
-		checks.append(.init(
-			state: .pass,
-			title: fullyLocal ? String.localized("Mode: Fully Local") : String.localized("Mode: Semi Local"),
-			detail: fullyLocal
-				? String.localized("Everything stays on this iPhone, over HTTPS with a backloop.dev certificate.")
-				: String.localized("The install details come from api.palera.in; the app itself is served from this iPhone.")
-		))
+		let method = UserDefaults.standard.integer(forKey: "Feather.serverMethod")
+		let fullyLocal = method == 0
+		let secure = method != 1
+		switch method {
+		case 0:
+			checks.append(.init(state: .pass, title: String.localized("Mode: Fully Local"), detail: String.localized("Everything stays on this iPhone, over HTTPS with a backloop.dev certificate.")))
+		case 2:
+			checks.append(.init(state: .pass, title: String.localized("Mode: Offline"), detail: String.localized("Everything stays on this iPhone, over HTTPS with a certificate made on it.")))
+			if !LocalCertificateAuthority.isTrusted {
+				checks.append(.init(state: .fail, title: String.localized("Offline isn't set up yet"), detail: String.localized("Open Set Up Offline Installs in Settings → Installation → Server & SSL, then test again.")))
+			}
+		default:
+			checks.append(.init(state: .pass, title: String.localized("Mode: Semi Local"), detail: String.localized("The install manifest comes from Accretion's server; the app itself is served from this iPhone.")))
+		}
 
 		var host = "127.0.0.1"
 		if fullyLocal {
@@ -76,7 +82,7 @@ struct InstallServerProbe {
 		let app = Application(ServerInstaller.env)
 		app.threadPool = .init(numberOfThreads: 1)
 		do {
-			if fullyLocal, let tls = try ServerInstaller.tlsConfiguration() {
+			if secure, let tls = try ServerInstaller.tlsConfiguration(method: method) {
 				app.http.server.configuration.tlsConfiguration = tls
 			}
 			app.http.server.configuration.hostname = host
@@ -86,14 +92,19 @@ struct InstallServerProbe {
 			try app.server.start()
 			checks.append(.init(state: .pass, title: String.localized("Server starts"), detail: String.localized("Listening on port %@.", arguments: String(port))))
 			// what iOS thinks of the certificate the server is using, checked on this iPhone
-			if fullyLocal, let check = ServerInstaller.lastCheck {
-				let which = check.saved ? String.localized("saved copy") : String.localized("built into this version")
+			if secure, let check = ServerInstaller.lastCheck {
+				let which = !fullyLocal
+					? String.localized("made on this iPhone")
+					: check.saved ? String.localized("saved copy") : String.localized("built into this version")
 				let expires = check.expires.formatted(date: .abbreviated, time: .omitted)
 				checks.append(.init(
 					state: check.trusted ? .pass : .fail,
-					title: check.trusted ? String.localized("iOS trusts the certificate") : String.localized("iOS doesn't trust the certificate"),
+					title: check.trusted
+						? String.localized("iOS trusts the certificate")
+						: check.revoked ? String.localized("Certificate withdrawn by its issuer") : String.localized("iOS doesn't trust the certificate"),
 					detail: String.localized("%@, %@ certificate(s), expires %@.", arguments: which, String(check.count), expires)
 						+ (check.trusted ? "" : "\n\n" + check.reason)
+						+ (check.revoked ? "\n\n" + String.localized("Updating it won't help. Use Semi Local or Offline; installs switch automatically.") : "")
 				))
 			}
 		} catch {
@@ -103,7 +114,7 @@ struct InstallServerProbe {
 		}
 
 		var components = URLComponents()
-		components.scheme = fullyLocal ? "https" : "http"
+		components.scheme = secure ? "https" : "http"
 		components.host = host
 		components.port = port
 		components.path = "/accretion-probe"
@@ -117,7 +128,7 @@ struct InstallServerProbe {
 				checks.append(.init(
 					state: .pass,
 					title: String.localized("Server answers"),
-					detail: fullyLocal
+					detail: secure
 						? String.localized("%@ works, with a valid certificate.", arguments: components.url!.absoluteString)
 						: String.localized("%@ works.", arguments: components.url!.absoluteString)
 				))

@@ -24,10 +24,13 @@ class ServerInstaller: Identifiable, ObservableObject {
 	var app: AppInfoPresentable
 	@ObservedObject var viewModel: InstallerStatusViewModel
 	private var _server: Application?
+	/// Accretion: the install mode, fixed for this install (see resolveMethod)
+	let method: Int
 
 	init(app: AppInfoPresentable, viewModel: InstallerStatusViewModel) throws {
 		self.app = app
 		self.viewModel = viewModel
+		self.method = Self.resolveMethod()
 		// Accretion: a server that can't be set up (install certificate) or start (port busy) shows
 		// as an install error on the install card instead of crashing the app
 		do {
@@ -109,7 +112,7 @@ class ServerInstaller: Identifiable, ObservableObject {
 	}
 		
 	func getServerMethod() -> Int {
-		UserDefaults.standard.integer(forKey: "Feather.serverMethod")
+		method
 	}
 	
 	func getIPFix() -> Bool {

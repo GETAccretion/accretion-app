@@ -43,17 +43,43 @@ extension ServerInstaller {
 	func sni() -> String {
 		let localhost = "127.0.0.1"
 		
-		if getServerMethod() == 1 {
+		switch getServerMethod() {
+		case 1:
 			return !self.getIPFix()
 				? (Self.getLocalAddress() ?? localhost)
 				: localhost
-		} else {
+		case 2:
+			return LocalCertificateAuthority.host
+		default:
 			return readCommonName() ?? localhost
 		}
 	}
-	
+
 	func tls() throws -> TLSConfiguration? {
-		try Self.tlsConfiguration()
+		try Self.tlsConfiguration(method: getServerMethod())
+	}
+
+	// MARK: Accretion: install modes
+	// 0 Fully Local: HTTPS on this iPhone with backloop.dev's public certificate
+	// 1 Semi Local: HTTP on this iPhone, with the install manifest from Accretion's server
+	// 2 Offline: HTTPS on this iPhone with a certificate made on it (LocalCertificateAuthority)
+
+	/// The install manifest service Semi Local uses
+	static let manifestService = "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/manifest"
+
+	/// The mode an install actually uses. When Fully Local's certificate has been revoked, it can't
+	/// work again until a new one is issued, so the setting moves to Offline (when its certificate is
+	/// trusted) or Semi Local, and the install card says so once.
+	static func resolveMethod() -> Int {
+		let defaults = UserDefaults.standard
+		let stored = defaults.integer(forKey: "Feather.serverMethod")
+		guard stored == 0, let crt = getUrl("server", ext: "crt") else { return stored }
+		let check = checkCertificate(at: crt, host: installHostName(), saved: true, expires: .distantFuture)
+		guard check.revoked else { return stored }
+		let fallback = LocalCertificateAuthority.isTrusted ? 2 : 1
+		defaults.set(fallback, forKey: "Feather.serverMethod")
+		defaults.set(fallback, forKey: "accretion.installModeSwitchedTo")
+		return fallback
 	}
 
 	/// Accretion: shared with the install server test (Settings → Installation).
@@ -61,7 +87,10 @@ extension ServerInstaller {
 	/// otherwise the copy built into this version. Nothing is deleted: a check that fails here (for
 	/// example while offline) mustn't throw away a certificate that still works, and iOS has the final
 	/// say. If no copy loads, this throws, instead of starting a plain HTTP server behind an https link.
-	static func tlsConfiguration() throws -> TLSConfiguration? {
+	static func tlsConfiguration(method: Int = UserDefaults.standard.integer(forKey: "Feather.serverMethod")) throws -> TLSConfiguration? {
+		if method == 2 {
+			return try LocalCertificateAuthority.tlsConfiguration()
+		}
 		var candidates: [(crt: URL, pem: URL, saved: Bool)] = []
 		let savedCrt = URL.documentsDirectory.appendingPathComponent("server.crt")
 		let savedPem = URL.documentsDirectory.appendingPathComponent("server.pem")
@@ -121,6 +150,8 @@ extension ServerInstaller {
 		let count: Int
 		let expires: Date
 		let reason: String
+		/// The issuer withdrew the certificate: no update of the same certificate can fix it
+		var revoked = false
 	}
 
 	/// The result for the certificate the last server started with (shown by the install server test)
@@ -157,7 +188,9 @@ extension ServerInstaller {
 			for item in details { for key in item.keys where !failed.contains(key) { failed.append(key) } }
 		}
 		let text = (error as Error?)?.localizedDescription ?? .localized("Not trusted.")
-		return result(false, failed.isEmpty ? text : "\(text) [\(failed.joined(separator: ", "))]")
+		var check = result(false, failed.isEmpty ? text : "\(text) [\(failed.joined(separator: ", "))]")
+		check.revoked = failed.contains("Revocation")
+		return check
 	}
 	
 	func readCommonName() -> String? {

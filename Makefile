@@ -20,7 +20,7 @@ deps:
 
 	curl -fsSL "$(CERT_JSON_URL)" -o cert.json
 	jq -r '.cert, .ca' cert.json > deps/server.crt # Accretion: full chain, or iOS rejects the install server
-	jq -r '.key1, .key2' cert.json > deps/server.pem
+	jq -j '.key1, .key2' cert.json > deps/server.pem # Accretion: joined as-is (key1 ends mid-line)
 	jq -r '.info.domains.commonName' cert.json > deps/commonName.txt
 
 

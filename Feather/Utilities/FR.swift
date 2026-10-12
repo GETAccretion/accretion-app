@@ -142,6 +142,13 @@ enum FR {
 		NBFetchService().fetch(from: urlString) { (result: Result<ServerView.ServerPackModel, Error>) in
 			switch result {
 			case .success(let pack):
+				// Accretion: keep the current files unless the new pack is complete
+				guard pack.cert.contains("BEGIN CERTIFICATE"), pack.ca.contains("BEGIN CERTIFICATE"),
+				      pack.key.contains("BEGIN PRIVATE KEY"), pack.key.contains("END PRIVATE KEY")
+				else {
+					completion(false)
+					return
+				}
 				do {
 					try FileManager.forceWrite(content: pack.key, to: "server.pem")
 					// Accretion: the full chain (certificate + Let's Encrypt intermediates). With the

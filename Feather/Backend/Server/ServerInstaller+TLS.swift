@@ -19,8 +19,13 @@ extension ServerInstaller {
 		app.threadPool = .init(numberOfThreads: 1)
 		
 		if getServerMethod() != 1 {
-			if let tls = try tls() {
-				app.http.server.configuration.tlsConfiguration = tls
+			do {
+				if let tls = try tls() {
+					app.http.server.configuration.tlsConfiguration = tls
+				}
+			} catch {
+				app.shutdown()
+				throw error
 			}
 		}
 		
@@ -51,98 +56,108 @@ extension ServerInstaller {
 		try Self.tlsConfiguration()
 	}
 
-	/// Accretion: shared with the install server test (Settings → Installation)
+	/// Accretion: shared with the install server test (Settings → Installation).
+	/// Uses the saved certificate (Update SSL Certificates) when iOS trusts it for the install name,
+	/// otherwise the copy built into this version. Nothing is deleted: a check that fails here (for
+	/// example while offline) mustn't throw away a certificate that still works, and iOS has the final
+	/// say. If no copy loads, this throws, instead of starting a plain HTTP server behind an https link.
 	static func tlsConfiguration() throws -> TLSConfiguration? {
-		let candidateFiles = [
-			("server", "crt"),
-			("server", "pem")
-		]
-		
-		for case let (name, ext) in candidateFiles {
-			guard let url = Self.getUrl(name, ext: ext) else {
-				continue
-			}
-			if url.path.hasPrefix(URL.documentsDirectory.path) {
-				if !Self.certificateChainIsValid(at: Self.getUrl("server", ext: "crt") ?? url) {
-					Self.deleteCertificateFilesFromDocuments()
-					break
-				}
-			}
+		var candidates: [(crt: URL, pem: URL, saved: Bool)] = []
+		let savedCrt = URL.documentsDirectory.appendingPathComponent("server.crt")
+		let savedPem = URL.documentsDirectory.appendingPathComponent("server.pem")
+		if FileManager.default.fileExists(atPath: savedCrt.path), FileManager.default.fileExists(atPath: savedPem.path) {
+			candidates.append((savedCrt, savedPem, true))
 		}
-		
-		if let crt = Self.getUrl("server", ext: "crt"),
-		   let pem = Self.getUrl("server", ext: "pem"),
-		   Self.certificateChainIsValid(at: crt)
-		{
-			return try TLSConfiguration.makeServerConfiguration(
-				certificateChain: NIOSSLCertificate.fromPEMFile(crt.path).map {
-					NIOSSLCertificateSource.certificate($0)
-				},
-				privateKey: .privateKey(
-					try NIOSSLPrivateKey(file: pem.path, format: .pem)
+		if let crt = Bundle.main.url(forResource: "server", withExtension: "crt"),
+		   let pem = Bundle.main.url(forResource: "server", withExtension: "pem") {
+			candidates.append((crt, pem, false))
+		}
+		guard !candidates.isEmpty else { throw InstallCertificateError.missing }
+
+		let host = installHostName()
+		var usable: [(TLSConfiguration, CertificateCheck)] = []
+		var loadError: Error?
+		for candidate in candidates {
+			do {
+				let chain = try NIOSSLCertificate.fromPEMFile(candidate.crt.path)
+				guard let leaf = chain.first else { throw InstallCertificateError.unreadable }
+				let key = try NIOSSLPrivateKey(file: candidate.pem.path, format: .pem)
+				let configuration = TLSConfiguration.makeServerConfiguration(
+					certificateChain: chain.map { .certificate($0) },
+					privateKey: .privateKey(key)
 				)
-			)
+				let expires = Date(timeIntervalSince1970: TimeInterval(leaf.notValidAfter))
+				let check = checkCertificate(at: candidate.crt, host: host, saved: candidate.saved, expires: expires)
+				if check.trusted {
+					lastCheck = check
+					return configuration
+				}
+				usable.append((configuration, check))
+			} catch {
+				loadError = error
+			}
 		}
-		
-		guard
-			let bundleCrt = Bundle.main.url(forResource: "server", withExtension: "crt"),
-			let bundlePem = Bundle.main.url(forResource: "server", withExtension: "pem"),
-			Self.certificateChainIsValid(at: bundleCrt)
-		else {
-			return nil
+		if let first = usable.first {
+			lastCheck = first.1
+			return first.0
 		}
-		
-		return try TLSConfiguration.makeServerConfiguration(
-			certificateChain: NIOSSLCertificate.fromPEMFile(bundleCrt.path).map {
-				NIOSSLCertificateSource.certificate($0)
-			},
-			privateKey: .privateKey(
-				try NIOSSLPrivateKey(file: bundlePem.path, format: .pem)
-			)
-		)
+		throw loadError ?? InstallCertificateError.unreadable
 	}
-	
-	private static func certificateChainIsValid(at certURL: URL) -> Bool {
-		guard let data = try? Data(contentsOf: certURL),
-		      let pemText = String(data: data, encoding: .utf8)
-		else {
-			return false
+
+	enum InstallCertificateError: LocalizedError {
+		case missing, unreadable
+		var errorDescription: String? {
+			switch self {
+			case .missing: return .localized("The install certificate is missing. Tap Update SSL Certificates in Settings → Installation → Server & SSL.")
+			case .unreadable: return .localized("The install certificate can't be read. Tap Update SSL Certificates in Settings → Installation → Server & SSL.")
+			}
 		}
-		
-		let certificates = pemText
+	}
+
+	/// Whether iOS trusts a certificate file for the install name, and why not
+	struct CertificateCheck {
+		let trusted: Bool
+		let saved: Bool
+		let count: Int
+		let expires: Date
+		let reason: String
+	}
+
+	/// The result for the certificate the last server started with (shown by the install server test)
+	nonisolated(unsafe) static var lastCheck: CertificateCheck?
+
+	static func checkCertificate(at url: URL, host: String?, saved: Bool, expires: Date) -> CertificateCheck {
+		let pem = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+		let certificates = pem
 			.components(separatedBy: "-----END CERTIFICATE-----")
 			.compactMap { block -> SecCertificate? in
-				let cleaned = block.trimmingCharacters(in: .whitespacesAndNewlines)
-				guard cleaned.contains("BEGIN CERTIFICATE") else { return nil }
-				let base64 = cleaned
-					.replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
-					.replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
-					.replacingOccurrences(of: "\n", with: "")
-					.replacingOccurrences(of: "\r", with: "")
-					.trimmingCharacters(in: .whitespacesAndNewlines)
+				guard let start = block.range(of: "-----BEGIN CERTIFICATE-----") else { return nil }
+				let base64 = block[start.upperBound...].components(separatedBy: .whitespacesAndNewlines).joined()
 				guard let der = Data(base64Encoded: base64) else { return nil }
 				return SecCertificateCreateWithData(nil, der as CFData)
 			}
-		
-		guard !certificates.isEmpty else { return false }
-		let policy = SecPolicyCreateBasicX509()
+		func result(_ trusted: Bool, _ reason: String) -> CertificateCheck {
+			CertificateCheck(trusted: trusted, saved: saved, count: certificates.count, expires: expires, reason: reason)
+		}
+		guard !certificates.isEmpty else { return result(false, .localized("No certificate in the file.")) }
+
+		let policy = SecPolicyCreateSSL(true, host as CFString?)
 		var trust: SecTrust?
-		guard SecTrustCreateWithCertificates(certificates as CFTypeRef, policy, &trust) == errSecSuccess,
-		      let trust
-		else {
-			return false
+		guard SecTrustCreateWithCertificates(certificates as CFArray, policy, &trust) == errSecSuccess, let trust else {
+			return result(false, .localized("iOS couldn't read the certificate."))
 		}
-		
 		var error: CFError?
-		return SecTrustEvaluateWithError(trust, &error)
-	}
-	
-	private static func deleteCertificateFilesFromDocuments() {
-		let docs = URL.documentsDirectory
-		for name in ["server.crt", "server.pem", "commonName.txt"] {
-			let url = docs.appendingPathComponent(name)
-			try? FileManager.default.removeItem(at: url)
+		if SecTrustEvaluateWithError(trust, &error) {
+			return result(true, "")
 		}
+		// which checks failed (for example AnchorTrusted, SSLHostname, ValidityPeriod, CTRequired)
+		var failed: [String] = []
+		if let info = SecTrustCopyResult(trust) as? [String: Any],
+		   let details = info["TrustResultDetails"] as? [[String: Any]] {
+			for item in details { for key in item.keys where !failed.contains(key) { failed.append(key) } }
+		}
+		let text = (error as Error?)?.localizedDescription ?? .localized("Not trusted.")
+		return result(false, failed.isEmpty ? text : "\(text) [\(failed.joined(separator: ", "))]")
 	}
 	
 	func readCommonName() -> String? {

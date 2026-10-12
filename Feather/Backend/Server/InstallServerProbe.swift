@@ -85,6 +85,17 @@ struct InstallServerProbe {
 			app.get("accretion-probe") { _ in "ok" }
 			try app.server.start()
 			checks.append(.init(state: .pass, title: String.localized("Server starts"), detail: String.localized("Listening on port %@.", arguments: String(port))))
+			// what iOS thinks of the certificate the server is using, checked on this iPhone
+			if fullyLocal, let check = ServerInstaller.lastCheck {
+				let which = check.saved ? String.localized("saved copy") : String.localized("built into this version")
+				let expires = check.expires.formatted(date: .abbreviated, time: .omitted)
+				checks.append(.init(
+					state: check.trusted ? .pass : .fail,
+					title: check.trusted ? String.localized("iOS trusts the certificate") : String.localized("iOS doesn't trust the certificate"),
+					detail: String.localized("%@, %@ certificate(s), expires %@.", arguments: which, String(check.count), expires)
+						+ (check.trusted ? "" : "\n\n" + check.reason)
+				))
+			}
 		} catch {
 			app.shutdown()
 			checks.append(.init(state: .fail, title: String.localized("Server didn't start"), detail: error.localizedDescription))
@@ -99,8 +110,9 @@ struct InstallServerProbe {
 		let configuration = URLSessionConfiguration.ephemeral
 		configuration.timeoutIntervalForRequest = 8
 		let session = URLSession(configuration: configuration)
+		let watcher = _TLSWatcher()
 		do {
-			let (data, _) = try await session.data(from: components.url!)
+			let (data, _) = try await session.data(from: components.url!, delegate: watcher)
 			if String(data: data, encoding: .utf8) == "ok" {
 				checks.append(.init(
 					state: .pass,
@@ -123,6 +135,7 @@ struct InstallServerProbe {
 					? String.localized("The install certificate is expired or invalid. Tap Update SSL Certificates, then test again.")
 					: String.localized("%@ didn't answer.", arguments: components.url!.absoluteString))
 					+ "\n\n" + String.localized("Details: %@ (%@ %@)", arguments: error.localizedDescription, ns.domain, String(ns.code))
+					+ _tlsDetails(ns, watcher)
 			))
 		}
 		await app.server.shutdown()
@@ -140,6 +153,23 @@ struct InstallServerProbe {
 		}
 		if let slot { checks.append(slot) }
 		return checks
+	}
+
+	/// The lower-level codes behind a failed HTTPS request, and whether the connection got as far as
+	/// the certificate check (if it didn't, the handshake itself failed, not the certificate's trust)
+	private static func _tlsDetails(_ error: NSError, _ watcher: _TLSWatcher) -> String {
+		var parts: [String] = []
+		if let stream = error.userInfo["_kCFStreamErrorCodeKey"] { parts.append("stream \(stream)") }
+		if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+			parts.append("\(underlying.domain) \(underlying.code)")
+		}
+		var text = parts.isEmpty ? "" : "\n" + parts.joined(separator: " · ")
+		if let result = watcher.result {
+			text += "\n" + String.localized("Reached the certificate check: %@", arguments: result)
+		} else {
+			text += "\n" + String.localized("The connection failed before the certificate check.")
+		}
+		return text
 	}
 
 	/// Every IPv4/IPv6 address the name resolves to on this network
@@ -164,3 +194,26 @@ struct InstallServerProbe {
 	}
 }
 
+
+/// Records how the install server's certificate fared when the test connected to it
+private final class _TLSWatcher: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+	private(set) var result: String?
+
+	func urlSession(
+		_ session: URLSession,
+		task: URLSessionTask,
+		didReceive challenge: URLAuthenticationChallenge,
+		completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+	) {
+		if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+		   let trust = challenge.protectionSpace.serverTrust {
+			var error: CFError?
+			let trusted = SecTrustEvaluateWithError(trust, &error)
+			let count = String(SecTrustGetCertificateCount(trust))
+			result = trusted
+				? String.localized("trusted (%@ certificate(s) sent)", arguments: count)
+				: String.localized("not trusted (%@ certificate(s) sent): %@", arguments: count, (error as Error?)?.localizedDescription ?? "?")
+		}
+		completionHandler(.performDefaultHandling, nil)
+	}
+}

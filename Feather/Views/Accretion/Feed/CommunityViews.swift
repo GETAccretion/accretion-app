@@ -9,7 +9,7 @@ import SwiftUI
 private let _heart = Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255)
 
 /// Plain text with tappable https links, like the website's posts
-private func _linked(_ text: String) -> AttributedString {
+func accretionLinked(_ text: String) -> AttributedString {
 	var result = AttributedString(text)
 	guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return result }
 	for match in detector.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
@@ -44,20 +44,33 @@ private struct _ViewHead: View {
 	}
 }
 
-/// A feed post: avatar, name, @user, time, text, ♥ and Reply
-struct FeedPostRow: View {
+// MARK: - Post
+/// One post, the same everywhere (app comments, the feed, replies): avatar, name, @user, badges,
+/// time, text, the app it's about, ♥, Reply, and a ••• menu with Follow, Report, Hide and Delete.
+/// Actions that are nil aren't shown.
+struct PostRow: View {
+	@ObservedObject private var _store = StoreService.shared
 	let post: AccretionAccount.Post
 	let liked: Bool
+	/// nil: no Follow item (your own post, or signed out)
+	var following: Bool?
+	/// false inside a list that has its own background (an app's Comments)
+	var card = true
 	var onLike: () -> Void
 	var onReply: (() -> Void)?
+	var onFollow: (() -> Void)?
+	var onReport: (() -> Void)?
+	var onHide: (() -> Void)?
 	var onDelete: (() -> Void)?
 
+	private var _name: String { post.display_name?.isEmpty == false ? post.display_name! : post.username }
+
 	var body: some View {
-		HStack(alignment: .top, spacing: 12) {
-			StoreAvatar(letter: String((post.display_name?.isEmpty == false ? post.display_name! : post.username).prefix(1)).uppercased(), hex: post.color ?? "8B5CF6", size: 36)
+		let row = HStack(alignment: .top, spacing: 12) {
+			StoreAvatar(letter: String(_name.prefix(1)).uppercased(), hex: post.color ?? "8B5CF6", size: 36)
 			VStack(alignment: .leading, spacing: 4) {
 				AccretionFlow(spacing: 6) {
-					Text(verbatim: post.display_name?.isEmpty == false ? post.display_name! : post.username)
+					Text(verbatim: _name)
 						.font(.system(size: 14, weight: .semibold))
 						.foregroundStyle(AccretionTheme.fg)
 					Text(verbatim: "@\(post.username)")
@@ -69,37 +82,82 @@ struct FeedPostRow: View {
 					if post.supporter == true {
 						AccretionBadge(text: "♥ supporter", color: _heart)
 					}
+					if post.hidden == true {
+						AccretionBadge(text: "hidden", color: AccretionTheme.warn)
+					}
 					Text(verbatim: "· " + StoreFormat.ago(post.created_at) + (post.edited_at != nil ? " · " + String.localized("edited") : ""))
 						.font(.system(size: 13))
 						.foregroundStyle(AccretionTheme.muted)
 				}
-				Text(_linked(post.body))
+				Text(accretionLinked(post.body))
 					.font(.system(size: 15))
 					.foregroundStyle(AccretionTheme.fg)
 					.tint(AccretionTheme.accent2)
 					.fixedSize(horizontal: false, vertical: true)
-				AccretionFlow(spacing: 4) {
-					Button(action: onLike) {
-						Text(verbatim: "♥" + ((post.likes ?? 0) > 0 ? " \(post.likes ?? 0)" : ""))
-							.foregroundStyle(liked ? _heart : AccretionTheme.muted)
+				if let app = post.app_id.flatMap({ id in _store.index?.apps.first { $0.i == id } }) {
+					NavigationLink(value: app) {
+						HStack(spacing: 8) {
+							StoreAppIcon(url: app.iconURL, size: 22, radius: 6)
+							Text(verbatim: app.n)
+								.font(.system(size: 13, weight: .semibold))
+								.foregroundStyle(AccretionTheme.fg)
+								.lineLimit(1)
+							Text(verbatim: "›").foregroundStyle(AccretionTheme.muted)
+						}
+						.padding(.vertical, 5)
+						.padding(.horizontal, 8)
+						.background(AccretionTheme.raised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+						.overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
 					}
-					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
-					.accessibilityLabel(liked ? String.localized("Unlike") : String.localized("Like"))
-					if let onReply {
-						Button(String.localized("Reply") + ((post.replies ?? 0) > 0 ? " · \(post.replies ?? 0)" : ""), action: onReply)
-							.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
-					}
-					if let onDelete {
-						Button(String.localized("Delete"), action: onDelete)
-							.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
-					}
+					.buttonStyle(AccretionPressStyle())
+					.accessibilityLabel(String.localized("About %@", arguments: app.n))
 				}
+				_actions()
 			}
 			.frame(maxWidth: .infinity, alignment: .leading)
 		}
-		.padding(.vertical, 12)
-		.padding(.horizontal, 14)
-		.accretionCard()
+		if card {
+			row.padding(.vertical, 12).padding(.horizontal, 14).accretionCard()
+		} else {
+			row.padding(.vertical, 12).padding(.horizontal, 4)
+		}
+	}
+
+	private func _actions() -> some View {
+		HStack(spacing: 4) {
+			Button(action: onLike) {
+				Text(verbatim: "♥" + ((post.likes ?? 0) > 0 ? " \(post.likes ?? 0)" : ""))
+					.foregroundStyle(liked ? _heart : AccretionTheme.muted)
+			}
+			.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+			.accessibilityLabel(liked ? String.localized("Unlike") : String.localized("Like"))
+			if let onReply {
+				Button(String.localized("Reply") + ((post.replies ?? 0) > 0 ? " · \(post.replies ?? 0)" : ""), action: onReply)
+					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+			}
+			if onFollow != nil || onReport != nil || onHide != nil || onDelete != nil {
+				Menu {
+					if let onFollow, let following {
+						Button(following ? String.localized("Unfollow @%@", arguments: post.username) : String.localized("Follow @%@", arguments: post.username), action: onFollow)
+					}
+					if let onReport {
+						Button(String.localized("Report"), action: onReport)
+					}
+					if let onHide {
+						Button(post.hidden == true ? String.localized("Unhide") : String.localized("Hide"), action: onHide)
+					}
+					if let onDelete {
+						Button(String.localized("Delete"), role: .destructive, action: onDelete)
+					}
+				} label: {
+					Text(verbatim: "•••")
+						.font(.system(size: 13, weight: .bold))
+						.foregroundStyle(AccretionTheme.muted)
+						.frame(minWidth: 34, minHeight: 34)
+				}
+				.accessibilityLabel(String.localized("More"))
+			}
+		}
 	}
 }
 
@@ -145,6 +203,85 @@ private struct _Composer: View {
 	}
 }
 
+/// Admins: post News to What's new, like the website's "Post news" form
+private struct _NewsComposer: View {
+	var onPosted: () async -> Void
+	var onError: (String) -> Void
+	@State private var _title = ""
+	@State private var _body = ""
+	@State private var _isPosting = false
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 8) {
+			Text(verbatim: String.localized("Post news"))
+				.font(.accretionDisplay(16))
+				.foregroundStyle(AccretionTheme.fg)
+			TextField(String.localized("Title"), text: $_title)
+				.foregroundStyle(AccretionTheme.fg)
+			TextField(String.localized("What changed?"), text: $_body, axis: .vertical)
+				.lineLimit(3...8)
+				.foregroundStyle(AccretionTheme.fg)
+			HStack {
+				Spacer()
+				Button(String.localized("Post")) {
+					let title = _title.trimmingCharacters(in: .whitespacesAndNewlines)
+					guard !title.isEmpty else { onError(String.localized("Add a title")); return }
+					_isPosting = true
+					Task {
+						defer { _isPosting = false }
+						do {
+							try await AccretionAccount.shared.postNews(title: String(title.prefix(120)), body: String(_body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(4000)))
+							_title = ""
+							_body = ""
+							await onPosted()
+						} catch {
+							onError(error.localizedDescription)
+						}
+					}
+				}
+				.buttonStyle(AccretionButtonStyle(compact: true))
+				.disabled(_isPosting)
+			}
+		}
+		.padding(12)
+		.background(AccretionTheme.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+		.overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+	}
+}
+
+/// The website's report box, as an alert: a reason, then Report
+private struct _ReportAlert: ViewModifier {
+	@Binding var post: AccretionAccount.Post?
+	var onDone: (String) -> Void
+	@State private var _reason = ""
+
+	func body(content: Content) -> some View {
+		content.alert(String.localized("Report this post"), isPresented: Binding(get: { post != nil }, set: { if !$0 { post = nil } })) {
+			TextField(String.localized("What's wrong? (spam, harassment, malware link…)"), text: $_reason)
+			Button(String.localized("Cancel"), role: .cancel) { post = nil; _reason = "" }
+			Button(String.localized("Report")) {
+				guard let target = post else { return }
+				let reason = _reason.trimmingCharacters(in: .whitespacesAndNewlines)
+				post = nil
+				_reason = ""
+				guard !reason.isEmpty else { return }
+				Task {
+					do {
+						try await AccretionAccount.shared.report(post: target.id, reason: reason)
+						onDone(String.localized("Thanks. A moderator will look at it."))
+					} catch { onDone(error.localizedDescription) }
+				}
+			}
+		}
+	}
+}
+
+extension View {
+	fileprivate func reportAlert(_ post: Binding<AccretionAccount.Post?>, onDone: @escaping (String) -> Void) -> some View {
+		modifier(_ReportAlert(post: post, onDone: onDone))
+	}
+}
+
 /// Flips a like on screen right away (calling it again puts it back, if the server refuses)
 private func _toggleLike(_ post: AccretionAccount.Post, liked: inout Set<Int>, posts: inout [AccretionAccount.Post]) {
 	let on = !liked.contains(post.id)
@@ -161,6 +298,49 @@ private func _toggleLike(_ post: AccretionAccount.Post, liked: inout Set<Int>, p
 	}
 }
 
+/// Who you are, for showing Follow, Delete and moderator actions on posts
+@MainActor
+final class CommunityViewer: ObservableObject {
+	static let shared = CommunityViewer()
+	@Published private(set) var following: Set<String> = []
+	@Published private(set) var role: String?
+	private var _loadedFor: String?
+
+	var isModerator: Bool { role == "mod" || role == "admin" }
+
+	func load() async {
+		let account = AccretionAccount.shared
+		guard account.isSignedIn else { following = []; role = nil; _loadedFor = nil; return }
+		guard _loadedFor != account.userID else { return }
+		following = await account.following()
+		role = await account.myRole()
+		_loadedFor = account.userID
+	}
+
+	func toggleFollow(_ userID: String) async throws {
+		let on = !following.contains(userID)
+		try await AccretionAccount.shared.follow(userID, on)
+		if on { following.insert(userID) } else { following.remove(userID) }
+	}
+}
+
+/// The ••• actions for a post, decided once for every screen
+@MainActor
+private struct _PostActions {
+	let viewer: CommunityViewer
+	let post: AccretionAccount.Post
+
+	private var _mine: Bool { post.author != nil && post.author == AccretionAccount.shared.userID }
+
+	var following: Bool? {
+		guard AccretionAccount.shared.isSignedIn, !_mine, let author = post.author else { return nil }
+		return viewer.following.contains(author)
+	}
+	var canReport: Bool { AccretionAccount.shared.isSignedIn && !_mine }
+	var canHide: Bool { viewer.isModerator }
+	var canDelete: Bool { _mine }
+}
+
 // MARK: - Feed
 /// Navigation value for the community feed
 struct CommunityFeedRoute: Hashable {}
@@ -171,6 +351,7 @@ struct CommunityFeedView: View {
 
 	@ObservedObject private var _account = AccretionAccount.shared
 	@ObservedObject private var _whatsNew = WhatsNewFeed.shared
+	@ObservedObject private var _viewer = CommunityViewer.shared
 	@State private var _tab: Tab = .everyone
 	@State private var _posts: [AccretionAccount.Post] = []
 	@State private var _liked: Set<Int> = []
@@ -179,6 +360,7 @@ struct CommunityFeedView: View {
 	@State private var _message: String?
 	@State private var _isSigningIn = false
 	@State private var _thread: AccretionAccount.Post?
+	@State private var _reporting: AccretionAccount.Post?
 
 	var body: some View {
 		ScrollView {
@@ -195,6 +377,10 @@ struct CommunityFeedView: View {
 						Button(String.localized("Sign in to post")) { _isSigningIn = true }
 							.buttonStyle(AccretionButtonStyle(prominent: false))
 					}
+				} else if _viewer.role == "admin" {
+					_NewsComposer {
+						await _whatsNew.load(force: true)
+					} onError: { _message = $0 }
 				}
 				_tabs()
 				if let message = _message {
@@ -212,20 +398,14 @@ struct CommunityFeedView: View {
 				} else {
 					if _posts.isEmpty && !_loading {
 						Text(verbatim: _tab == .following
-							? String.localized("Nothing yet from people you follow. Find people in comments and tap Follow.")
+							? String.localized("Nothing yet from people you follow. Tap ••• on a post to follow someone.")
 							: String.localized("No posts yet. Say hi!"))
 							.font(.system(size: 14))
 							.foregroundStyle(AccretionTheme.muted)
 							.padding(.vertical, 12)
 					}
 					ForEach(_posts) { post in
-						FeedPostRow(
-							post: post,
-							liked: _liked.contains(post.id),
-							onLike: { _like(post) },
-							onReply: { _thread = post },
-							onDelete: post.author != nil && post.author == _account.userID ? { _delete(post) } : nil
-						)
+						_row(post)
 					}
 					if _canLoadMore {
 						Button(String.localized("Load more")) { Task { await _load(reset: false) } }
@@ -242,11 +422,30 @@ struct CommunityFeedView: View {
 		.accretionBackground()
 		.toolbar(.hidden, for: .navigationBar)
 		.refreshable { await _reload() }
-		.task(id: _tab) { await _reload() }
+		.task(id: _tab) {
+			await _viewer.load()
+			await _reload()
+		}
 		.sheet(isPresented: $_isSigningIn) { AccountSheet() }
 		.sheet(item: $_thread) { post in
 			NavigationStack { FeedThreadView(post: post) }
 		}
+		.reportAlert($_reporting) { _message = $0 }
+	}
+
+	private func _row(_ post: AccretionAccount.Post) -> some View {
+		let actions = _PostActions(viewer: _viewer, post: post)
+		return PostRow(
+			post: post,
+			liked: _liked.contains(post.id),
+			following: actions.following,
+			onLike: { _like(post) },
+			onReply: { _thread = post },
+			onFollow: actions.following == nil ? nil : { _follow(post) },
+			onReport: actions.canReport ? { _reporting = post } : nil,
+			onHide: actions.canHide ? { _hide(post) } : nil,
+			onDelete: actions.canDelete ? { _delete(post) } : nil
+		)
 	}
 
 	private func _tabs() -> some View {
@@ -308,6 +507,22 @@ struct CommunityFeedView: View {
 		}
 	}
 
+	private func _follow(_ post: AccretionAccount.Post) {
+		guard let author = post.author else { return }
+		Task {
+			do { try await _viewer.toggleFollow(author) } catch { _message = error.localizedDescription }
+		}
+	}
+
+	private func _hide(_ post: AccretionAccount.Post) {
+		Task {
+			do {
+				try await _account.hidePost(post.id, !(post.hidden ?? false))
+				await _load(reset: true)
+			} catch { _message = error.localizedDescription }
+		}
+	}
+
 	private func _delete(_ post: AccretionAccount.Post) {
 		ConfirmDelete.ask(String.localized("Delete this post?")) {
 			Task {
@@ -324,31 +539,29 @@ struct CommunityFeedView: View {
 struct FeedThreadView: View {
 	@Environment(\.dismiss) private var _dismiss
 	@ObservedObject private var _account = AccretionAccount.shared
+	@ObservedObject private var _viewer = CommunityViewer.shared
 	let post: AccretionAccount.Post
+	@State private var _root: AccretionAccount.Post?
 	@State private var _replies: [AccretionAccount.Post] = []
 	@State private var _liked: Set<Int> = []
 	@State private var _message: String?
 	@State private var _isSigningIn = false
+	@State private var _reporting: AccretionAccount.Post?
 
 	var body: some View {
+		let root = _root ?? post
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 12) {
-				FeedPostRow(post: post, liked: _liked.contains(post.id), onLike: { _like(post) })
+				_row(root)
 				if let message = _message {
 					Text(verbatim: message).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
 				}
 				ForEach(_replies) { reply in
-					FeedPostRow(
-						post: reply,
-						liked: _liked.contains(reply.id),
-						onLike: { _like(reply) },
-						onDelete: reply.author != nil && reply.author == _account.userID ? { _delete(reply) } : nil
-					)
-					.padding(.leading, 24)
+					_row(reply).padding(.leading, 24)
 				}
 				if _account.isSignedIn {
-					_Composer(placeholder: String.localized("Reply to @%@", arguments: post.username)) { body in
-						try await _account.post(body, replyTo: post.id)
+					_Composer(placeholder: String.localized("Reply to @%@", arguments: root.username)) { body in
+						try await _account.post(body, replyTo: root.id)
 						await _load()
 					} onError: { _message = $0 }
 				} else {
@@ -361,19 +574,52 @@ struct FeedThreadView: View {
 		.accretionBackground()
 		.navigationTitle(String.localized("Replies"))
 		.navigationBarTitleDisplayMode(.inline)
+		.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
 		.toolbar {
 			ToolbarItem(placement: .confirmationAction) {
 				Button(String.localized("Done")) { _dismiss() }
 			}
 		}
-		.task { await _load() }
+		.task {
+			await _viewer.load()
+			await _load()
+		}
 		.sheet(isPresented: $_isSigningIn) { AccountSheet() }
+		.reportAlert($_reporting) { _message = $0 }
 	}
 
+	private func _row(_ target: AccretionAccount.Post) -> some View {
+		let actions = _PostActions(viewer: _viewer, post: target)
+		return PostRow(
+			post: target,
+			liked: _liked.contains(target.id),
+			following: actions.following,
+			onLike: { _like(target) },
+			onFollow: actions.following == nil ? nil : {
+				guard let author = target.author else { return }
+				Task { do { try await _viewer.toggleFollow(author) } catch { _message = error.localizedDescription } }
+			},
+			onReport: actions.canReport ? { _reporting = target } : nil,
+			onHide: actions.canHide ? {
+				Task {
+					do { try await _account.hidePost(target.id, !(target.hidden ?? false)); await _load() } catch { _message = error.localizedDescription }
+				}
+			} : nil,
+			onDelete: actions.canDelete ? { _delete(target) } : nil
+		)
+	}
+
+	/// A reply opened from a notification shows its whole thread, from the top post
 	private func _load() async {
 		do {
-			_replies = try await _account.replies(to: post.id)
-			_liked = await _account.likedPosts([post.id] + _replies.map(\.id))
+			var root = _root ?? post
+			if let parent = root.parent_id, let top = try await _account.post(id: parent) {
+				root = top
+			}
+			if let fresh = try await _account.post(id: root.id) { root = fresh }
+			_root = root
+			_replies = try await _account.replies(to: root.id)
+			_liked = await _account.likedPosts([root.id] + _replies.map(\.id))
 		} catch {
 			_message = String.localized("Couldn't load replies: %@", arguments: error.localizedDescription)
 		}
@@ -393,7 +639,10 @@ struct FeedThreadView: View {
 	private func _delete(_ target: AccretionAccount.Post) {
 		ConfirmDelete.ask(String.localized("Delete this reply?")) {
 			Task {
-				do { try await _account.deletePost(target.id); await _load() } catch { _message = error.localizedDescription }
+				do {
+					try await _account.deletePost(target.id)
+					if target.id == (_root ?? post).id { _dismiss() } else { await _load() }
+				} catch { _message = error.localizedDescription }
 			}
 		}
 	}
@@ -402,12 +651,14 @@ struct FeedThreadView: View {
 // MARK: - Notifications
 struct NotificationsRoute: Hashable {}
 
-/// Likes, replies and follows, newest first; opening the list marks them read, like the website
+/// Likes, replies and follows, newest first; opening the list marks them read, like the website.
+/// Tapping a like or a reply opens that post's thread.
 struct NotificationsView: View {
 	@ObservedObject private var _account = AccretionAccount.shared
 	@State private var _items: [AccretionAccount.Notice] = []
 	@State private var _message: String?
 	@State private var _loaded = false
+	@State private var _thread: AccretionAccount.Post?
 
 	var body: some View {
 		ScrollView {
@@ -424,7 +675,12 @@ struct NotificationsView: View {
 						.padding(.vertical, 12)
 				}
 				ForEach(_items) { item in
-					_row(item)
+					if let postID = item.post_id {
+						Button { _open(postID) } label: { _row(item) }
+							.buttonStyle(AccretionPressStyle())
+					} else {
+						_row(item)
+					}
 				}
 			}
 			.padding(.horizontal, 16)
@@ -435,6 +691,9 @@ struct NotificationsView: View {
 		.toolbar(.hidden, for: .navigationBar)
 		.refreshable { await _load() }
 		.task { await _load() }
+		.sheet(item: $_thread) { post in
+			NavigationStack { FeedThreadView(post: post) }
+		}
 	}
 
 	private func _row(_ item: AccretionAccount.Notice) -> some View {
@@ -450,6 +709,7 @@ struct NotificationsView: View {
 			StoreAvatar(letter: String(name.prefix(1)).uppercased(), hex: item.actor?.color ?? "8B5CF6", size: 32)
 			(Text(verbatim: name).bold().foregroundColor(AccretionTheme.fg) + Text(verbatim: " " + verb).foregroundColor(AccretionTheme.muted))
 				.font(.system(size: 14))
+				.multilineTextAlignment(.leading)
 			Spacer(minLength: 0)
 			Text(verbatim: StoreFormat.ago(item.created_at))
 				.font(.accretionMono(11, weight: .regular))
@@ -460,6 +720,20 @@ struct NotificationsView: View {
 		}
 		.padding(12)
 		.accretionCard()
+	}
+
+	private func _open(_ postID: Int) {
+		Task {
+			do {
+				if let post = try await _account.post(id: postID) {
+					_thread = post
+				} else {
+					_message = String.localized("That post was deleted.")
+				}
+			} catch {
+				_message = error.localizedDescription
+			}
+		}
 	}
 
 	private func _load() async {

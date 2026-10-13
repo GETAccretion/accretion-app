@@ -510,6 +510,35 @@ final class AccretionAccount: ObservableObject {
 		return try JSONDecoder().decode([Post].self, from: data)
 	}
 
+	/// One post by its id (nil if it's gone)
+	func post(id: Int) async throws -> Post? {
+		let data = try await _rest("post_feed?select=\(Self._feedColumns)&id=eq.\(id)&limit=1", anonymous: true)
+		return try JSONDecoder().decode([Post].self, from: data).first
+	}
+
+	/// The ids of the people you follow
+	func following() async -> Set<String> {
+		guard isSignedIn, let uid = try? await _uid(),
+			  let data = try? await _rest("follows?select=followee&follower=eq.\(uid)"),
+			  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+		else { return [] }
+		return Set(rows.compactMap { $0["followee"] as? String })
+	}
+
+	func follow(_ userID: String, _ on: Bool) async throws {
+		let uid = try await _uid()
+		if on {
+			_ = try await _rest("follows", method: "POST", body: ["followee": userID], prefer: "return=minimal")
+		} else {
+			_ = try await _rest("follows?follower=eq.\(uid)&followee=eq.\(userID)", method: "DELETE")
+		}
+	}
+
+	/// Admins: a News post in What's new (row level security only lets admins do this)
+	func postNews(title: String, body: String) async throws {
+		_ = try await _rest("announcements", method: "POST", body: ["kind": "news", "title": title, "body": body], prefer: "return=minimal")
+	}
+
 	/// A post on the feed (not about an app), or a reply to one
 	func post(_ body: String, replyTo parent: Int? = nil) async throws {
 		var row: [String: Any] = ["body": body]

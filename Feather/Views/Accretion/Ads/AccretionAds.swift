@@ -12,9 +12,9 @@ import UIKit
 
 @MainActor
 enum AccretionAds {
-	/// Banner ad unit. SWAP FOR THE REAL UNIT before release: this is Google's TEST adaptive-banner unit.
-	/// (The app ID is `GADApplicationIdentifier` in Info.plist, also a test value.)
-	static let bannerUnitID = "ca-app-pub-3940256099942544/2435281174"
+	/// AdMob "Download card" banner unit (the app ID is `GADApplicationIdentifier` in Info.plist).
+	/// For testing, Google's test unit is ca-app-pub-3940256099942544/2435281174.
+	static let bannerUnitID = "ca-app-pub-4500603236648893/7187717610"
 
 	private static var _started = false
 

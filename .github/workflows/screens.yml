@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   screens:
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -26,33 +26,22 @@ jobs:
         with:
           submodules: 'true'
 
-      - name: Prepare Xcode
+      - name: Xcode and Swift packages
+        uses: ./.github/actions/xcode
+
+      - name: Pick the Simulator
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.3.0.app
           # the first available iPhone Pro (not Max) Simulator on this runner
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["name"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]))')
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           echo "Simulator: $DEVICE"
-          echo "SPM_DIR=$TMPDIR/Feather/sim/SourcePackages" >> "$GITHUB_ENV"
-
-      - name: Cache Swift packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.SPM_DIR }}
-          key: spm-sim-${{ runner.os }}-${{ hashFiles('Feather.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Feather.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Build for the Simulator
         run: |
           set -o pipefail
-          for attempt in 1 2 3; do
-            if xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather \
-                 -derivedDataPath "$TMPDIR/Feather/sim" -skipPackagePluginValidation; then break; fi
-            [ "$attempt" = 3 ] && exit 1
-            sleep 10
-          done
           xcodebuild -project Feather.xcodeproj -scheme Feather -configuration Debug \
             -sdk iphonesimulator -destination "platform=iOS Simulator,name=$DEVICE" \
-            -derivedDataPath "$TMPDIR/Feather/sim" -skipPackagePluginValidation \
+            -derivedDataPath "$DERIVED_DATA" -skipPackagePluginValidation \
             CODE_SIGNING_ALLOWED=NO build | tail -40
 
       - name: Screenshot the app
@@ -65,10 +54,10 @@ jobs:
             if [ -f "$candidate/Info.plist" ]; then APP="$candidate"; break; fi
           # the project installs the app into the checkout's _build/Applications; the products folder
           # only links to it (a link that breaks because /var is itself a link on macOS)
-          done < <(find "$GITHUB_WORKSPACE/_build/Applications" -maxdepth 1 -name "*.app" 2> /dev/null; find -L "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 -name "*.app" | sort)
+          done < <(find "$GITHUB_WORKSPACE/_build/Applications" -maxdepth 1 -name "*.app" 2> /dev/null; find -L "$DERIVED_DATA/Build/Products" -maxdepth 3 -name "*.app" | sort)
           if [ -z "$APP" ]; then
             echo "::error::No built .app found. Products folder:"
-            ls -la "$TMPDIR/Feather/sim/Build/Products/Debug-iphonesimulator" | grep -Ev '\.o$|\.swiftmodule$|\.a$|\.swiftdoc$' | head -60
+            ls -la "$DERIVED_DATA/Build/Products/Debug-iphonesimulator" | grep -Ev '\.o$|\.swiftmodule$|\.a$|\.swiftdoc$' | head -60
             exit 1
           fi
           echo "App: $APP"

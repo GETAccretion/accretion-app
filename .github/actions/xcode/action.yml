@@ -1,0 +1,38 @@
+name: Xcode and Swift packages
+description: >-
+  Selects the pinned Xcode, restores the Swift package cache, and resolves the packages (retrying
+  Xcode 26's package-registration crash) into the derived data folder every build here uses
+  ($TMPDIR/Feather/iphoneos, also exported as DERIVED_DATA). Shared by Release and Screens, so
+  they share one package cache.
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode
+      shell: bash
+      run: |
+        sudo xcode-select -s /Applications/Xcode_26.3.0.app
+        echo "DERIVED_DATA=$TMPDIR/Feather/iphoneos" >> "$GITHUB_ENV"
+        echo "SPM_DIR=$TMPDIR/Feather/iphoneos/SourcePackages" >> "$GITHUB_ENV"
+
+    # downloaded Swift packages, reused while Package.resolved doesn't change (public code only)
+    - name: Cache Swift packages
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ env.SPM_DIR }}
+        key: spm-${{ runner.os }}-${{ hashFiles('Feather.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Feather.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+    # Xcode 26 sometimes crashes while registering the ~30 Swift packages ("count of array (32)
+    # differs from count of index set (31)"). Resolve them up front, retrying.
+    - name: Resolve Swift packages
+      shell: bash
+      run: |
+        for attempt in 1 2 3; do
+          if xcodebuild -resolvePackageDependencies -project Feather.xcodeproj -scheme Feather \
+               -derivedDataPath "$DERIVED_DATA" -skipPackagePluginValidation; then
+            exit 0
+          fi
+          echo "::warning::Package resolution failed (attempt $attempt), retrying"
+          sleep 10
+        done
+        exit 1

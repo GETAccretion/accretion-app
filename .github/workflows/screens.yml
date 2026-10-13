@@ -63,7 +63,9 @@ jobs:
           APP=""
           while IFS= read -r candidate; do
             if [ -f "$candidate/Info.plist" ]; then APP="$candidate"; break; fi
-          done < <(find -L "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 -name "*.app" | sort)
+          # the project installs the app into the checkout's _build/Applications; the products folder
+          # only links to it (a link that breaks because /var is itself a link on macOS)
+          done < <(find "$GITHUB_WORKSPACE/_build/Applications" -maxdepth 1 -name "*.app" 2> /dev/null; find -L "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 -name "*.app" | sort)
           if [ -z "$APP" ]; then
             echo "::error::No built .app found. Products folder:"
             ls -la "$TMPDIR/Feather/sim/Build/Products/Debug-iphonesimulator" | grep -Ev '\.o$|\.swiftmodule$|\.a$|\.swiftdoc$' | head -60

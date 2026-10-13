@@ -487,7 +487,7 @@ struct AccretionAmbientGlow: View {
 		TimelineView(.animation(minimumInterval: 1.0 / 15, paused: still)) { context in
 			Canvas { canvas, size in
 				let vmax = max(size.width, size.height)
-				let drift = still ? .zero : Self._drift(at: context.date.timeIntervalSinceReferenceDate, vmax: vmax)
+				let drift = still ? .zero : AccretionDrift.offset(at: context.date.timeIntervalSinceReferenceDate, vmax: vmax)
 				// inset: -20vmax
 				let box = CGRect(origin: .zero, size: size).insetBy(dx: -0.2 * vmax, dy: -0.2 * vmax).offsetBy(dx: drift.x, dy: drift.y)
 				let strength = _colorScheme == .dark ? AccretionTokens.glow.dark : AccretionTokens.glow.light // --glow
@@ -510,17 +510,6 @@ struct AccretionAmbientGlow: View {
 		.onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)) { _ in
 			_lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 		}
-	}
-
-	/// `@keyframes drift`: 0% (0, 0), 50% (6vmax, -4vmax), 100% (-5vmax, 5vmax), 40 s each way,
-	/// alternating, eased in and out between keyframes like CSS's ease-in-out
-	private static func _drift(at time: TimeInterval, vmax: CGFloat) -> CGPoint {
-		let cycle = time.truncatingRemainder(dividingBy: 80)
-		let progress = cycle <= 40 ? cycle / 40 : (80 - cycle) / 40
-		let ease = { (x: Double) in (1 - cos(Double.pi * x)) / 2 }
-		let a = CGPoint.zero, b = CGPoint(x: 6, y: -4), c = CGPoint(x: -5, y: 5)
-		let (from, to, k) = progress <= 0.5 ? (a, b, ease(progress * 2)) : (b, c, ease(progress * 2 - 1))
-		return CGPoint(x: (from.x + (to.x - from.x) * k) / 100 * vmax, y: (from.y + (to.y - from.y) * k) / 100 * vmax)
 	}
 
 	private func _glow(in canvas: inout GraphicsContext, center: CGPoint, radius: CGFloat, color: Color) {

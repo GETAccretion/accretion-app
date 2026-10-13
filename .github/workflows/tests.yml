@@ -1,0 +1,30 @@
+name: Tests
+
+# Unit tests for the app's Core logic (Feather/Backend/Core: versions and betas, post links, the
+# background drift), run with CoreTests/run.sh on every push and pull request that touches them.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Feather/Backend/Core/**"
+      - "CoreTests/**"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    paths:
+      - "Feather/Backend/Core/**"
+      - "CoreTests/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Core unit tests
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.0.app
+          bash CoreTests/run.sh

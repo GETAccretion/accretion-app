@@ -71,16 +71,7 @@ extension UpdateManager {
 	/// Compares dotted versions number by number ("1.10" is newer than "1.9"); anything that isn't
 	/// a number is ignored, so "2.0b" compares as "2.0".
 	nonisolated static func isVersion(_ candidate: String, newerThan current: String) -> Bool {
-		func numbers(_ version: String) -> [Int] {
-			version.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
-		}
-		let a = numbers(candidate), b = numbers(current)
-		for i in 0..<max(a.count, b.count) {
-			let x = i < a.count ? a[i] : 0
-			let y = i < b.count ? b[i] : 0
-			if x != y { return x > y }
-		}
-		return false
+		AccretionVersion.isNewer(candidate, than: current) // Core, unit-tested
 	}
 }
 

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// Signing, installing and tweak extraction each leave a working folder in tmp (an install leaves
 /// about twice the app's size). At launch, remove the ones older than six hours.
@@ -56,5 +57,15 @@ enum InstallModeDefaults {
 			defaults.set(1, forKey: "Feather.serverMethod")
 		}
 		defaults.set(true, forKey: "accretion.installModeDefaults.v1")
+	}
+}
+
+/// Accretion: Feather's alternate Home Screen icons were removed (they were all Feather's), so
+/// anyone still on one goes back to Accretion's icon. iOS shows its "icon changed" note once.
+enum LegacyIconReset {
+	@MainActor
+	static func run() {
+		guard UIApplication.shared.alternateIconName != nil else { return }
+		UIApplication.shared.setAlternateIconName(nil)
 	}
 }

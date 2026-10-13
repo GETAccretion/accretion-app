@@ -41,7 +41,7 @@ enum TabEnum: String, CaseIterable, Hashable {
 		case .discover: DiscoverView()
 		case .sources: SourcesView()
 		case .library: LibraryView()
-		case .settings: AccretionSettingsView() // Accretion: own Settings screen (Feather's SettingsView kept for merges)
+		case .settings: AccretionSettingsView() // Accretion: own Settings screen (Feather's SettingsView removed)
 		case .certificates: NBNavigationView(.localized("Certificates")) { CertificatesView() }
 		}
 	}

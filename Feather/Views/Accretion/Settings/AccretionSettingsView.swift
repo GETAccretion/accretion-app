@@ -14,7 +14,6 @@ struct AccretionSettingsView: View {
 	@AppStorage(UpdateManager.autoCheckKey) private var _autoUpdateCheck: Bool = true
 	@AppStorage(UpdateManager.autoInstallKey) private var _autoInstallUpdates: Bool = false
 	@AppStorage(UpdateManager.betaKey) private var _betaUpdates: Bool = false
-	@State private var _currentIcon: String? = UIApplication.shared.alternateIconName
 
 	@FetchRequest(
 		entity: CertificatePair.entity(),
@@ -63,8 +62,6 @@ struct AccretionSettingsView: View {
 
 					_group(String.localized("Look")) {
 						_link(String.localized("Appearance"), String.localized("Theme and accent colour"), "paintbrush") { AppearanceView() }
-						_divider()
-						_link(String.localized("App Icon"), String.localized("Choose the Home Screen icon"), "app.badge") { AppIconView(currentIcon: $_currentIcon) }
 					}
 
 					_group(String.localized("Accretion")) {
@@ -80,7 +77,7 @@ struct AccretionSettingsView: View {
 					}
 
 					_group(String.localized("More")) {
-						_link(String.localized("About"), String.localized("Credits, including Feather"), "info.circle") { AboutView() }
+						_link(String.localized("About"), String.localized("This build, credits and licences"), "info.circle") { AccretionAboutView() }
 						_divider()
 						_web(String.localized("Report a Problem"), String.localized("Opens GitHub issues"), "exclamationmark.bubble", "https://github.com/GETAccretion/accretion-app/issues/new/choose")
 						_divider()

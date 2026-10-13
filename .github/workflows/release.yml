@@ -168,6 +168,9 @@ jobs:
           SIGNED=$(curl -fsS -X POST "$FN" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY" | jq -r .signedUrl)
           curl -fsS -X PUT "$SIGNED" -H "Content-Type: application/octet-stream" --data-binary @packages/Accretion.ipa > /dev/null
           curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
+          # the GitHub release lists the same changes (generated notes only list pull requests)
+          { echo "Download Accretion from the store (sign in first): https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion"
+            if [ -n "$NOTES" ]; then echo; echo "### What's changed"; echo "$NOTES"; fi; } > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/accretion-v')
@@ -176,7 +179,7 @@ jobs:
           name: Accretion v${{ env.VERSION }}${{ env.BETA == 'true' && ' (beta)' || '' }}
           tag_name: ${{ github.ref_name }}
           prerelease: ${{ env.BETA == 'true' }}
-          body: "Download Accretion from the store (sign in first): https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion"
+          body_path: ${{ runner.temp }}/release-notes.md
           generate_release_notes: true
 
       # Releases made with GITHUB_TOKEN don't trigger other workflows, so the app source is updated here.

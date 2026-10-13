@@ -8,6 +8,15 @@ import SwiftUI
 // MARK: - Shared pieces
 private let _heart = Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255)
 
+/// A post's text: https links tappable (Core's accretionLinked) and underlined, like the website
+func accretionPostText(_ text: String) -> AttributedString {
+	var result = accretionLinked(text)
+	for run in result.runs where run.link != nil {
+		result[run.range].underlineStyle = .single
+	}
+	return result
+}
+
 /// Page title and line under it, like the website's .view-head
 private struct _ViewHead: View {
 	let title: String
@@ -72,7 +81,7 @@ struct PostRow: View {
 						.font(.system(size: 13))
 						.foregroundStyle(AccretionTheme.muted)
 				}
-				Text(accretionLinked(post.body))
+				Text(accretionPostText(post.body))
 					.font(.system(size: 15))
 					.foregroundStyle(AccretionTheme.fg)
 					.tint(AccretionTheme.accent2)

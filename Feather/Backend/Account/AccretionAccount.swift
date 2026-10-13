@@ -534,6 +534,20 @@ final class AccretionAccount: ObservableObject {
 		}
 	}
 
+	/// An install problem, sent only when the user taps Send Report: the install mode, the stage it
+	/// reached, the app being installed and the diagnostic text the alert showed. Works signed out.
+	func sendInstallReport(mode: Int, stage: String, bundleID: String?, details: String) async throws {
+		var row: [String: Any] = [
+			"app_version": String(Bundle.main.version.prefix(20)),
+			"ios": String(UIDevice.current.systemVersion.prefix(20)),
+			"mode": max(0, min(2, mode)),
+			"stage": String(stage.prefix(40)),
+			"details": String(details.prefix(4000)),
+		]
+		if let bundleID { row["bundle_id"] = String(bundleID.prefix(200)) }
+		_ = try await _rest("install_reports", method: "POST", body: row, prefer: "return=minimal", anonymous: true)
+	}
+
 	/// Admins: a News post in What's new (row level security only lets admins do this)
 	func postNews(title: String, body: String) async throws {
 		_ = try await _rest("announcements", method: "POST", body: ["kind": "news", "title": title, "body": body], prefer: "return=minimal")

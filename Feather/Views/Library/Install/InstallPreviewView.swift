@@ -106,6 +106,7 @@ struct InstallPreviewView: View {
 										message: String.localized("Close this install card and tap Install again. You can switch back in Settings → Installation.")
 									)
 								},
+								_sendReportAction(stage: "ready", details: InstallServerLog.shared.summary),
 							]
 						)
 					}
@@ -148,6 +149,7 @@ struct InstallPreviewView: View {
 								UIAlertAction(title: String.localized("Copy Details"), style: .default) { _ in
 									UIPasteboard.general.string = details
 								},
+								_sendReportAction(stage: "sendingPayload", details: details),
 							]
 						)
 					}
@@ -208,6 +210,26 @@ struct InstallPreviewView: View {
 		}
 	}
 	
+	/// Accretion: "Send Report" in the install diagnostics. Sends only what the alert showed (plus the
+	/// install mode, the app's bundle ID and the iOS and Accretion versions), and only when tapped.
+	private func _sendReportAction(stage: String, details: String) -> UIAlertAction {
+		let mode = installer.getServerMethod()
+		let bundleID = app.identifier
+		return UIAlertAction(title: String.localized("Send Report"), style: .default) { _ in
+			Task {
+				do {
+					try await AccretionAccount.shared.sendInstallReport(mode: mode, stage: stage, bundleID: bundleID, details: details)
+					UIAlertController.showAlertWithOk(
+						title: String.localized("Report sent"),
+						message: String.localized("Thanks. It has the install mode, where the install stopped and the details above, nothing else.")
+					)
+				} catch {
+					UIAlertController.showAlertWithOk(title: String.localized("Couldn't send the report"), message: error.localizedDescription)
+				}
+			}
+		}
+	}
+
 	/// Accretion: the install can't work in the current mode; offer the mode that will, in one tap
 	private func _offerFix(certificateProblem: Bool) {
 		let offline = installer.getServerMethod() == 2

@@ -47,6 +47,7 @@ struct FeatherApp: App {
 				RequiredUpdateView()
 			}
 			.task { await policy.refresh() }
+			.task { AccretionAds.start() } // Accretion: start the ads SDK
 			.task { TempCleanup.run(); InstallCertificateUpgrade.run(); InstallModeDefaults.run(); LegacyIconReset.run() } // Accretion: leftover working folders, old install certificates
 			.onReceive(NotificationCenter.default.publisher(for: .heartbeatInvalidHost)) { _ in
 				DispatchQueue.main.async {

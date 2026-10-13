@@ -432,6 +432,18 @@ final class AccretionAccount: ObservableObject {
 		return rows.first?["role"] as? String
 	}
 
+	/// True when ads are hidden for this account (an admin, or a supporter), false when they aren't
+	/// or you're signed out, nil when the check couldn't be made (keep the last answer then)
+	func adFree() async -> Bool? {
+		guard isSignedIn else { return false }
+		guard let uid = try? await _uid(),
+			  let data = try? await _rest("profiles?select=role,supporter&id=eq.\(uid)"),
+			  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+			  let row = rows.first
+		else { return nil }
+		return (row["role"] as? String) == "admin" || (row["supporter"] as? Bool) == true
+	}
+
 	/// Your avatar as the website draws it: first letter of your display name (or username) and
 	/// your profile colour ("8B5CF6" when unset)
 	func myAvatar() async -> (letter: String, color: String)? {

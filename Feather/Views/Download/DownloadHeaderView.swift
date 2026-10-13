@@ -30,6 +30,8 @@ struct DownloadHeaderView: View {
 								}
 							}
 						}
+						// Accretion: ad card under the download progress (hidden for admins and supporters)
+						AccretionAdCard()
 					}
 					.padding(.horizontal)
 				}

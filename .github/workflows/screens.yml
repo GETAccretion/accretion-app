@@ -63,10 +63,10 @@ jobs:
           APP=""
           while IFS= read -r candidate; do
             if [ -f "$candidate/Info.plist" ]; then APP="$candidate"; break; fi
-          done < <(find "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 -type d -name "*.app" | sort)
+          done < <(find -L "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 -name "*.app" | sort)
           if [ -z "$APP" ]; then
             echo "::error::No built .app found. Products folder:"
-            find "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 | head -40
+            ls -la "$TMPDIR/Feather/sim/Build/Products/Debug-iphonesimulator" | grep -Ev '\.o$|\.swiftmodule$|\.a$|\.swiftdoc$' | head -60
             exit 1
           fi
           echo "App: $APP"

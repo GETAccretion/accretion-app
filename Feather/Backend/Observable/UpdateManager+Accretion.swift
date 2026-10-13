@@ -120,8 +120,16 @@ extension UpdateManager {
 	
 	// MARK: Accretion's own updates
 	nonisolated static let autoInstallKey = "accretion.autoInstallUpdates"
+	/// Settings → Beta Updates: offer test builds (versions like 1.0.25.1, between two releases)
+	nonisolated static let betaKey = "accretion.betaUpdates"
 	private static let _selfAlertedKey = "accretion.alertedSelfUpdate"
-	private static let _selfSource = URL(string: "https://raw.githubusercontent.com/GETAccretion/accretion-app/main/app-repo.json")!
+	/// Where Accretion learns about its own new versions: app-repo-beta.json lists the newest of
+	/// betas and releases, app-repo.json releases only
+	nonisolated static var selfSource: URL {
+		let beta = UserDefaults.standard.bool(forKey: betaKey)
+		return URL(string: "https://raw.githubusercontent.com/GETAccretion/accretion-app/main/\(beta ? "app-repo-beta.json" : "app-repo.json")")!
+	}
+	private static var _selfSource: URL { selfSource }
 	
 	/// Accretion can't install over itself with the server method, so a new version is announced
 	/// once with its download link; with the idevice method it can install itself directly.

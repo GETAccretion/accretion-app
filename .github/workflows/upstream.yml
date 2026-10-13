@@ -1,0 +1,75 @@
+name: Feather updates
+
+# Mondays (or on demand): checks claration/Feather for commits Accretion doesn't have yet. If there
+# are some, it tries the merge on a branch named upstream-sync:
+#   - clean merge: the branch is pushed and a pull request is opened (or the branch is left ready if
+#     pull requests from Actions are turned off), so the merge can be built and reviewed;
+#   - conflicts: nothing is pushed; the summary lists the conflicting files.
+# It never touches main.
+on:
+  schedule:
+    - cron: "29 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compare with Feather
+        id: compare
+        run: |
+          set -euo pipefail
+          git remote add upstream https://github.com/claration/Feather.git
+          git fetch --quiet upstream main
+          new=$(git rev-list --count HEAD..upstream/main)
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Feather updates"
+            if [ "$new" = 0 ]; then
+              echo "Accretion has every Feather commit."
+            else
+              echo "$new Feather commit(s) not in Accretion yet:"
+              echo
+              git log --no-merges --format='- %s (%h, %ad)' --date=short HEAD..upstream/main | head -40
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Try the merge on upstream-sync
+        if: steps.compare.outputs.new != '0'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -B upstream-sync
+          if git merge --no-edit --quiet upstream/main -m "Feather updates"; then
+            git push --force-with-lease origin upstream-sync
+            if ! gh pr view upstream-sync > /dev/null 2>&1; then
+              gh pr create --head upstream-sync --base main --title "Feather updates" \
+                --body "Feather commits not in Accretion yet, merged cleanly. Check the build, review, then merge. Opened by the weekly Feather updates workflow." \
+                || echo "Branch upstream-sync is ready; open a pull request from it (Actions can't open one here)." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo "Merged cleanly on **upstream-sync**." >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo
+              echo "The merge has conflicts, so nothing was pushed. Files to resolve:"
+              git diff --name-only --diff-filter=U | sed 's/^/- /'
+            } >> "$GITHUB_STEP_SUMMARY"
+            git merge --abort
+          fi

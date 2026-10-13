@@ -59,7 +59,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p screens
-          APP=$(find "$TMPDIR/Feather/sim/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "*.app" | head -1)
+          # the built app: a .app with its own Info.plist anywhere under the products folder
+          APP=""
+          while IFS= read -r candidate; do
+            if [ -f "$candidate/Info.plist" ]; then APP="$candidate"; break; fi
+          done < <(find "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 -type d -name "*.app" | sort)
+          if [ -z "$APP" ]; then
+            echo "::error::No built .app found. Products folder:"
+            find "$TMPDIR/Feather/sim/Build/Products" -maxdepth 3 | head -40
+            exit 1
+          fi
+          echo "App: $APP"
           BUNDLE=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/Info.plist")
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b

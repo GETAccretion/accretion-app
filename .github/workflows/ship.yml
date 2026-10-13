@@ -4,13 +4,19 @@ name: Ship
 # Checks that main's latest build passed, raises the version (next patch unless one is given),
 # tags it, and starts the Release run for that tag, which uploads it privately, publishes the
 # notes-only release and points app-repo.json at it. The store picks it up on its next build.
+# Beta: a test build numbered between releases (1.0.25 -> 1.0.25.1, 1.0.25.2 ...). Only people with
+# Settings -> Beta Updates on get it (app-repo-beta.json); the next release (1.0.26) replaces it.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version, like 1.0.20 (leave empty for the next patch)"
+        description: "Version, like 1.0.20 (leave empty for the next patch, or the next beta)"
         required: false
         default: ""
+      beta:
+        description: "Beta (test build for Beta Updates only)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -43,7 +49,7 @@ jobs:
             exit 1
           fi
           # version bumps and app-repo.json updates are made by workflows, which don't start builds
-          changed=$(git diff --name-only "$built" HEAD | grep -vx -e 'app-repo.json' -e 'Feather.xcconfig' || true)
+          changed=$(git diff --name-only "$built" HEAD | grep -vx -e 'app-repo.json' -e 'app-repo-beta.json' -e 'Feather.xcconfig' || true)
           if [ -n "$changed" ]; then
             echo "::error::These changed after main's last build and haven't been built yet: $changed"
             exit 1
@@ -53,15 +59,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_VERSION: ${{ inputs.version }}
+          BETA: ${{ inputs.beta }}
         run: |
           set -euo pipefail
           current=$(sed -n 's/^FEATHER_PROJECT_VERSION=//p' Feather.xcconfig)
+          # the last release: a beta's version (1.0.25.2) belongs to release 1.0.25
+          IFS=. read -r major minor patch _ <<< "$current"
+          release="$major.$minor.$patch"
           next="$INPUT_VERSION"
-          if [ -z "$next" ]; then
-            IFS=. read -r major minor patch <<< "$current"
+          if [ -z "$next" ] && [ "$BETA" = true ]; then
+            n=$(git tag --list "accretion-v$release.*" | wc -l)
+            next="$release.$((n + 1))"
+          elif [ -z "$next" ]; then
             next="$major.$minor.$((patch + 1))"
           fi
-          if ! [[ "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [ "$BETA" = true ]; then
+            [[ "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::A beta is numbered like 1.0.25.1, not \"$next\""; exit 1; }
+          elif ! [[ "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::\"$next\" isn't a version like 1.0.20"
             exit 1
           fi
@@ -77,5 +91,5 @@ jobs:
           git push -q origin main "accretion-v$next"
           # pushes made with this token don't start workflows; a dispatch does
           gh workflow run release.yml --ref "accretion-v$next"
-          echo "### Shipping Accretion $next" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Shipping Accretion $next$([ "$BETA" = true ] && echo ' (beta)')" >> "$GITHUB_STEP_SUMMARY"
           echo "Follow the **Release** run for \`accretion-v$next\`. It reuses main's build (a few minutes), or compiles again if that build isn't cached (about 10 minutes)." >> "$GITHUB_STEP_SUMMARY"

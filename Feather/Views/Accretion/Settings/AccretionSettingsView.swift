@@ -13,6 +13,7 @@ struct AccretionSettingsView: View {
 	@ObservedObject private var _account = AccretionAccount.shared
 	@AppStorage(UpdateManager.autoCheckKey) private var _autoUpdateCheck: Bool = true
 	@AppStorage(UpdateManager.autoInstallKey) private var _autoInstallUpdates: Bool = false
+	@AppStorage(UpdateManager.betaKey) private var _betaUpdates: Bool = false
 	@State private var _currentIcon: String? = UIApplication.shared.alternateIconName
 
 	@FetchRequest(
@@ -56,6 +57,8 @@ struct AccretionSettingsView: View {
 						_toggle(String.localized("Check for Updates Automatically"), String.localized("Every source, at most once an hour"), "arrow.triangle.2.circlepath", $_autoUpdateCheck)
 						_divider()
 						_toggle(String.localized("Update Apps Automatically"), String.localized("Download and sign updates; you just tap Install"), "bolt.badge.automatic", $_autoInstallUpdates)
+						_divider()
+						_toggle(String.localized("Beta Updates"), String.localized("Get Accretion test builds before everyone else"), "testtube.2", $_betaUpdates)
 					}
 
 					_group(String.localized("Look")) {

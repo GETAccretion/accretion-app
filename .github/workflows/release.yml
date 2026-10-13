@@ -63,7 +63,7 @@ jobs:
             --json headSha --jq '.[0].headSha // empty')
           # only the version (Feather.xcconfig) and app-repo.json may differ from what was built
           if [ -n "$built" ] && git cat-file -e "$built^{commit}" 2>/dev/null \
-             && [ -z "$(git diff --name-only "$built" HEAD | grep -vx -e app-repo.json -e Feather.xcconfig || true)" ]; then
+             && [ -z "$(git diff --name-only "$built" HEAD | grep -vx -e app-repo.json -e app-repo-beta.json -e Feather.xcconfig || true)" ]; then
             echo "sha=$built" >> "$GITHUB_OUTPUT"
           else
             echo "No reusable main build; compiling."
@@ -171,6 +171,8 @@ jobs:
           unzip -p packages/Accretion.ipa Payload/Accretion.app/Info.plist > "$RUNNER_TEMP/Info.plist"
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$RUNNER_TEMP/Info.plist")
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          # betas have four numbers (1.0.25.1): Beta Updates only
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "BETA=true" >> $GITHUB_ENV; else echo "BETA=false" >> $GITHUB_ENV; fi
 
       # The .ipa is private: it goes straight into the store's private bucket, served only to
       # signed-in users (and personal source links) by the download server. Builds aren't kept
@@ -187,8 +189,9 @@ jobs:
           SHA=$(shasum -a 256 packages/Accretion.ipa | cut -d' ' -f1)
           # What's new post: commit titles since the previous release, minus housekeeping
           PREV=$(git describe --tags --abbrev=0 --match 'accretion-v*' "$GITHUB_SHA^" 2>/dev/null || true)
-          NOTES=$(git log --no-merges --format='• %s' ${PREV:+"$PREV..$GITHUB_SHA"} | grep -v -e '^• Version ' -e '^• Point app-repo' | head -25 || true)
-          BODY=$(jq -n --arg v "$VERSION" --argjson s "$SIZE" --arg h "$SHA" --arg n "$NOTES" '{bundle_id: "io.github.getaccretion.Accretion", version: $v, size: $s, sha256: $h, name: "Accretion", notes: $n}')
+          NOTES=$(git log --no-merges --format='• %s' ${PREV:+"$PREV..$GITHUB_SHA"} | grep -v -e '^• Version ' -e '^• Point app-repo' -e '^• Point the app source' | head -25 || true)
+          # betas aren't announced in What's new (announce: false)
+          BODY=$(jq -n --arg v "$VERSION" --argjson s "$SIZE" --arg h "$SHA" --arg n "$NOTES" --argjson beta "$BETA" '{bundle_id: "io.github.getaccretion.Accretion", version: $v, size: $s, sha256: $h, name: "Accretion", notes: $n, announce: ($beta | not)}')
           SIGNED=$(curl -fsS -X POST "$FN" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY" | jq -r .signedUrl)
           curl -fsS -X PUT "$SIGNED" -H "Content-Type: application/octet-stream" --data-binary @packages/Accretion.ipa > /dev/null
           curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
@@ -197,8 +200,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/accretion-v')
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v3.0.2
         with:
-          name: Accretion v${{ env.VERSION }}
+          name: Accretion v${{ env.VERSION }}${{ env.BETA == 'true' && ' (beta)' || '' }}
           tag_name: ${{ github.ref_name }}
+          prerelease: ${{ env.BETA == 'true' }}
           body: "Download Accretion from the store (sign in first): https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion"
           generate_release_notes: true
 
@@ -213,16 +217,22 @@ jobs:
           SIZE=$(stat -f%z packages/Accretion.ipa)
           DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           URL="https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=$VERSION"
-          jq --arg version "$VERSION" --arg date "$DATE" --arg url "$URL" --argjson size "$SIZE" '
-            .apps[0].version = $version | .apps[0].versionDate = $date |
-            .apps[0].downloadURL = $url | .apps[0].size = $size |
-            .apps[0].versions = [{version: $version, date: $date, size: $size, downloadURL: $url, minOSVersion: "16.0"}]
-          ' app-repo.json > tmp.json
-          mv tmp.json app-repo.json
+          point() {
+            jq --arg version "$VERSION" --arg date "$DATE" --arg url "$URL" --argjson size "$SIZE" '
+              .apps[0].version = $version | .apps[0].versionDate = $date |
+              .apps[0].downloadURL = $url | .apps[0].size = $size |
+              .apps[0].versions = [{version: $version, date: $date, size: $size, downloadURL: $url, minOSVersion: "16.0"}]
+            ' "$1" > tmp.json
+            mv tmp.json "$1"
+          }
+          # app-repo-beta.json (Beta Updates) always gets the newest build; app-repo.json releases only
+          [ -f app-repo-beta.json ] || jq '.name = "Accretion App (beta)" | .identifier = "io.github.getaccretion.app-repo-beta"' app-repo.json > app-repo-beta.json
+          point app-repo-beta.json
+          if [ "$BETA" != true ]; then point app-repo.json; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app-repo.json
+          git add app-repo.json app-repo-beta.json
           git diff --cached --quiet && exit 0
-          git commit -m "Point app-repo.json at $REF_NAME"
+          git commit -m "Point the app source at $REF_NAME"
           git pull --rebase --autostash --quiet origin main # the build leaves modified files behind
           git push origin main

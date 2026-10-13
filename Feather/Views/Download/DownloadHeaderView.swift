@@ -14,7 +14,8 @@ struct DownloadHeaderView: View {
 	
 	var body: some View {
 		ZStack {
-			if !downloadManager.manualDownloads.isEmpty {
+			// Accretion: also while store, source or update downloads run, for the ad card below
+			if !downloadManager.manualDownloads.isEmpty || _isDownloading {
 				VStack {
 					VStack(spacing: 12) {
 						if let firstDownload = downloadManager.manualDownloads.first {
@@ -30,7 +31,7 @@ struct DownloadHeaderView: View {
 								}
 							}
 						}
-						// Accretion: ad card under the download progress (hidden for admins and supporters)
+						// Accretion: ad card while anything downloads (hidden for admins and supporters)
 						AccretionAdCard()
 					}
 					.padding(.horizontal)
@@ -39,6 +40,12 @@ struct DownloadHeaderView: View {
 			}
 		}
 		.animation(.spring(), value: downloadManager.manualDownloads.count)
+		.animation(.spring(), value: _isDownloading)
+	}
+
+	/// Accretion: an app is downloading (not only a pasted link; archive exports don't count)
+	private var _isDownloading: Bool {
+		downloadManager.downloads.contains { !$0.onlyArchiving }
 	}
 }
 

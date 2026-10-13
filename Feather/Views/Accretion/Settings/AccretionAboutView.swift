@@ -25,11 +25,16 @@ struct AccretionAboutView: View {
 		let url: String
 	}
 
-	private let _credits: [Credit] = [
-		.init(name: "Accretion", role: String.localized("Accretion app, store and mods"), github: "GETAccretion"),
-		.init(name: "Samara", role: String.localized("Feather, the app Accretion is built on"), github: "claration"),
-		.init(name: "Asami", role: String.localized("Feather developer"), github: "Nyasami"),
-		.init(name: "Lakhan Lothiyi", role: String.localized("AltStore repositories"), github: "llsc12"),
+	/// Who made Accretion itself
+	private let _accretionCredits: [Credit] = [
+		.init(name: "Accretion", role: String.localized("Accretion app, store, community and mods"), github: "GETAccretion"),
+	]
+
+	/// Who made Feather, the open-source app Accretion is built on. They don't work on Accretion.
+	private let _featherCredits: [Credit] = [
+		.init(name: "claration", role: String.localized("Feather: author and maintainer"), github: "claration"),
+		.init(name: "Asami", role: String.localized("Feather: developer"), github: "Nyasami"),
+		.init(name: "Lakhan Lothiyi", role: String.localized("Feather: AltStore repository support"), github: "llsc12"),
 	]
 
 	private let _libraries: [Library] = [
@@ -63,12 +68,8 @@ struct AccretionAboutView: View {
 					_web(String.localized("Support Accretion"), "Ko-fi", "heart", "https://ko-fi.com/getaccretion")
 				}
 				_feather()
-				_group(String.localized("Credits")) {
-					ForEach(Array(_credits.enumerated()), id: \.element) { index, credit in
-						if index > 0 { _divider() }
-						_creditRow(credit)
-					}
-				}
+				_credits(String.localized("Made by"), _accretionCredits)
+				_credits(String.localized("Feather developers"), _featherCredits, footer: String.localized("Feather's developers made the app Accretion is based on. They aren't involved in Accretion, so please send Accretion questions to Accretion, not to them."))
 				_group(String.localized("Open Source")) {
 					ForEach(Array(_libraries.enumerated()), id: \.element) { index, library in
 						if index > 0 { _divider() }
@@ -181,7 +182,7 @@ struct AccretionAboutView: View {
 	/// Accretion is a Feather fork: the credit and the licence that has to travel with it
 	private func _feather() -> some View {
 		AccretionSection(String.localized("Built on Feather")) {
-			Text(verbatim: String.localized("Accretion is based on Feather by Samara and its contributors. Both are free software under the GNU General Public License v3.0: you can use, study, share and change them, and Accretion's full source code is public."))
+			Text(verbatim: String.localized("Accretion is an independent app based on Feather, made by claration, Asami and Feather's contributors. Both are free software under the GNU General Public License v3.0: you can use, study, share and change them, and Accretion's full source code is public."))
 				.font(.subheadline)
 				.foregroundStyle(AccretionTheme.fg)
 				.fixedSize(horizontal: false, vertical: true)
@@ -238,6 +239,24 @@ struct AccretionAboutView: View {
 			}
 		}
 		.buttonStyle(.plain)
+	}
+
+	private func _credits(_ title: String, _ credits: [Credit], footer: String? = nil) -> some View {
+		VStack(alignment: .leading, spacing: 8) {
+			_group(title) {
+				ForEach(Array(credits.enumerated()), id: \.element) { index, credit in
+					if index > 0 { _divider() }
+					_creditRow(credit)
+				}
+			}
+			if let footer {
+				Text(verbatim: footer)
+					.font(.caption)
+					.foregroundStyle(AccretionTheme.muted)
+					.fixedSize(horizontal: false, vertical: true)
+					.padding(.horizontal, 4)
+			}
+		}
 	}
 
 	private func _creditRow(_ credit: Credit) -> some View {

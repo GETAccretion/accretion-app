@@ -280,7 +280,8 @@ struct DiscoverView: View {
 					.minimumScaleFactor(0.8)
 			}
 			.padding(.bottom, 10)
-			Text(verbatim: String.localized("Every source, pulled into one."))
+			// the website balances the two lines (text-wrap: balance): "Every source, / pulled into one."
+			Text(verbatim: String.localized("Every source,") + "\n" + String.localized("pulled into one."))
 				.font(.accretionDisplay(28)) // h1 on a phone: clamp(28px, 4.6vw, 46px)
 				.foregroundStyle(AccretionTheme.headline)
 				.fixedSize(horizontal: false, vertical: true)

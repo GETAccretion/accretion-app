@@ -60,26 +60,6 @@ enum AccretionTheme {
 		}
 	}
 
-	/// One 32-pt grid cell: a faint line on the top and left edges, adapting to light and dark.
-	static let gridTile: UIImage = {
-		let size = CGSize(width: AccretionTokens.gridSize, height: AccretionTokens.gridSize) // background-size
-		let line = uiDynamic(dark: AccretionTokens.gridLineDark, light: AccretionTokens.gridLineLight)
-		let renderer = UIGraphicsImageRenderer(size: size)
-		let draw: (UIColor, CGFloat) -> UIImage = { color, alpha in
-			renderer.image { context in
-				color.withAlphaComponent(alpha).setFill()
-				context.fill(CGRect(x: 0, y: 0, width: size.width, height: 1))
-				context.fill(CGRect(x: 0, y: 0, width: 1, height: size.height))
-			}
-		}
-		let dark = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)), AccretionTokens.gridAlphaDark)
-		let light = draw(line.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)), AccretionTokens.gridAlphaLight)
-		let asset = UIImageAsset()
-		asset.register(dark, with: UITraitCollection(userInterfaceStyle: .dark))
-		asset.register(light, with: UITraitCollection(userInterfaceStyle: .light))
-		return asset.image(with: UITraitCollection.current)
-	}()
-	
 	// MARK: App-wide UIKit appearance
 	/// Navigation titles in the store's display style and colours, set once at launch so every
 	/// screen (including Feather's own) picks them up.
@@ -195,15 +175,14 @@ extension View {
 		scrollContentBackground(.hidden).accretionBackground()
 	}
 
-	/// The store's page background: near-black with a faint grid. The grid is one 28-pt tile
-	/// drawn once and repeated, so long lists don't redraw hundreds of lines on every update.
+	/// The store's page background, in the website's paint order: the colour, the faint grid
+	/// (body's background-image), then the drifting light (body::before) over it.
 	func accretionBackground() -> some View {
 		background(
 			ZStack {
 				AccretionTheme.bg
+				AccretionGrid()
 				AccretionAmbientGlow()
-				Image(uiImage: AccretionTheme.gridTile)
-					.resizable(resizingMode: .tile)
 			}
 			.ignoresSafeArea()
 		)
@@ -454,6 +433,42 @@ struct LiveDot: View {
 				withAnimation(.easeOut(duration: 1.7).repeatForever(autoreverses: false)) { _pulse = true }
 			}
 			.accessibilityHidden(true)
+	}
+}
+
+/// The website's grid (body's two 1px linear-gradients, background-size 28px): a 1-pt line every
+/// 28 pt across and down, drawn as vectors at the screen's full resolution so it stays as sharp as
+/// the site's. Lines cross like the site's two layers, so crossings are a touch brighter. The
+/// drawing is one path that only redraws when the size or appearance changes.
+struct AccretionGrid: View {
+	@Environment(\.colorScheme) private var _colorScheme
+
+	var body: some View {
+		let dark = _colorScheme == .dark
+		let hex = dark ? AccretionTokens.gridLineDark : AccretionTokens.gridLineLight
+		let line = Color(
+			red: Double((hex >> 16) & 0xFF) / 255,
+			green: Double((hex >> 8) & 0xFF) / 255,
+			blue: Double(hex & 0xFF) / 255,
+			opacity: Double(dark ? AccretionTokens.gridAlphaDark : AccretionTokens.gridAlphaLight)
+		)
+		Canvas { context, size in
+			let step = AccretionTokens.gridSize
+			var path = Path()
+			var x: CGFloat = 0
+			while x < size.width {
+				path.addRect(CGRect(x: x, y: 0, width: 1, height: size.height))
+				x += step
+			}
+			var y: CGFloat = 0
+			while y < size.height {
+				path.addRect(CGRect(x: 0, y: y, width: size.width, height: 1))
+				y += step
+			}
+			context.fill(path, with: .color(line))
+		}
+		.allowsHitTesting(false)
+		.accessibilityHidden(true)
 	}
 }
 

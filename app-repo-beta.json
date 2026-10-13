@@ -1,0 +1,37 @@
+{
+  "name": "Accretion App (beta)",
+  "identifier": "io.github.getaccretion.app-repo-beta",
+  "subtitle": "The Accretion app: sign and install on your iPhone.",
+  "description": "Accretion signs and installs apps on your iPhone with your own certificate. It's built on Feather (GPL-3.0).\n\nSource code: https://github.com/GETAccretion/accretion-app",
+  "iconURL": "https://getaccretion.github.io/assets/icon.png",
+  "website": "https://github.com/GETAccretion/accretion-app",
+  "nsfw": false,
+  "apps": [
+    {
+      "name": "Accretion",
+      "bundleIdentifier": "io.github.getaccretion.Accretion",
+      "developerName": "Accretion",
+      "subtitle": "Sign and install apps on your iPhone",
+      "localizedDescription": "Accretion signs and installs apps right on your iPhone with your own certificate, no computer needed.\n\n• Browse Accretion Core, Accretion Mods and any AltStore source\n• Install from the Accretion web store with one tap\n• Rename apps, change icons and bundle IDs, inject tweaks\n\nBuilt on Feather by claration (GPL-3.0). Source: https://github.com/GETAccretion/accretion-app",
+      "iconURL": "https://getaccretion.github.io/assets/icon.png",
+      "category": "utilities",
+      "tintColor": "848ef9",
+      "versions": [
+        {
+          "version": "1.0.26",
+          "date": "2026-10-13T01:08:40Z",
+          "size": 15902861,
+          "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.26",
+          "minOSVersion": "16.0"
+        }
+      ],
+      "appPermissions": {},
+      "screenshots": [],
+      "version": "1.0.26",
+      "versionDate": "2026-10-13T01:08:40Z",
+      "downloadURL": "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&version=1.0.26",
+      "size": 15902861
+    }
+  ],
+  "news": []
+}

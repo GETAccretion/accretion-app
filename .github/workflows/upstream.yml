@@ -35,6 +35,7 @@ jobs:
         id: compare
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
           git remote add upstream https://github.com/claration/Feather.git

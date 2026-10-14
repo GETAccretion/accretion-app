@@ -10,10 +10,45 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 
 MODEL = os.environ.get("SUMMARY_MODEL", "google/gemini-2.5-flash")
+
+
+def gemini(system, user, max_tokens):
+    """Google Gemini (free tier, GEMINI_API_KEY): the text, or None when there's no key or it fails"""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        return None
+    model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+    body = {
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
+        # the model reasons before answering, and that counts against the limit
+        "generationConfig": {"maxOutputTokens": max_tokens * 4},
+    }
+    req = urllib.request.Request(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+    )
+    for attempt in range(2):  # one retry: the free tier answers 503 when busy
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                parts = json.loads(r.read())["candidates"][0]["content"]["parts"]
+            return "".join(p.get("text", "") for p in parts).strip() or None
+        except urllib.error.HTTPError as e:
+            if e.code != 503 or attempt:
+                return None
+            time.sleep(10)
+        except (urllib.error.URLError, KeyError, IndexError, ValueError):
+            return None
+    return None
+
+
 PROMPT = """You summarise upstream changes for the maintainer of Accretion, a fork of the Feather iOS
 sideloading app (GPL-3.0). Given Feather's new commit messages and the files they change, write a short
 Markdown summary: what changed for users, what changed technically, and which areas Accretion has
@@ -27,11 +62,15 @@ def git(*args):
 
 
 def main():
+    log = git("log", "--no-merges", "--format=- %s%n%b", "HEAD..upstream/main")[:20000]
+    files = git("diff", "--stat=200", "HEAD...upstream/main")[-8000:]
+    text = gemini(PROMPT, f"Commits:\n{log}\n\nChanged files:\n{files}", 700)
+    if text:
+        print(f"#### Summary\n\n{text}\n\n_Summary by Gemini; check the commits before merging._")
+        return 0
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not key:
         return 0
-    log = git("log", "--no-merges", "--format=- %s%n%b", "HEAD..upstream/main")[:20000]
-    files = git("diff", "--stat=200", "HEAD...upstream/main")[-8000:]
     body = {
         "model": MODEL,
         "max_tokens": 700,
@@ -52,7 +91,9 @@ def main():
     except urllib.error.HTTPError as e:
         print(f"_AI summary unavailable ({e.code})._")
         return 0
-    print(f"#### Summary\n\n{text}\n\n_Summary by `{MODEL}` via OpenRouter; check the commits before merging._")
+    print(
+        f"#### Summary\n\n{text}\n\n_Summary by `{MODEL}` via OpenRouter; check the commits before merging._"
+    )
     return 0
 
 

@@ -11,11 +11,15 @@ import NimbleExtensions
 
 struct DownloadHeaderView: View {
 	@ObservedObject var downloadManager: DownloadManager
-	
+	/// Accretion: the ad card stays at least this long, even when the download finishes sooner
+	private static let _minimumAdSeconds: UInt64 = 10
+	@State private var _holdAd = false
+	@State private var _holdToken = 0
+
 	var body: some View {
 		ZStack {
 			// Accretion: also while store, source or update downloads run, for the ad card below
-			if !downloadManager.manualDownloads.isEmpty || _isDownloading {
+			if !downloadManager.manualDownloads.isEmpty || _isDownloading || _holdAd {
 				VStack {
 					VStack(spacing: 12) {
 						if let firstDownload = downloadManager.manualDownloads.first {
@@ -41,6 +45,18 @@ struct DownloadHeaderView: View {
 		}
 		.animation(.spring(), value: downloadManager.manualDownloads.count)
 		.animation(.spring(), value: _isDownloading)
+		.animation(.spring(), value: _holdAd)
+		.onChange(of: _isDownloading) { downloading in
+			// Accretion: each new download restarts the 10-second minimum for the ad card
+			guard downloading else { return }
+			_holdToken += 1
+			let token = _holdToken
+			_holdAd = true
+			Task { @MainActor in
+				try? await Task.sleep(nanoseconds: Self._minimumAdSeconds * 1_000_000_000)
+				if token == _holdToken { _holdAd = false }
+			}
+		}
 	}
 
 	/// Accretion: an app is downloading (not only a pasted link; archive exports don't count)

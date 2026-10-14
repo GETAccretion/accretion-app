@@ -13,6 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -56,7 +57,7 @@ jobs:
       # stamps the new version into it. If that build isn't cached, the release compiles as before.
       - name: Find main's build of this code
         id: reuse
-        if: startsWith(github.ref, 'refs/tags/accretion-v')
+        if: startsWith(github.ref, 'refs/tags/accretion-v') || startsWith(github.ref, 'refs/heads/automation/checked-')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -195,6 +196,7 @@ jobs:
       - name: Update app-repo.json
         if: startsWith(github.ref, 'refs/tags/accretion-v')
         env:
+          GH_TOKEN: ${{ github.token }}
           REF_NAME: ${{ github.ref_name }} # never expanded into the script text
         run: |
           git fetch --quiet origin main
@@ -218,6 +220,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-repo.json app-repo-beta.json
           git diff --cached --quiet && exit 0
-          git commit -m "Point the app source at $REF_NAME"
-          git pull --rebase --autostash --quiet origin main # the build leaves modified files behind
-          git push origin main
+          git commit -m "Point the app source at $REF_NAME" -m "Co-Authored-By: Codex <noreply@openai.com>"
+          python3 .github/scripts/checked_push.py app

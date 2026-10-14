@@ -12,6 +12,7 @@ import SwiftUI
 struct AccretionAboutView: View {
 	@AppStorage(UpdateManager.betaKey) private var _betaUpdates: Bool = false
 	@State private var _copied = false
+	@ObservedObject private var _consent = AdConsent.shared // Accretion: shows "Privacy choices" when Google requires it
 
 	private struct Credit: Hashable {
 		let name: String
@@ -66,6 +67,10 @@ struct AccretionAboutView: View {
 					_web(String.localized("Accretion Mods"), "AccretionMods/mods", "wand.and.stars", "https://github.com/AccretionMods/mods")
 					_divider()
 					_web(String.localized("Support Accretion"), "Ko-fi", "heart", "https://ko-fi.com/getaccretion")
+					if _consent.privacyOptionsRequired {
+						_divider()
+						_privacyChoices()
+					}
 				}
 				_feather()
 				_credits(String.localized("Made by"), _accretionCredits)
@@ -237,6 +242,21 @@ struct AccretionAboutView: View {
 					.frame(width: 32, height: 32)
 					.background(AccretionTheme.accent2.opacity(0.16), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 			}
+		}
+		.buttonStyle(.plain)
+	}
+
+	private func _privacyChoices() -> some View {
+		Button {
+			AccretionAds.presentPrivacyOptions()
+		} label: {
+			_row(String.localized("Privacy choices"), String.localized("Ad consent"), leading: {
+				Image(systemName: "hand.raised")
+					.font(.system(size: 15, weight: .semibold))
+					.foregroundStyle(AccretionTheme.accent2)
+					.frame(width: 32, height: 32)
+					.background(AccretionTheme.accent2.opacity(0.16), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+			})
 		}
 		.buttonStyle(.plain)
 	}

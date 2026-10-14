@@ -9,6 +9,7 @@ import Combine
 import GoogleMobileAds
 import SwiftUI
 import UIKit
+import UserMessagingPlatform
 
 @MainActor
 enum AccretionAds {
@@ -17,12 +18,74 @@ enum AccretionAds {
 	static let bannerUnitID = "ca-app-pub-4500603236648893/7187717610"
 
 	private static var _started = false
+	private static var _consentStarted = false
 
-	/// Starts the ads SDK once. No tracking prompt is requested.
+	/// Asks for ad consent (Google's User Messaging Platform: the GDPR message for EU/UK users),
+	/// then starts the ads SDK, only if consent allows ads. Never blocks launch: everything is
+	/// asynchronous, and the ad card shows the sponsor card until ads are allowed. No tracking
+	/// prompt (ATT) is requested.
 	static func start() {
+		guard !_consentStarted else { return }
+		_consentStarted = true
+		// A previous launch may already have gathered consent: start right away, as Google recommends
+		AdConsent.shared.refresh()
+		if AdConsent.shared.canRequestAds { _startAds() }
+		ConsentInformation.shared.requestConsentInfoUpdate(with: RequestParameters()) { _ in
+			Task { @MainActor in
+				// Shows the form only when the user's region requires it. On any error, canRequestAds
+				// still reflects the last known consent state.
+				ConsentForm.loadAndPresentIfRequired(from: rootViewController) { _ in
+					Task { @MainActor in
+						AdConsent.shared.refresh()
+						if AdConsent.shared.canRequestAds { _startAds() }
+					}
+				}
+			}
+		}
+	}
+
+	/// Shows the "Privacy choices" form so the user can change their ad consent
+	static func presentPrivacyOptions() {
+		ConsentForm.presentPrivacyOptionsForm(from: rootViewController) { _ in
+			Task { @MainActor in
+				AdConsent.shared.refresh()
+				if AdConsent.shared.canRequestAds { _startAds() }
+			}
+		}
+	}
+
+	private static func _startAds() {
 		guard !_started else { return }
 		_started = true
 		MobileAds.shared.start(completionHandler: nil)
+	}
+
+	static var rootViewController: UIViewController? {
+		UIApplication.shared.connectedScenes
+			.compactMap { $0 as? UIWindowScene }
+			.flatMap(\.windows)
+			.first(where: \.isKeyWindow)?
+			.rootViewController
+	}
+}
+
+/// Mirrors Google's consent state for the UI: whether ads may be requested, and whether the
+/// "Privacy choices" entry must be offered.
+@MainActor
+final class AdConsent: ObservableObject {
+	static let shared = AdConsent()
+
+	@Published private(set) var canRequestAds: Bool
+	@Published private(set) var privacyOptionsRequired: Bool
+
+	private init() {
+		canRequestAds = ConsentInformation.shared.canRequestAds
+		privacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
+	}
+
+	func refresh() {
+		canRequestAds = ConsentInformation.shared.canRequestAds
+		privacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
 	}
 }
 
@@ -58,12 +121,13 @@ final class AdEligibility: ObservableObject {
 /// account is ad-free; when AdMob has no ad, shows Accretion's own sponsor card instead.
 struct AccretionAdCard: View {
 	@ObservedObject private var _eligibility = AdEligibility.shared
+	@ObservedObject private var _consent = AdConsent.shared
 	@State private var _failed = false
 
 	var body: some View {
 		if _eligibility.showAds {
-			if _failed {
-				// AdMob had no ad (common while the app has limited ad serving): our own sponsor instead
+			if _failed || !_consent.canRequestAds {
+				// No ad consent yet, or AdMob had no ad (common while serving is limited): our own sponsor card (no tracking) instead
 				AccretionSponsorCard()
 			} else {
 				VStack(alignment: .leading, spacing: 6) {
@@ -93,26 +157,18 @@ private struct _AdBanner: UIViewRepresentable {
 	func makeUIView(context: Context) -> BannerView {
 		let banner = BannerView(adSize: currentOrientationAnchoredAdaptiveBanner(width: width))
 		banner.adUnitID = AccretionAds.bannerUnitID
-		banner.rootViewController = Self._rootViewController
+		banner.rootViewController = AccretionAds.rootViewController
 		banner.delegate = context.coordinator
 		banner.load(Request())
 		return banner
 	}
 
 	func updateUIView(_ banner: BannerView, context: Context) {
-		if banner.rootViewController == nil { banner.rootViewController = Self._rootViewController }
+		if banner.rootViewController == nil { banner.rootViewController = AccretionAds.rootViewController }
 	}
 
 	func sizeThatFits(_ proposal: ProposedViewSize, uiView banner: BannerView, context: Context) -> CGSize? {
 		banner.adSize.size
-	}
-
-	private static var _rootViewController: UIViewController? {
-		UIApplication.shared.connectedScenes
-			.compactMap { $0 as? UIWindowScene }
-			.flatMap(\.windows)
-			.first(where: \.isKeyWindow)?
-			.rootViewController
 	}
 
 	final class Coordinator: NSObject, BannerViewDelegate {

@@ -55,20 +55,25 @@ final class AdEligibility: ObservableObject {
 }
 
 /// Store-style card with a small "Ad" label and an adaptive banner. Renders nothing when the
-/// account is ad-free or the ad fails to load.
+/// account is ad-free; when AdMob has no ad, shows Accretion's own sponsor card instead.
 struct AccretionAdCard: View {
 	@ObservedObject private var _eligibility = AdEligibility.shared
 	@State private var _failed = false
 
 	var body: some View {
-		if _eligibility.showAds && !_failed {
-			VStack(alignment: .leading, spacing: 6) {
-				AccretionBadge(text: "Ad", color: AccretionTheme.muted)
-				_AdBanner(width: Self._bannerWidth) { _failed = true }
-					.frame(maxWidth: .infinity)
+		if _eligibility.showAds {
+			if _failed {
+				// AdMob had no ad (common while the app has limited ad serving): our own sponsor instead
+				AccretionSponsorCard()
+			} else {
+				VStack(alignment: .leading, spacing: 6) {
+					AccretionBadge(text: "Ad", color: AccretionTheme.muted)
+					_AdBanner(width: Self._bannerWidth) { _failed = true }
+						.frame(maxWidth: .infinity)
+				}
+				.padding(10)
+				.accretionCard()
 			}
-			.padding(10)
-			.accretionCard()
 		}
 	}
 
@@ -116,6 +121,118 @@ private struct _AdBanner: UIViewRepresentable {
 
 		func bannerView(_ bannerView: BannerView, didFailToReceiveAdWithError error: Error) {
 			onFail()
+		}
+	}
+}
+
+// MARK: - Sponsor fallback
+/// One offer from the store's support.json (edited on the website repo, no app update needed):
+/// "sponsors" first, then the signing-certificate offers, then the Ko-fi link.
+struct SponsorOffer: Decodable, Hashable {
+	let name: String
+	let text: String
+	let url: URL
+	let icon: String
+	let isOwn: Bool
+
+	private enum CodingKeys: String, CodingKey { case name, text, note, url }
+
+	init(name: String, text: String, url: URL, icon: String, isOwn: Bool) {
+		self.name = name
+		self.text = text
+		self.url = url
+		self.icon = icon
+		self.isOwn = isOwn
+	}
+
+	init(from decoder: Decoder) throws {
+		let c = try decoder.container(keyedBy: CodingKeys.self)
+		name = try c.decode(String.self, forKey: .name)
+		text = (try? c.decode(String.self, forKey: .text)) ?? (try? c.decode(String.self, forKey: .note)) ?? ""
+		url = try c.decode(URL.self, forKey: .url)
+		icon = "star.circle"
+		isOwn = false
+	}
+}
+
+/// Loads support.json once per launch and picks an offer for each card
+@MainActor
+final class SponsorStore: ObservableObject {
+	static let shared = SponsorStore()
+
+	@Published private(set) var offers: [SponsorOffer] = []
+	private var _loaded = false
+
+	private struct Support: Decodable {
+		let kofi: String?
+		let sponsors: [SponsorOffer]?
+		let certificates: [SponsorOffer]?
+	}
+
+	func load() async {
+		guard !_loaded else { return }
+		_loaded = true
+		let url = StoreService.base.appendingPathComponent("support.json")
+		guard
+			let (data, _) = try? await URLSession.shared.data(from: url),
+			let support = try? JSONDecoder().decode(Support.self, from: data)
+		else { return }
+		let paid = (support.sponsors ?? []) + (support.certificates ?? []).map {
+			SponsorOffer(name: $0.name, text: $0.text.isEmpty ? String.localized("Signing certificate") : $0.text, url: $0.url, icon: "checkmark.seal", isOwn: false)
+		}
+		if !paid.isEmpty {
+			offers = paid.filter { $0.url.scheme == "https" }
+		} else if let kofi = support.kofi.flatMap(URL.init(string:)), kofi.scheme == "https" {
+			offers = [SponsorOffer(
+				name: String.localized("Support Accretion"),
+				text: String.localized("Accretion is free. A coffee on Ko-fi keeps it running."),
+				url: kofi, icon: "heart.fill", isOwn: true
+			)]
+		}
+	}
+}
+
+/// The sponsor card: same place and size class as the ad, labelled "Sponsored" (or "Accretion" for
+/// our own Ko-fi link). Renders nothing until an offer has loaded.
+struct AccretionSponsorCard: View {
+	@ObservedObject private var _store = SponsorStore.shared
+	@State private var _pick: SponsorOffer?
+
+	var body: some View {
+		Group {
+			if let offer = _pick {
+				Button {
+					UIApplication.shared.open(offer.url)
+				} label: {
+					HStack(spacing: 12) {
+						Image(systemName: offer.icon)
+							.font(.system(size: 17, weight: .semibold))
+							.foregroundStyle(offer.isOwn ? AccretionTheme.accent : AccretionTheme.accent2)
+							.frame(width: 38, height: 38)
+							.background((offer.isOwn ? AccretionTheme.accent : AccretionTheme.accent2).opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+						VStack(alignment: .leading, spacing: 3) {
+							HStack(spacing: 6) {
+								Text(verbatim: offer.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg).lineLimit(1)
+								AccretionBadge(text: offer.isOwn ? "Accretion" : String.localized("Sponsored"), color: AccretionTheme.muted)
+							}
+							Text(verbatim: offer.text).font(.caption).foregroundStyle(AccretionTheme.muted).lineLimit(2)
+						}
+						Spacer(minLength: 0)
+						Image(systemName: "arrow.up.right").font(.caption.weight(.semibold)).foregroundStyle(AccretionTheme.muted)
+					}
+					.padding(12)
+					.contentShape(Rectangle())
+				}
+				.buttonStyle(.plain)
+				.accretionCard()
+			}
+		}
+		.task {
+			await _store.load()
+			if _pick == nil { _pick = _store.offers.randomElement() }
+		}
+		.onChange(of: _store.offers) { offers in
+			if _pick == nil { _pick = offers.randomElement() }
 		}
 	}
 }

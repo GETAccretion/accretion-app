@@ -4,6 +4,7 @@ name: Release
 # Pushing a tag like accretion-v1.0.5 uploads it to the store's private storage, publishes a
 # notes-only release and points app-repo.json at the store's download server.
 on:
+  pull_request:
   push:
     branches:
       - main
@@ -63,7 +64,7 @@ jobs:
             --json headSha --jq '.[0].headSha // empty')
           # only the version (Feather.xcconfig) and app-repo.json may differ from what was built
           if [ -n "$built" ] && git cat-file -e "$built^{commit}" 2>/dev/null \
-             && [ -z "$(git diff --name-only "$built" HEAD | grep -vx -e app-repo.json -e app-repo-beta.json -e Feather.xcconfig || true)" ]; then
+             && python3 .github/scripts/release_guard.py compare "$built" HEAD; then
             echo "sha=$built" >> "$GITHUB_OUTPUT"
           else
             echo "No reusable main build; compiling."
@@ -84,8 +85,10 @@ jobs:
           UPLOAD_KEY: ${{ secrets.ACCRETION_UPLOAD_KEY }}
         run: |
           set -euo pipefail
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:UPLOAD_KEY \
-            -in packages/Accretion.ipa.enc -out packages/Accretion.ipa
+          if ! python3 .github/scripts/release_guard.py restore packages/Accretion.ipa.enc packages/Accretion.ipa; then
+            echo "Cache unavailable; compiling this version."
+            exit 0
+          fi
           rm packages/Accretion.ipa.enc
           NEW=$(sed -n 's/^FEATHER_PROJECT_VERSION=//p' Feather.xcconfig)
           WORK="$RUNNER_TEMP/ipa"
@@ -165,9 +168,15 @@ jobs:
           NOTES=$(git log --no-merges --format='• %s' ${PREV:+"$PREV..$GITHUB_SHA"} -- . ':!.github' ':!CoreTests' ':!app-repo.json' ':!app-repo-beta.json' ':!Feather.xcconfig' | head -25 || true)
           # betas aren't announced in What's new (announce: false)
           BODY=$(jq -n --arg v "$VERSION" --argjson s "$SIZE" --arg h "$SHA" --arg n "$NOTES" --argjson beta "$BETA" '{bundle_id: "io.github.getaccretion.Accretion", version: $v, size: $s, sha256: $h, name: "Accretion", notes: $n, announce: ($beta | not)}')
-          SIGNED=$(curl -fsS -X POST "$FN" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY" | jq -r .signedUrl)
-          curl -fsS -X PUT "$SIGNED" -H "Content-Type: application/octet-stream" --data-binary @packages/Accretion.ipa > /dev/null
-          curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
+          PREPARED=$(curl -fsS -X POST "$FN" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY")
+          if [ "$(jq -r '.published // false' <<< "$PREPARED")" != true ]; then
+            SIGNED=$(jq -er '.signedUrl' <<< "$PREPARED")
+            echo "::add-mask::$SIGNED"
+            UPLOAD_ID=$(jq -er '.upload_id' <<< "$PREPARED")
+            BODY=$(jq --arg id "$UPLOAD_ID" '. + {upload_id: $id}' <<< "$BODY")
+            curl -fsS -X PUT "$SIGNED" -H "Content-Type: application/octet-stream" --data-binary @packages/Accretion.ipa > /dev/null
+            curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
+          fi
           # the GitHub release lists the same changes (generated notes only list pull requests)
           { echo "Download Accretion from the store (sign in first): https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion"
             if [ -n "$NOTES" ]; then echo; echo "### What's changed"; echo "$NOTES"; fi; } > "$RUNNER_TEMP/release-notes.md"

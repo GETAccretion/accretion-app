@@ -49,9 +49,8 @@ jobs:
             exit 1
           fi
           # version bumps and app-repo.json updates are made by workflows, which don't start builds
-          changed=$(git diff --name-only "$built" HEAD | grep -vx -e 'app-repo.json' -e 'app-repo-beta.json' -e 'Feather.xcconfig' || true)
-          if [ -n "$changed" ]; then
-            echo "::error::These changed after main's last build and haven't been built yet: $changed"
+          if ! python3 .github/scripts/release_guard.py compare "$built" HEAD; then
+            echo "::error::Code or build settings changed after main's last successful build. Build them first."
             exit 1
           fi
 

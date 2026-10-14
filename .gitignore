@@ -17,3 +17,7 @@ PRIVATE.md
 # CoreTests: copies of Feather/Backend/Core made by CoreTests/run.sh, and build output
 CoreTests/Sources/
 CoreTests/.build/
+
+# Python workflow checks
+__pycache__/
+*.pyc

@@ -32,6 +32,10 @@ enum AccretionAds {
 		if AdConsent.shared.canRequestAds { _startAds() }
 		ConsentInformation.shared.requestConsentInfoUpdate(with: RequestParameters()) { _ in
 			Task { @MainActor in
+				// At launch the window may not be key yet: wait for it (up to ~5 s) so the form can show
+				for _ in 0..<20 where rootViewController == nil {
+					try? await Task.sleep(nanoseconds: 250_000_000)
+				}
 				// Shows the form only when the user's region requires it. On any error, canRequestAds
 				// still reflects the last known consent state.
 				ConsentForm.loadAndPresentIfRequired(from: rootViewController) { _ in

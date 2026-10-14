@@ -113,7 +113,7 @@ struct AccretionAccountView: View {
 			.buttonStyle(AccretionButtonStyle())
 			.disabled(_email.isEmpty || _password.isEmpty)
 			Button(String.localized("No account? Create one on the website")) {
-				UIApplication.open("https://getaccretion.github.io/")
+				UIApplication.open("https://getaccretion.app/")
 			}
 			.font(.footnote)
 		}

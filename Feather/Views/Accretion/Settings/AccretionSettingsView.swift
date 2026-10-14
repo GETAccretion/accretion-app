@@ -65,7 +65,7 @@ struct AccretionSettingsView: View {
 					}
 
 					_group(String.localized("Accretion")) {
-						_web(String.localized("Accretion Store"), String.localized("getaccretion.github.io"), "storefront", "https://getaccretion.github.io")
+						_web(String.localized("Accretion Store"), String.localized("getaccretion.app"), "storefront", "https://getaccretion.app")
 						_divider()
 						_link(String.localized("Sign Your Own Apps"), String.localized("The step-by-step guide"), "book") { SignGuideView() }
 						_divider()

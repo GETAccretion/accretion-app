@@ -58,7 +58,7 @@ struct AccretionAboutView: View {
 				_hero()
 				_build()
 				_group(String.localized("Accretion")) {
-					_web(String.localized("Accretion Store"), "getaccretion.github.io", "storefront", "https://getaccretion.github.io")
+					_web(String.localized("Accretion Store"), "getaccretion.app", "storefront", "https://getaccretion.app")
 					_divider()
 					_web(String.localized("What's New"), String.localized("Every release and its changes"), "sparkles", "https://github.com/GETAccretion/accretion-app/releases")
 					_divider()

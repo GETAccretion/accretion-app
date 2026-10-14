@@ -14,7 +14,7 @@ import UIKit
 @MainActor
 final class AppPolicy: ObservableObject {
 	static let shared = AppPolicy()
-	static let configURL = URL(string: "https://getaccretion.github.io/app-config.json")!
+	static let configURL = URL(string: "https://getaccretion.app/app-config.json")!
 	private static var _selfSource: URL { UpdateManager.selfSource }
 	private static let _minimumKey = "accretion.minimumVersion"
 

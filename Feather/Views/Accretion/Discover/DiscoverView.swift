@@ -8,7 +8,7 @@ import UIKit
 import NukeUI
 
 // MARK: - Discover
-/// The Accretion store inside the app, a copy of getaccretion.github.io's home page: the top bar
+/// The Accretion store inside the app, a copy of getaccretion.app's home page: the top bar
 /// (logo, Sign in, Add source, search, nav), hero with stats, the same shelves, and All apps with
 /// category chips, the iOS filter and the Sort menu.
 struct DiscoverView: View {
@@ -217,7 +217,7 @@ struct DiscoverView: View {
 			_navItem(String.localized("Saved"), badge: _savedBadge.text, hot: _savedBadge.hot) {
 				_path.append(StoreListRoute(title: String.localized("Saved"), saved: true))
 			}
-			Button { _openURL(URL(string: "https://getaccretion.github.io/#/support")!) } label: {
+			Button { _openURL(URL(string: "https://getaccretion.app/#/support")!) } label: {
 				Text(verbatim: "♥")
 					.font(.system(size: 14, weight: .semibold))
 					.foregroundStyle(Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255))

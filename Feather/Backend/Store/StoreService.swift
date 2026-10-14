@@ -106,7 +106,7 @@ struct StoreStats: Decodable {
 @MainActor
 final class StoreService: ObservableObject {
 	static let shared = StoreService()
-	static let base = URL(string: "https://getaccretion.github.io/")!
+	static let base = URL(string: "https://getaccretion.app/")!
 
 	static let categoryNames: [String: String] = [
 		"games": "Games", "utilities": "Utilities", "photo-video": "Photo & Video",

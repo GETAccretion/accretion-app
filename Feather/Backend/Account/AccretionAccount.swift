@@ -60,7 +60,7 @@ final class AccretionAccount: ObservableObject {
 	/// Reads `window.ACCRETION_CONFIG = {...}` from the store's config.js.
 	private func _configuration() async throws -> (url: URL, key: String) {
 		if let config = _config { return config }
-		let source = URL(string: "https://getaccretion.github.io/config.js")!
+		let source = URL(string: "https://getaccretion.app/config.js")!
 		guard
 			let response = try? await URLSession.shared.data(from: source),
 			let text = String(data: response.0, encoding: .utf8),

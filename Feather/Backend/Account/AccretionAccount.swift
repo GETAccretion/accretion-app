@@ -621,9 +621,10 @@ final class AccretionAccount: ObservableObject {
 				_downloadKey = try JSONDecoder().decode(String.self, from: keyData)
 			}
 			guard let key = _downloadKey else { return url }
-			var link = URLComponents(url: config.url.appendingPathComponent("functions/v1/download"), resolvingAgainstBaseURL: false)!
-			link.queryItems = [URLQueryItem(name: "app", value: bundleID), URLQueryItem(name: "key", value: key)]
-			return Self.tagged(link.url ?? url)
+			return AccretionBuildSelection.personalURL(
+				base: config.url, bundleID: bundleID, key: key, source: url,
+				appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+			) ?? Self.tagged(url)
 		} catch {
 			return Self.tagged(url)
 		}
@@ -660,19 +661,15 @@ final class AccretionAccount: ObservableObject {
 	/// The SHA-256 recorded when one of Accretion's own builds was published, for a download-server
 	/// link (the version in the link, or the newest; Accretion itself is always the newest). nil
 	/// for other links and for builds published before fingerprints existed.
-	func expectedSHA256(for url: URL, bundleID: String) async -> String? {
-		guard url.path.hasSuffix("/functions/v1/download"),
-			  let data = try? await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(bundleID))", anonymous: true),
-			  let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-		else { return nil }
-		let builds = rows.compactMap { row -> (version: String, sha: String?)? in
-			guard let version = row["version"] as? String else { return nil }
-			return (version, row["sha256"] as? String)
-		}
+	func expectedSHA256(for url: URL, bundleID: String) async throws -> String? {
+		guard url.scheme == "https", url.host == Self.accountHost, url.path == "/functions/v1/download" else { return nil }
+		let data = try await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(bundleID))", anonymous: true)
+		let builds = try JSONDecoder().decode([AccretionBuildSelection.Build].self, from: data)
 		let wanted = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "version" }?.value
-		let pick = wanted.flatMap { version in bundleID == "io.github.getaccretion.Accretion" ? nil : builds.first { $0.version == version } }
-			?? builds.max { UpdateManager.isVersion($1.version, newerThan: $0.version) }
-		return pick?.sha
+		guard let build = AccretionBuildSelection.select(builds, bundleID: bundleID, version: wanted) else {
+			throw AccountError.server(String.localized("Couldn't verify the published build. Try again."))
+		}
+		return build.sha256
 	}
 
 	/// Forget the personal key, e.g. after the server refused it because it was replaced on the website

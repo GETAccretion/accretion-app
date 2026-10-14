@@ -1,24 +1,24 @@
 name: Tests
 
 # Unit tests for the app's Core logic (Feather/Backend/Core: versions and betas, post links, the
-# background drift), run with CoreTests/run.sh on every push and pull request that touches them.
+# background drift), run with CoreTests/run.sh on every push and pull request.
 on:
   push:
     branches: [main]
-    paths:
-      - "Feather/Backend/Core/**"
-      - "CoreTests/**"
-      - ".github/workflows/tests.yml"
   pull_request:
-    paths:
-      - "Feather/Backend/Core/**"
-      - "CoreTests/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 -m unittest discover -s .github/tests -v
+
   core:
     runs-on: macos-26
     timeout-minutes: 15

@@ -150,7 +150,7 @@ final class AutoSignPipeline: ObservableObject {
 		}
 		defer { try? FileManager.default.removeItem(at: ipa) }
 		// Accretion's own builds: the file must match the fingerprint recorded when it was published
-		if let expected = await AccretionAccount.shared.expectedSHA256(for: source, bundleID: bundleID) {
+		if let expected = try await AccretionAccount.shared.expectedSHA256(for: source, bundleID: bundleID) {
 			let actual = try await Task.detached(priority: .userInitiated) {
 				SHA256.hash(data: try Data(contentsOf: ipa, options: .mappedIfSafe)).map { String(format: "%02x", $0) }.joined()
 			}.value

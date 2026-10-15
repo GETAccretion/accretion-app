@@ -8,6 +8,19 @@ on:
   push:
     branches:
       - main
+    # Files that never reach the IPA: no build (list kept equal to NOT_BUILD_INPUTS in
+    # .github/scripts/release_guard.py by a test). Tag pushes always build.
+    paths-ignore:
+      - '.github/*.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/dependabot.yml'
+      - '.github/tests/**'
+      - '.github/workflows/screens.yml'
+      - '.github/workflows/secrets.yml'
+      - '.github/workflows/ship.yml'
+      - '.github/workflows/tests.yml'
+      - '.github/workflows/upstream.yml'
+      - '.gitleaks.toml'
     tags:
       - accretion-v*
   workflow_dispatch:
@@ -24,6 +37,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

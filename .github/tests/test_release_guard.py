@@ -48,6 +48,46 @@ class ReleaseGuard(unittest.TestCase):
         self.commit()
         self.assertEqual(self.compare(), 0)
 
+    def test_docs_and_side_workflows_do_not_block_reuse(self):
+        for filename in (
+            ".github/README.md",
+            ".github/ISSUE_TEMPLATE/bug.yml",
+            ".github/workflows/secrets.yml",
+            ".gitleaks.toml",
+        ):
+            path = self.root / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("changed\n")
+        self.commit()
+        self.assertEqual(self.compare(), 0)
+
+    def test_build_files_next_to_ignored_ones_still_require_compile(self):
+        for filename in (
+            ".github/workflows/release.yml",
+            ".github/actions/xcode/action.yml",
+            "Feather/Notes.md",
+            ".github/scripts/release_guard.py",
+        ):
+            with self.subTest(filename=filename):
+                path = self.root / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(f"{filename}\n")
+                self.commit()
+                self.assertNotEqual(self.compare(), 0)
+
+    def test_workflow_paths_ignore_matches_the_guard(self):
+        spec = importlib.util.spec_from_file_location("release_guard", SCRIPT)
+        guard = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(guard)
+        workflow = (SCRIPT.parents[1] / "workflows" / "release.yml").read_text()
+        block = workflow.split("paths-ignore:", 1)[1].split("tags:", 1)[0]
+        listed = [
+            line.strip()[2:].strip("'\"")
+            for line in block.splitlines()
+            if line.strip().startswith("- ")
+        ]
+        self.assertEqual(listed, list(guard.NOT_BUILD_INPUTS))
+
     def test_changed_build_setting_or_swift_source_requires_compile(self):
         for filename, content in [
             ("Feather.xcconfig", "FEATHER_PROJECT_VERSION=1.0.1\nPRODUCT=other\n"),

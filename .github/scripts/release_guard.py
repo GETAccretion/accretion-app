@@ -9,6 +9,30 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+# Files that never go into the IPA or change how it is built. A push that only touches these
+# doesn't start a build (release.yml paths-ignore, kept equal by a test) and doesn't block reuse.
+NOT_BUILD_INPUTS = (
+    ".github/*.md",
+    ".github/ISSUE_TEMPLATE/**",
+    ".github/dependabot.yml",
+    ".github/tests/**",
+    ".github/workflows/screens.yml",
+    ".github/workflows/secrets.yml",
+    ".github/workflows/ship.yml",
+    ".github/workflows/tests.yml",
+    ".github/workflows/upstream.yml",
+    ".gitleaks.toml",
+)
+
+
+def not_build_input(filename):
+    """True for a file in NOT_BUILD_INPUTS (GitHub glob rules: * stays in one folder, ** spans)."""
+    for pattern in NOT_BUILD_INPUTS:
+        regex = re.escape(pattern).replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
+        if re.fullmatch(regex, filename):
+            return True
+    return False
+
 
 def git(*arguments):
     return subprocess.check_output(
@@ -37,7 +61,9 @@ def reusable(base, target):
         "diff", "--name-only", "--no-renames", before, after, "--"
     ).splitlines()
     for filename in changed:
-        if filename in ("app-repo.json", "app-repo-beta.json"):
+        if filename in ("app-repo.json", "app-repo-beta.json") or not_build_input(
+            filename
+        ):
             continue
         if filename != "Feather.xcconfig":
             return False

@@ -20,6 +20,9 @@ struct AppUpdate: Identifiable, Equatable {
 	let downloadURL: URL
 	let sourceURL: URL
 	let sourceProvenance: SourceAppProvenance
+	/// Offered by a different source than the app came from (Accretion's catalogs only): shown in the
+	/// alert with that source's name, never installed automatically
+	var crossSource: Bool = false
 }
 
 @MainActor

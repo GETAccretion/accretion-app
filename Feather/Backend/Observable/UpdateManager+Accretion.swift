@@ -11,8 +11,9 @@ import UIKit
 // MARK: - Updates from every source
 extension UpdateManager {
 	/// Feather only offers updates from the source an app was installed from. Accretion also looks
-	/// in every other source for the same bundle ID, and takes the newest strictly higher version,
-	/// so a mod or tweak hosted elsewhere still gets its updates and nothing ever downgrades.
+	/// in its own catalogs (UpdateSources) for the same bundle ID, and takes the newest strictly higher
+	/// version, so a mod or tweak hosted elsewhere still gets its updates and nothing ever downgrades.
+	/// Other added sources can't offer updates for apps they didn't provide (issue #29).
 	func addingCrossSourceUpdates(
 		to found: [String: AppUpdate],
 		repositories: [(AltSource, ASRepository)],
@@ -34,6 +35,7 @@ extension UpdateManager {
 			for (source, repository) in repositories {
 				guard
 					let sourceURL = source.sourceURL,
+					UpdateSources.isAccretionCatalog(sourceURL),
 					let remoteApp = repository.apps.first(where: { $0.id == identifier }),
 					let remoteVersion = remoteApp.currentVersion,
 					remoteApp.currentDownloadUrl != nil,
@@ -61,7 +63,8 @@ extension UpdateManager {
 				bundleIdentifier: identifier,
 				downloadURL: downloadURL,
 				sourceURL: best.sourceURL,
-				sourceProvenance: provenance
+				sourceProvenance: provenance,
+				crossSource: true
 			)
 		}
 
@@ -99,8 +102,11 @@ extension UpdateManager {
 			await checkForUpdates(sources: sources, localApps: localApps)
 			// "Update apps automatically": download and sign right away, so only iOS's install
 			// prompt is left; signing replaces the old copies, so the same update won't repeat
+			// updates from another source are never signed automatically: the alert names the source
 			if UserDefaults.standard.bool(forKey: Self.autoInstallKey), !updates.isEmpty {
-				AutoSignPipeline.shared.update(Array(updates.values))
+				let automatic = updates.values.filter { !$0.crossSource }
+				if !automatic.isEmpty { AutoSignPipeline.shared.update(Array(automatic)) }
+				if automatic.count < updates.count { _alertNewUpdates() }
 			} else {
 				_alertNewUpdates()
 			}
@@ -194,7 +200,11 @@ extension UpdateManager {
 
 		let lines = fresh.values
 			.sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
-			.map { "\($0.appName) \($0.localVersion ?? "?") → \($0.remoteVersion)" }
+			.map { update -> String in
+				let line = "\(update.appName) \(update.localVersion ?? "?") → \(update.remoteVersion)"
+				guard update.crossSource else { return line }
+				return line + " · " + String.localized("from %@", arguments: update.sourceURL.host ?? "?")
+			}
 		let title: String = fresh.count == 1
 			? String.localized("Update available")
 			: String.localized("%@ updates available", arguments: String(fresh.count))

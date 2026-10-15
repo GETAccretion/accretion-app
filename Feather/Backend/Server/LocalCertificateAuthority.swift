@@ -189,6 +189,13 @@ enum LocalCertificateAuthority {
 				_extension("2.5.29.19", critical: true, DER.sequence([DER.bool(true)])),
 				_extension("2.5.29.15", critical: true, DER.bits(Data([0x06]), unused: 1)), // keyCertSign, cRLSign
 				_extension("2.5.29.14", critical: false, DER.octet(ski)),
+				// nameConstraints: it can only vouch for this iPhone's own names (any *.localhost name,
+				// 127.0.0.1 and ::1), so a copied key can't impersonate a website (issue #30)
+				_extension("2.5.29.30", critical: true, DER.sequence([DER.tlv(0xA0, [
+					DER.sequence([DER.tlv(0x82, Data("localhost".utf8))]),
+					DER.sequence([DER.tlv(0x87, Data([127, 0, 0, 1, 255, 255, 255, 255]))]),
+					DER.sequence([DER.tlv(0x87, Data(repeating: 0, count: 15) + Data([1]) + Data(repeating: 255, count: 16))]),
+				].reduce(Data(), +))])),
 			],
 			signer: key
 		)

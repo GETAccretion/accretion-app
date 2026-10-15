@@ -36,6 +36,10 @@ func extractFile(at fileURL: inout URL) throws {
 		try fileManager.createDirectory(at: extractionDirectory, withIntermediateDirectories: true)
 		
 		for entry in tarContainer {
+			// a tweak archive comes from a source the user added: an entry must never climb out
+			guard ArchiveEntryPath.isContained(entry.info.name) else {
+				throw TweakHandlerError.unsafeArchiveEntry(entry.info.name)
+			}
 			let entryPath = extractionDirectory.appendingPathComponent(entry.info.name)
 			
 			if entry.info.type == .directory {

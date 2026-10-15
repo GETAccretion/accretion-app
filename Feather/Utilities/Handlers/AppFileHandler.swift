@@ -7,6 +7,7 @@
 
 import Foundation
 import Zip
+import SWCompression
 import SwiftUI
 
 final class AppFileHandler: NSObject, @unchecked Sendable {
@@ -56,6 +57,7 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 		}
 		
 		let download = self._download
+		try Self._checkEntries(of: _ipa)
 		
 		try await withCheckedThrowingContinuation { continuation in
 			DispatchQueue.global(qos: .utility).async {
@@ -89,6 +91,18 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 		}
 	}
 	
+	/// Refuses an archive with an entry that would be written outside the extraction folder. An
+	/// IPA comes from a source the user added, and Zip writes every entry at destination + name
+	/// without looking for "..", so "../Documents/x" would land anywhere in Accretion's container
+	/// (zip-slip). The entry names come from the central directory; nothing is written to check them.
+	private static func _checkEntries(of archive: URL) throws {
+		let data = try Data(contentsOf: archive, options: .mappedIfSafe)
+		let names = try ZipContainer.info(container: data).map(\.name)
+		if let escaping = ArchiveEntryPath.firstEscaping(names) {
+			throw ImportedFileHandlerError.unsafeArchiveEntry(escaping)
+		}
+	}
+
 	func move() async throws {
 		guard let payloadURL = uniqueWorkDirPayload else {
 			throw ImportedFileHandlerError.payloadNotFound
@@ -142,6 +156,16 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 	}
 }
 
-private enum ImportedFileHandlerError: Error {
+private enum ImportedFileHandlerError: LocalizedError {
 	case payloadNotFound
+	case unsafeArchiveEntry(String)
+
+	var errorDescription: String? {
+		switch self {
+		case .payloadNotFound:
+			return String.localized("The archive has no Payload folder, so it isn't an app.")
+		case .unsafeArchiveEntry(let name):
+			return String.localized("The archive wasn't imported: it contains \"%@\", which would be written outside the app's folder.", arguments: name)
+		}
+	}
 }

@@ -208,6 +208,10 @@ class TweakHandler {
 		let arFiles = try await handler.extract()
 		
 		for arFile in arFiles {
+			// a .deb comes from a source the user added: a member must never climb out
+			guard ArchiveEntryPath.isContained(arFile.name) else {
+				throw TweakHandlerError.unsafeArchiveEntry(arFile.name)
+			}
 			let outputPath = uniqueSubDir.appendingPathComponent(arFile.name)
 			try arFile.content.write(to: outputPath)
 			
@@ -407,4 +411,6 @@ enum TweakHandlerError: Error {
 	case decompressionFailed(String)
 	case missingFile(String)
 	case noAccess
+	/// an archive entry that would be written outside the extraction folder (zip-slip)
+	case unsafeArchiveEntry(String)
 }

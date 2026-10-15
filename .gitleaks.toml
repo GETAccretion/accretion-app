@@ -1,0 +1,19 @@
+title = "Accretion app gitleaks config"
+
+[extend]
+useDefault = true
+
+# False positives inherited from upstream Feather: Swift identifiers / an
+# obfuscated member name, not credentials.
+[[allowlists]]
+description = "Swift sources that only look like keys"
+paths = [
+  '''^Feather/Backend/Server/Models/RootMaterialModel\.swift$''',
+  '''^NimbleKit/Sources/NimbleExtensions/View/View\+navigationTitle2Lined_private\.swift$''',
+]
+
+# The public *.localhost.direct certificate and key (published by localhost.direct for local
+# HTTPS, expired 2025-05-19), from upstream Feather history; not an Accretion secret.
+[[allowlists]]
+description = "Public localhost.direct certificate in old history"
+paths = ['''^Shared/Server/localhost\.direct\.(key|pem)$''']

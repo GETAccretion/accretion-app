@@ -24,7 +24,7 @@ struct OfflineInstallSetupView: View {
 					.fixedSize(horizontal: false, vertical: true)
 
 				if !_trusted {
-					Text(verbatim: String.localized("Set this up before, then deleted Accretion or moved to a new iPhone? First remove the old \"Accretion Offline Installs\" profile in Settings → General → VPN & Device Management. It can't be used any more."))
+					Text(verbatim: String.localized("Set this up before, then deleted Accretion, moved to a new iPhone, or updated Accretion? First remove the old \"Accretion Offline Installs\" profile in Settings → General → VPN & Device Management. It can't be used any more."))
 						.font(.system(size: 13))
 						.foregroundStyle(AccretionTheme.warn)
 						.fixedSize(horizontal: false, vertical: true)

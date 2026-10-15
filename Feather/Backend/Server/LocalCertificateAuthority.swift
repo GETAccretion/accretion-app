@@ -14,7 +14,9 @@ import UIKit
 /// Accretion: the Offline install mode. This iPhone makes its own certificate authority (once) and
 /// a server certificate for 127.0.0.1 signed by it. After the user installs the authority as a
 /// profile and turns on full trust for it, iOS accepts the local install server with no internet
-/// and no third-party certificate. The keys never leave the device and aren't backed up.
+/// and no third-party certificate. The keys never leave the device and aren't backed up. The
+/// authority is limited (name constraints) to localhost names and 127.0.0.1, so even if its key got
+/// out it couldn't vouch for any other site.
 enum LocalCertificateAuthority {
 	/// The install link's host. iOS refuses an install manifest at "localhost" or 127.0.0.1 without
 	/// even connecting, but accepts a name; any name under .localhost points at this iPhone, with no
@@ -57,6 +59,9 @@ enum LocalCertificateAuthority {
 			try _write(key, to: _caKey)
 			try _write(cert, to: _caCert)
 		}
+		// Authorities made before the name constraints could vouch for any name: replace them with
+		// one limited to this iPhone. The setup screen then asks for the new profile to be trusted.
+		if isCreated, !_isLimitedToThisDevice { _discardAuthority() }
 		if !isCreated { try _makeAuthority() }
 		_keepInKeychain()
 		if _serverNeedsRenewal() { try _makeServerCertificate() }
@@ -65,6 +70,13 @@ enum LocalCertificateAuthority {
 	/// Removes everything; the next prepare() makes a new authority, which must be installed and trusted again
 	static func reset() {
 		try? FileManager.default.removeItem(at: _folder)
+		_Keychain.delete(_Keychain.caKey)
+		_Keychain.delete(_Keychain.caCert)
+	}
+
+	/// Forgets the authority and its server certificate, in the files and the Keychain, keeping the folder
+	private static func _discardAuthority() {
+		for file in [_caCert, _caKey, serverCert, serverKey] { try? FileManager.default.removeItem(at: file) }
 		_Keychain.delete(_Keychain.caKey)
 		_Keychain.delete(_Keychain.caCert)
 	}
@@ -173,6 +185,25 @@ enum LocalCertificateAuthority {
 
 	// MARK: Making certificates
 
+	private static let _nameConstraintsOID = "2.5.29.30"
+
+	/// Name constraints (RFC 5280 §4.2.1.10): certificates this authority signs are only good for
+	/// localhost and the names under it (accretion.localhost) and for 127.0.0.1. iOS checks this on
+	/// every certificate it accepts from the authority, so the key can't vouch for any other site.
+	private static var _onlyThisDevice: Data {
+		let permitted = [
+			DER.sequence([DER.tlv(0x82, Data("localhost".utf8))]),                   // dNSName: localhost and *.localhost
+			DER.sequence([DER.tlv(0x87, Data([127, 0, 0, 1, 255, 255, 255, 255]))]), // iPAddress: 127.0.0.1/32
+		]
+		return DER.sequence([DER.tlv(0xA0, permitted.reduce(Data(), +))]) // permittedSubtrees [0] IMPLICIT SEQUENCE OF
+	}
+
+	/// Whether the authority carries the name constraints above (authorities made before them don't)
+	private static var _isLimitedToThisDevice: Bool {
+		guard let der = caCertificateDER() else { return false }
+		return _hasExtension(_nameConstraintsOID, in: der)
+	}
+
 	private static func _makeAuthority() throws {
 		let key = P256.Signing.PrivateKey()
 		let tag = String(UUID().uuidString.prefix(4))
@@ -188,6 +219,7 @@ enum LocalCertificateAuthority {
 			extensions: [
 				_extension("2.5.29.19", critical: true, DER.sequence([DER.bool(true)])),
 				_extension("2.5.29.15", critical: true, DER.bits(Data([0x06]), unused: 1)), // keyCertSign, cRLSign
+				_extension(_nameConstraintsOID, critical: true, _onlyThisDevice),
 				_extension("2.5.29.14", critical: false, DER.octet(ski)),
 			],
 			signer: key
@@ -322,6 +354,25 @@ enum LocalCertificateAuthority {
 		if critical { parts.append(DER.bool(true)) }
 		parts.append(DER.octet(value))
 		return DER.sequence(parts)
+	}
+
+	/// Whether a certificate carries the extension with this OID
+	private static func _hasExtension(_ oid: String, in der: Data) -> Bool {
+		let wanted = DER.oid(oid)
+		do {
+			var reader = DER.Reader(der)
+			var certificate = try reader.enter()      // Certificate
+			var tbs = try certificate.enter()         // TBSCertificate
+			for _ in 0..<7 { _ = try tbs.next() }     // version, serial, algorithm, issuer, validity, subject, key
+			var extensions = try tbs.enter()          // [3] extensions
+			var list = try extensions.enter()         // SEQUENCE OF Extension
+			while let item = try? list.next() {
+				var extensionReader = DER.Reader(item)
+				var fields = try extensionReader.enter()  // Extension: OID, critical?, value
+				if try fields.next() == wanted { return true }
+			}
+		} catch {}
+		return false
 	}
 
 	private static func _keyIdentifier(_ key: P256.Signing.PublicKey) -> Data {

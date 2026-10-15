@@ -660,7 +660,8 @@ final class AccretionAccount: ObservableObject {
 
 	/// The SHA-256 recorded when one of Accretion's own builds was published, for a download-server
 	/// link (the version in the link, or the newest; Accretion itself is always the newest). nil
-	/// for other links and for builds published before fingerprints existed.
+	/// for other links. A hosted build with no fingerprint on record can't be checked, so it is
+	/// refused rather than installed unverified: every build the upload function publishes has one.
 	func expectedSHA256(for url: URL, bundleID: String) async throws -> String? {
 		guard url.scheme == "https", url.host == Self.accountHost, url.path == "/functions/v1/download" else { return nil }
 		let data = try await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(bundleID))", anonymous: true)
@@ -669,7 +670,10 @@ final class AccretionAccount: ObservableObject {
 		guard let build = AccretionBuildSelection.select(builds, bundleID: bundleID, version: wanted) else {
 			throw AccountError.server(String.localized("Couldn't verify the published build. Try again."))
 		}
-		return build.sha256
+		guard let sha256 = build.sha256 else {
+			throw AccountError.server(String.localized("This build has no published fingerprint, so it can't be verified and wasn't installed."))
+		}
+		return sha256
 	}
 
 	/// Forget the personal key, e.g. after the server refused it because it was replaced on the website

@@ -27,7 +27,8 @@ class ServerInstaller: Identifiable, ObservableObject {
 	/// Accretion: the install mode, fixed for this install (see resolveMethod)
 	let method: Int
 
-	init(app: AppInfoPresentable, viewModel: InstallerStatusViewModel) throws {
+	// Accretion: never throws; set-up and start failures become `.broken` on the install card
+	init(app: AppInfoPresentable, viewModel: InstallerStatusViewModel) {
 		self.app = app
 		self.viewModel = viewModel
 		self.method = Self.resolveMethod()

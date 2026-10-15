@@ -1,12 +1,12 @@
 # Accretion app
 
-The iPhone app for [Accretion](https://getaccretion.github.io): browse the Accretion store, then sign and install apps on your device with your own certificate. Current version: 1.0.5.
+The iPhone app for [Accretion](https://getaccretion.app): browse the Accretion store, then sign and install apps on your device with your own certificate. Current version: 1.0.5.
 
 Accretion is a fork of [Feather](https://github.com/claration/Feather) by claration, and is licensed under GPL-3.0 like Feather. Feather's original README follows below the line for reference; its Download section is about Feather itself, not Accretion.
 
 ## Get Accretion
 
-- **From the store:** sign in on the website, then open the [Accretion app page](https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion). Downloads from the store need an Accretion account.
+- **From the store:** sign in on the website, then open the [Accretion app page](https://getaccretion.app/#/app/io.github.getaccretion.Accretion). Downloads from the store need an Accretion account.
 - **GitHub releases** carry release notes only. There's no `.ipa` attached.
 - **First install** with the signer from your certificate seller, Sideloadly, AltStore or SideStore. After that, the app tells you when a new version is out.
 

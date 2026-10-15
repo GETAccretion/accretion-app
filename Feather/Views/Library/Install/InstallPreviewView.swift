@@ -32,7 +32,7 @@ struct InstallPreviewView: View {
 		self.isSharing = isSharing
 		let viewModel = InstallerStatusViewModel(isIdevice: UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1)
 		self._viewModel = StateObject(wrappedValue: viewModel)
-		self._installer = StateObject(wrappedValue: try! ServerInstaller(app: app, viewModel: viewModel))
+		self._installer = StateObject(wrappedValue: ServerInstaller(app: app, viewModel: viewModel))
 	}
 	
 	// MARK: Body

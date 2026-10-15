@@ -180,7 +180,7 @@ jobs:
             curl -fsS -X POST "$FN?finish=1" -H "x-upload-key: $UPLOAD_KEY" -H "Content-Type: application/json" -d "$BODY"
           fi
           # the GitHub release lists the same changes (generated notes only list pull requests)
-          { echo "Download Accretion from the store (sign in first): https://getaccretion.github.io/#/app/io.github.getaccretion.Accretion"
+          { echo "Download Accretion from the store (sign in first): https://getaccretion.app/#/app/io.github.getaccretion.Accretion"
             if [ -n "$NOTES" ]; then echo; echo "### What's changed"; echo "$NOTES"; fi; } > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create Release
@@ -221,5 +221,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app-repo.json app-repo-beta.json
           git diff --cached --quiet && exit 0
-          git commit -m "Point the app source at $REF_NAME" -m "Co-Authored-By: Codex <noreply@openai.com>"
+          git commit -m "Point the app source at $REF_NAME"
           python3 .github/scripts/checked_push.py app

@@ -86,7 +86,7 @@ jobs:
           sed -i "s/^FEATHER_PROJECT_VERSION=.*/FEATHER_PROJECT_VERSION=$next/" Feather.xcconfig
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qam "Version $next" -m "Co-Authored-By: Codex <noreply@openai.com>"
+          git commit -qam "Version $next"
           python3 .github/scripts/checked_push.py app
           git tag "accretion-v$next"
           git push -q origin "refs/tags/accretion-v$next"

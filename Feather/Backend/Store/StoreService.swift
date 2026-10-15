@@ -14,7 +14,7 @@ struct StoreSource: Decodable, Hashable {
 	let mod: Bool?
 }
 
-/// One row of data/index.json, with the web store's short keys.
+/// One row of data/store.json, with the web store's short keys.
 struct StoreApp: Decodable, Identifiable, Hashable {
 	let i: String         // bundle ID
 	let n: String         // name

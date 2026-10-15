@@ -18,7 +18,7 @@ import UIKit
 final class AccretionAccount: ObservableObject {
 	static let shared = AccretionAccount()
 	/// The store's Supabase project. config.js must point here, or the account stays off.
-	static let accountHost = "bbcjpinhvlxocjxlyplt.supabase.co"
+	nonisolated static let accountHost = "bbcjpinhvlxocjxlyplt.supabase.co"
 
 	@Published private(set) var email: String?
 	/// The signed-in user's id, for the community tables' `user_id` columns
@@ -608,14 +608,16 @@ final class AccretionAccount: ObservableObject {
 	// MARK: Downloads
 	private var _downloadKey: String?
 
-	/// Accretion's own builds (Accretion Mods, the Accretion app) live on the store's download
-	/// server, which hands them only to account holders. For those apps this returns the server
-	/// link with the user's personal key; every other app keeps `url`.
+	/// The store's download server hands apps only to account holders: Accretion's own builds, and
+	/// every other source's app (the store no longer publishes source URLs, only server links). For
+	/// those this returns the server link with the user's personal key; any other link stays `url`.
 	func downloadURL(for bundleID: String, fallback url: URL) async -> URL {
 		guard isSignedIn else { return Self.tagged(url) }
 		do {
 			let config = try await _configuration()
-			guard try await _hostedBundleIDs().contains(bundleID) else { return url }
+			var viaServer = AccretionBuildSelection.isServerLink(url, host: Self.accountHost)
+			if !viaServer { viaServer = try await _hostedBundleIDs().contains(bundleID) }
+			guard viaServer else { return url }
 			if _downloadKey == nil {
 				let keyData = try await _rest("rpc/my_download_key", method: "POST", body: ["rotate": false])
 				_downloadKey = try JSONDecoder().decode(String.self, from: keyData)
@@ -665,6 +667,8 @@ final class AccretionAccount: ObservableObject {
 		guard url.scheme == "https", url.host == Self.accountHost, url.path == "/functions/v1/download" else { return nil }
 		let data = try await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(bundleID))", anonymous: true)
 		let builds = try JSONDecoder().decode([AccretionBuildSelection.Build].self, from: data)
+		// other sources' apps also come through the server now, but only our own builds have fingerprints
+		guard !builds.isEmpty else { return nil }
 		let wanted = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "version" }?.value
 		guard let build = AccretionBuildSelection.select(builds, bundleID: bundleID, version: wanted) else {
 			throw AccountError.server(String.localized("Couldn't verify the published build. Try again."))

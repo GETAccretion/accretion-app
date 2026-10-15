@@ -88,12 +88,24 @@ class DownloadManager: NSObject, ObservableObject {
 		}
 		
 		let download = Download(id: id, url: url, sourceProvenance: sourceProvenance)
-		
-		let task = _session.downloadTask(with: url)
-		download.task = task
-		task.resume()
-		
 		downloads.append(download)
+
+		// Accretion: store download-server links (every store app) need the signed-in user's key first
+		if AccretionBuildSelection.needsKey(url, host: AccretionAccount.accountHost) {
+			Task { @MainActor in
+				let keyed = await AccretionAccount.shared.downloadURL(
+					for: AccretionBuildSelection.bundleID(in: url) ?? "", fallback: url
+				)
+				guard self.getDownload(by: download.id) != nil else { return } // cancelled meanwhile
+				let task = self._session.downloadTask(with: keyed)
+				download.task = task
+				task.resume()
+			}
+		} else {
+			let task = _session.downloadTask(with: url)
+			download.task = task
+			task.resume()
+		}
 		
 		#if !targetEnvironment(macCatalyst)
 		if #available(iOS 26.0, *) {
@@ -200,7 +212,31 @@ extension DownloadManager: URLSessionDownloadDelegate {
 	
 	func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
 		guard let download = getDownloadTask(by: downloadTask) else { return }
-		
+
+		// Accretion: a refused or failed download is the server's message, not an app; say so instead
+		// of importing it (401/403: not signed in, or a replaced personal key)
+		if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+			let status = http.statusCode
+			DispatchQueue.main.async {
+				if let index = self.getDownloadIndex(by: download.id) { self.downloads.remove(at: index) }
+				if status == 401 || status == 403 { AccretionAccount.shared.forgetDownloadKey() }
+				if let top = UIApplication.topViewController() {
+					UIAlertController.showAlertWithOk(
+						top,
+						title: String.localized("Download failed"),
+						message: status == 401 || status == 403
+							? String.localized("Sign in to your Accretion account to download this app.")
+							: String.localized("The download server answered %@. Try again later.", arguments: String(status))
+					)
+				}
+				#if !targetEnvironment(macCatalyst)
+				if #available(iOS 26.0, *) { BackgroundTaskManager.shared.stopTask(for: download.id, success: false) }
+				self._updateBackgroundAudioState()
+				#endif
+			}
+			return
+		}
+
 		let tempDirectory = FileManager.default.temporaryDirectory
 		let customTempDir = tempDirectory.appendingPathComponent("FeatherDownloads", isDirectory: true)
 		

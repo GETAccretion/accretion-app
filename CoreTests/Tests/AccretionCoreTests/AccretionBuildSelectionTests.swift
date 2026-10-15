@@ -35,6 +35,30 @@ final class AccretionBuildSelectionTests: XCTestCase {
 		XCTAssertEqual(url.host, "fixture.supabase.co")
 	}
 
+	func testServerLinksNeedTheKeyOnlyOnce() throws {
+		let host = "fixture.supabase.co"
+		let bare = try XCTUnwrap(URL(string: "https://fixture.supabase.co/functions/v1/download?app=com.other.app&version=2.1"))
+		let keyed = try XCTUnwrap(URL(string: "https://fixture.supabase.co/functions/v1/download?app=com.other.app&version=2.1&key=fictional"))
+		let emptyKey = try XCTUnwrap(URL(string: "https://fixture.supabase.co/functions/v1/download?app=com.other.app&key="))
+		let elsewhere = try XCTUnwrap(URL(string: "https://source.invalid/functions/v1/download?app=com.other.app"))
+		let plain = try XCTUnwrap(URL(string: "http://fixture.supabase.co/functions/v1/download?app=com.other.app"))
+		XCTAssertTrue(AccretionBuildSelection.needsKey(bare, host: host))
+		XCTAssertTrue(AccretionBuildSelection.needsKey(emptyKey, host: host))
+		XCTAssertFalse(AccretionBuildSelection.needsKey(keyed, host: host))
+		XCTAssertFalse(AccretionBuildSelection.needsKey(elsewhere, host: host), "another host never gets the key")
+		XCTAssertFalse(AccretionBuildSelection.needsKey(plain, host: host), "plain http never gets the key")
+		XCTAssertEqual(AccretionBuildSelection.bundleID(in: bare), "com.other.app")
+	}
+
+	func testOtherSourceLinkKeepsItsVersionWhenKeyed() throws {
+		let base = try XCTUnwrap(URL(string: "https://fixture.supabase.co"))
+		let source = try XCTUnwrap(URL(string: "https://fixture.supabase.co/functions/v1/download?app=com.other.app&version=2.1"))
+		let url = try XCTUnwrap(AccretionBuildSelection.personalURL(base: base, bundleID: "com.other.app", key: "fictional", source: source, appVersion: "1.0.33"))
+		let parts = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+		let values = Dictionary(uniqueKeysWithValues: (parts.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+		XCTAssertEqual(values, ["app": "com.other.app", "version": "2.1", "key": "fictional", "av": "1.0.33"])
+	}
+
 	func testUnrelatedURLCannotSupplyHostedVersion() throws {
 		let base = try XCTUnwrap(URL(string: "https://fixture.supabase.co"))
 		let source = try XCTUnwrap(URL(string: "https://other.invalid/ipa?version=1.0.30.1"))

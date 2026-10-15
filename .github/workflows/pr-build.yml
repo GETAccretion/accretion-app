@@ -1,0 +1,56 @@
+name: "App: pull request build"
+
+# Builds every pull request (the weekly upstream-sync one included) with a read-only token, no
+# secrets and no saved git credentials: code under review can compile and fail, but it can't push,
+# tag, start a release or reach the upload key. Releases only build code already on main or a tag
+# (release.yml). The job is named "build" like release.yml's, so the required check is the same.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: 'true'
+          persist-credentials: false
+
+      - name: Xcode and Swift packages
+        id: xcode-setup
+        uses: ./.github/actions/xcode
+
+      - name: Build
+        id: build
+        run: make
+
+      - name: Summary
+        if: always()
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          failed=$(jq -r 'to_entries | map(select(.value.conclusion == "failure") | .key | gsub("-"; " ")) | join(", ")' <<< "$STEPS")
+          {
+            if [ "$JOB_STATUS" = success ]; then
+              echo "### The pull request builds"
+            else
+              echo "### The pull request doesn't build"
+              echo "Failed step: ${failed:-unknown}. Open that step above to read the log."
+            fi
+            echo
+            echo "| Step | Result |"
+            echo "| --- | --- |"
+            jq -r 'to_entries[] | "| " + (.key | gsub("-"; " ")) + " | " + (.value.conclusion // "not run") + " |"' <<< "$STEPS"
+            echo
+            echo "Read-only build: no secrets, no write token (handbook issue #26)."
+          } >> "$GITHUB_STEP_SUMMARY"

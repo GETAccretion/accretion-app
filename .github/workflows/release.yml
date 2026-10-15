@@ -3,8 +3,9 @@ name: "App: build and release"
 # Every push to main builds Accretion.ipa as a check (nothing is kept: builds are private).
 # Pushing a tag like accretion-v1.0.5 uploads it to the store's private storage, publishes a
 # notes-only release and points app-repo.json at the store's download server.
+# Pull requests are built by pr-build.yml (read-only, no secrets), never here: this workflow holds
+# write access and the upload key, so it only ever builds code already on main or a tag.
 on:
-  pull_request:
   push:
     branches:
       - main
@@ -16,6 +17,7 @@ on:
       - '.github/actions/alert/**'
       - '.github/dependabot.yml'
       - '.github/tests/**'
+      - '.github/workflows/pr-build.yml'
       - '.github/workflows/screens.yml'
       - '.github/workflows/secrets.yml'
       - '.github/workflows/ship.yml'

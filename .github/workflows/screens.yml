@@ -1,9 +1,9 @@
-name: Screens
+name: "App: screenshots vs website"
 
 # Side-by-side check that the app still looks like the website: builds Accretion for the iOS
 # Simulator, screenshots Discover, screenshots getaccretion.github.io at the same size, and keeps
 # both (plus one side-by-side image) as a run artifact. Report only: it never blocks a build or a
-# release. Run it from Actions -> Screens -> Run workflow, or it runs on Mondays.
+# release. Run it from Actions -> App: screenshots vs website -> Run workflow, or it runs on Mondays.
 on:
   workflow_dispatch:
   schedule:
@@ -95,3 +95,26 @@ jobs:
           name: screens
           path: screens/*.png
           retention-days: 14
+
+  alert:
+    # Scheduled runs only: opens one issue when the run fails, closes it when a later run passes.
+    needs: [screens]
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # an alert that cannot be sent must not turn a good run red
+    continue-on-error: true
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the alert action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions
+      - name: Open or close the failure issue
+        uses: ./.github/actions/alert
+        with:
+          status: ${{ contains(needs.*.result, 'failure') && 'failure' || contains(needs.*.result, 'cancelled') && 'cancelled' || 'success' }}
+          workflow: "App: screenshots vs website"

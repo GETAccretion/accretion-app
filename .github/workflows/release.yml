@@ -1,4 +1,4 @@
-name: Release
+name: "App: build and release"
 
 # Every push to main builds Accretion.ipa as a check (nothing is kept: builds are private).
 # Pushing a tag like accretion-v1.0.5 uploads it to the store's private storage, publishes a
@@ -13,6 +13,7 @@ on:
     paths-ignore:
       - '.github/*.md'
       - '.github/ISSUE_TEMPLATE/**'
+      - '.github/actions/alert/**'
       - '.github/dependabot.yml'
       - '.github/tests/**'
       - '.github/workflows/screens.yml'
@@ -48,6 +49,7 @@ jobs:
       # The app's colours come from the store's design/tokens.json (one source for web and app).
       # Warn when AccretionTokens.swift is behind it; never blocks a build.
       - name: Check design tokens
+        id: design-tokens
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
         run: |
@@ -71,7 +73,7 @@ jobs:
       # (caches can be read by fork pull requests, which never get secrets). The release only
       # stamps the new version into it. If that build isn't cached, the release compiles as before.
       - name: Find main's build of this code
-        id: reuse
+        id: find-main-build
         if: startsWith(github.ref, 'refs/tags/accretion-v') || startsWith(github.ref, 'refs/heads/automation/checked-')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -87,16 +89,16 @@ jobs:
           fi
 
       - name: Restore main's build
-        id: cached
-        if: steps.reuse.outputs.sha != ''
+        id: restore-main-build
+        if: steps.find-main-build.outputs.sha != ''
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: packages/Accretion.ipa.enc
-          key: accretion-ipa-${{ steps.reuse.outputs.sha }}
+          key: accretion-ipa-${{ steps.find-main-build.outputs.sha }}
 
       - name: Stamp the new version into main's build
-        id: stamped
-        if: steps.cached.outputs.cache-hit == 'true'
+        id: stamp-version
+        if: steps.restore-main-build.outputs.cache-hit == 'true'
         env:
           UPLOAD_KEY: ${{ secrets.ACCRETION_UPLOAD_KEY }}
         run: |
@@ -126,19 +128,22 @@ jobs:
             && /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$RUNNER_TEMP/check.plist")
           [ "$check" = "$NEW" ] || { echo "::error::Stamped build says $check, expected $NEW"; exit 1; }
           echo "done=true" >> "$GITHUB_OUTPUT"
-          echo "Reused main's build ${{ steps.reuse.outputs.sha }}: $OLD → $NEW" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reused main's build ${{ steps.find-main-build.outputs.sha }}: $OLD → $NEW" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Xcode and Swift packages
-        if: steps.stamped.outputs.done != 'true'
+        id: xcode-setup
+        if: steps.stamp-version.outputs.done != 'true'
         uses: ./.github/actions/xcode
 
       - name: Build
-        if: steps.stamped.outputs.done != 'true'
+        id: build
+        if: steps.stamp-version.outputs.done != 'true'
         run: |
           agvtool new-version -all $(git rev-parse HEAD)
           make
 
       - name: Encrypt this build for Ship
+        id: encrypt-build
         if: github.ref == 'refs/heads/main'
         env:
           UPLOAD_KEY: ${{ secrets.ACCRETION_UPLOAD_KEY }}
@@ -149,6 +154,7 @@ jobs:
             -in packages/Accretion.ipa -out packages/Accretion.ipa.enc
 
       - name: Keep this build for Ship
+        id: keep-build
         if: github.ref == 'refs/heads/main' && hashFiles('packages/Accretion.ipa.enc') != ''
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -156,7 +162,7 @@ jobs:
           key: accretion-ipa-${{ github.sha }}
 
       - name: Get Version
-        id: get_version
+        id: get-version
         # read it from the .ipa
         run: |
           unzip -p packages/Accretion.ipa Payload/Accretion.app/Info.plist > "$RUNNER_TEMP/Info.plist"
@@ -169,6 +175,7 @@ jobs:
       # signed-in users (and personal source links) by the download server. Builds aren't kept
       # as workflow artifacts, which anyone signed in to GitHub could download.
       - name: Upload to private storage
+        id: upload
         if: startsWith(github.ref, 'refs/tags/accretion-v')
         env:
           UPLOAD_KEY: ${{ secrets.ACCRETION_UPLOAD_KEY }}
@@ -198,6 +205,7 @@ jobs:
             if [ -n "$NOTES" ]; then echo; echo "### What's changed"; echo "$NOTES"; fi; } > "$RUNNER_TEMP/release-notes.md"
 
       - name: Create Release
+        id: create-release
         if: startsWith(github.ref, 'refs/tags/accretion-v')
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v3.0.2
         with:
@@ -209,6 +217,7 @@ jobs:
 
       # Releases made with GITHUB_TOKEN don't trigger other workflows, so the app source is updated here.
       - name: Update app-repo.json
+        id: update-source
         if: startsWith(github.ref, 'refs/tags/accretion-v')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -237,3 +246,35 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "Point the app source at $REF_NAME"
           python3 .github/scripts/checked_push.py app
+
+      - name: Summary
+        if: always()
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          JOB_STATUS: ${{ job.status }}
+          HEADLINE: ${{ startsWith(github.ref, 'refs/tags/accretion-v') && 'Released Accretion' || 'Build passed (a normal push publishes nothing)' }}
+          REF: ${{ github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/accretion-v') }}
+          REUSED: ${{ steps.stamp-version.outputs.done }}
+        run: |
+          failed=$(jq -r 'to_entries | map(select(.value.conclusion == "failure") | .key | gsub("-"; " ")) | join(", ")' <<< "$STEPS")
+          {
+            if [ "$JOB_STATUS" = success ]; then
+              echo "### $HEADLINE"
+            else
+              echo "### The build or release failed"
+              echo "Failed step: ${failed:-unknown}. If it is the Build step, open it for the compiler error. If it is the upload step, check the ACCRETION_UPLOAD_KEY secret. Then run the build again."
+            fi
+            echo
+            echo "| Step | Result |"
+            echo "| --- | --- |"
+            jq -r 'to_entries[] | "| " + (.key | gsub("-"; " ")) + " | " + (.value.conclusion // "not run") + " |"' <<< "$STEPS"
+            echo
+            echo "| Fact | Value |"
+            echo "| --- | --- |"
+            echo "| Version | ${VERSION:-not built} |"
+            echo "| Beta | ${BETA:-no} |"
+            echo "| Build | $([ "$REUSED" = true ] && echo "reused the build from main" || echo compiled) |"
+            echo "| Source | $REF |"
+            if [ "$IS_TAG" = true ]; then echo "| Release | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$REF |"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

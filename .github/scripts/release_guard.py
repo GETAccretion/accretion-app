@@ -14,6 +14,7 @@ from pathlib import Path
 NOT_BUILD_INPUTS = (
     ".github/*.md",
     ".github/ISSUE_TEMPLATE/**",
+    ".github/actions/alert/**",
     ".github/dependabot.yml",
     ".github/tests/**",
     ".github/workflows/screens.yml",

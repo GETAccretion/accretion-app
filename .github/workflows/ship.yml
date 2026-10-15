@@ -1,8 +1,8 @@
-name: Ship
+name: "App: Ship a new version"
 
-# Release Accretion from anywhere, including the GitHub app on a phone: Actions → Ship → Run.
+# Release Accretion from anywhere, including the GitHub app on a phone: Actions → App: Ship a new version → Run.
 # Checks that main's latest build passed, raises the version (next patch unless one is given),
-# tags it, and starts the Release run for that tag, which uploads it privately, publishes the
+# tags it, and starts the build and release run for that tag, which uploads it privately, publishes the
 # notes-only release and points app-repo.json at it. The store picks it up on its next build.
 # Beta: a test build numbered between releases (1.0.25 -> 1.0.25.1, 1.0.25.2 ...). Only people with
 # Settings -> Beta Updates on get it (app-repo-beta.json); the next release (1.0.26) replaces it.
@@ -94,4 +94,4 @@ jobs:
           # pushes made with this token don't start workflows; a dispatch does
           gh workflow run release.yml --ref "accretion-v$next"
           echo "### Shipping Accretion $next$([ "$BETA" = true ] && echo ' (beta)')" >> "$GITHUB_STEP_SUMMARY"
-          echo "Follow the **Release** run for \`accretion-v$next\`. It reuses main's build (a few minutes), or compiles again if that build isn't cached (about 10 minutes)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Follow the **App: build and release** run for \`accretion-v$next\`. It reuses main's build (a few minutes), or compiles again if that build isn't cached (about 10 minutes)." >> "$GITHUB_STEP_SUMMARY"

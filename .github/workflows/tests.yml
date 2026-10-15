@@ -1,4 +1,4 @@
-name: Tests
+name: "App: tests"
 
 # Unit tests for the app's Core logic (Feather/Backend/Core: versions and betas, post links, the
 # background drift), run with CoreTests/run.sh on every push and pull request.
@@ -16,15 +16,58 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: python3 -m unittest discover -s .github/tests -v
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Script tests
+        id: script-tests
+        run: python3 -m unittest discover -s .github/tests -v
+      - name: Summary
+        if: always()
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          failed=$(jq -r 'to_entries | map(select(.value.conclusion == "failure") | .key | gsub("-"; " ")) | join(", ")' <<< "$STEPS")
+          {
+            if [ "$JOB_STATUS" = success ]; then
+              echo "### Script tests passed"
+            else
+              echo "### Script tests failed"
+              echo "Failed step: ${failed:-unknown}. Open that step above to read which test failed, fix it, then run the tests again."
+            fi
+            echo
+            echo "| Step | Result |"
+            echo "| --- | --- |"
+            jq -r 'to_entries[] | "| " + (.key | gsub("-"; " ")) + " | " + (.value.conclusion // "not run") + " |"' <<< "$STEPS"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   core:
     runs-on: macos-26
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Core unit tests
+        id: core-tests
         run: |
           sudo xcode-select -s /Applications/Xcode_26.3.0.app
           bash CoreTests/run.sh
+      - name: Summary
+        if: always()
+        env:
+          STEPS: ${{ toJSON(steps) }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          failed=$(jq -r 'to_entries | map(select(.value.conclusion == "failure") | .key | gsub("-"; " ")) | join(", ")' <<< "$STEPS")
+          {
+            if [ "$JOB_STATUS" = success ]; then
+              echo "### Core tests passed"
+            else
+              echo "### Core tests failed"
+              echo "Failed step: ${failed:-unknown}. Open that step above to read which test failed, fix it, then run the tests again."
+            fi
+            echo
+            echo "| Step | Result |"
+            echo "| --- | --- |"
+            jq -r 'to_entries[] | "| " + (.key | gsub("-"; " ")) + " | " + (.value.conclusion // "not run") + " |"' <<< "$STEPS"
+          } >> "$GITHUB_STEP_SUMMARY"

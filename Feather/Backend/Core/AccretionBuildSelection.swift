@@ -7,6 +7,12 @@ enum AccretionBuildSelection {
 		let sha256: String?
 	}
 
+	/// A SHA-256 as the store records it: 64 lowercase hex characters.
+	static func isFingerprint(_ value: String?) -> Bool {
+		guard let value, value.count == 64 else { return false }
+		return value.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
+	}
+
 	static func select(_ builds: [Build], bundleID: String, version: String?) -> Build? {
 		let isAccretion = bundleID == "io.github.getaccretion.Accretion"
 		if let version, !version.isEmpty, !isAccretion || AccretionVersion.isBeta(version) {

@@ -669,11 +669,13 @@ final class AccretionAccount: ObservableObject {
 		let builds = try JSONDecoder().decode([AccretionBuildSelection.Build].self, from: data)
 		// other sources' apps also come through the server now, but only our own builds have fingerprints
 		guard !builds.isEmpty else { return nil }
+		// our own builds are only installed with a fingerprint; the server serves only those too
+		let verified = builds.filter { AccretionBuildSelection.isFingerprint($0.sha256) }
 		let wanted = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "version" }?.value
-		guard let build = AccretionBuildSelection.select(builds, bundleID: bundleID, version: wanted) else {
+		guard let build = AccretionBuildSelection.select(verified, bundleID: bundleID, version: wanted), let sha = build.sha256 else {
 			throw AccountError.server(String.localized("Couldn't verify the published build. Try again."))
 		}
-		return build.sha256
+		return sha
 	}
 
 	/// Forget the personal key, e.g. after the server refused it because it was replaced on the website

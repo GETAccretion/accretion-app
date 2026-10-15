@@ -35,6 +35,25 @@ final class AccretionBuildSelectionTests: XCTestCase {
 		XCTAssertEqual(url.host, "fixture.supabase.co")
 	}
 
+	func testOnlyRealFingerprintsCount() {
+		XCTAssertTrue(AccretionBuildSelection.isFingerprint(String(repeating: "a", count: 64)))
+		XCTAssertFalse(AccretionBuildSelection.isFingerprint(nil))
+		XCTAssertFalse(AccretionBuildSelection.isFingerprint(""))
+		XCTAssertFalse(AccretionBuildSelection.isFingerprint(String(repeating: "A", count: 64)), "uppercase is not how the store records it")
+		XCTAssertFalse(AccretionBuildSelection.isFingerprint(String(repeating: "g", count: 64)))
+		XCTAssertFalse(AccretionBuildSelection.isFingerprint(String(repeating: "a", count: 63)))
+	}
+
+	func testUnverifiedBuildIsNeverChosen() {
+		let mixed = [
+			AccretionBuildSelection.Build(version: "1.0.5", sha256: nil),
+			AccretionBuildSelection.Build(version: "1.0.31", sha256: String(repeating: "c", count: 64)),
+		]
+		let verified = mixed.filter { AccretionBuildSelection.isFingerprint($0.sha256) }
+		XCTAssertEqual(AccretionBuildSelection.select(verified, bundleID: app, version: nil)?.version, "1.0.31")
+		XCTAssertNil(AccretionBuildSelection.select(verified, bundleID: "com.fixture.mod", version: "1.0.5"), "an old unverified version can't be picked by asking for it")
+	}
+
 	func testServerLinksNeedTheKeyOnlyOnce() throws {
 		let host = "fixture.supabase.co"
 		let bare = try XCTUnwrap(URL(string: "https://fixture.supabase.co/functions/v1/download?app=com.other.app&version=2.1"))

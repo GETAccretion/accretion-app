@@ -60,6 +60,9 @@ final class AppFileHandler: NSObject, @unchecked Sendable {
 		try await withCheckedThrowingContinuation { continuation in
 			DispatchQueue.global(qos: .utility).async {
 				do {
+					// Accretion: refuse paths outside the work folder, writes through contained
+					// symlinks and zip bombs before anything is written (issue #28)
+					try ArchiveCheck.check(ArchiveCheck.zipEntries(at: self._ipa))
 					try Zip.unzipFile(
 						self._ipa,
 						destination: self._uniqueWorkDir,

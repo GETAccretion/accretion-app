@@ -35,8 +35,12 @@ func extractFile(at fileURL: inout URL) throws {
 		let extractionDirectory = fileURL.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
 		try fileManager.createDirectory(at: extractionDirectory, withIntermediateDirectories: true)
 		
+		// Accretion: every name must stay inside the extraction folder (issue #28); links are never created
 		for entry in tarContainer {
-			let entryPath = extractionDirectory.appendingPathComponent(entry.info.name)
+			let name = entry.info.name.hasPrefix("./") ? String(entry.info.name.dropFirst(2)) : entry.info.name
+			if name.isEmpty || name == "." { continue }
+			guard ArchiveCheck.isSafe(name) else { throw ArchiveCheck.Failure.unsafePath(name) }
+			let entryPath = extractionDirectory.appendingPathComponent(name)
 			
 			if entry.info.type == .directory {
 				try fileManager.createDirectory(at: entryPath, withIntermediateDirectories: true)

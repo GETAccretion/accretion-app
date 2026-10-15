@@ -158,11 +158,26 @@ extension UpdateManager {
 		guard let cert = Storage.shared.getCertificate(for: UserDefaults.standard.integer(forKey: "feather.selectedCert")) else { return }
 		let wasRevoked = cert.revoked
 		Storage.shared.recheckRevocation(for: cert) { revoked in
-			guard revoked, !wasRevoked, UIApplication.topViewController() != nil else { return }
-			UIAlertController.showAlertWithOk(
-				title: String.localized("Certificate revoked"),
-				message: String.localized("Apple has revoked the certificate you sign with, so apps signed with it will stop opening. Import or pick another certificate in Settings → Certificates, then use Re-sign All from the ✨ menu in Library.")
-			)
+			guard revoked, !wasRevoked else { return }
+			Task { @MainActor in
+				// offer the store's certificate seller (support.json) when there is one
+				await SupportLinks.shared.load()
+				guard let top = UIApplication.topViewController() else { return }
+				let title = String.localized("Certificate revoked")
+				let message = String.localized("Apple has revoked the certificate you sign with, so apps signed with it will stop opening. Import or pick another certificate in Settings → Certificates, then use Re-sign All from the ✨ menu in Library.")
+				guard let seller = SupportLinks.shared.sellers.first, let link = seller.link else {
+					UIAlertController.showAlertWithOk(top, title: title, message: message)
+					return
+				}
+				UIAlertController.showAlertWithCancel(
+					top,
+					title: title,
+					message: message + "\n\n" + String.localized("Need a new one? %@ certificates install apps from your iPhone, no computer needed. Affiliate link: Accretion earns a commission, at no extra cost to you.", arguments: seller.name),
+					actions: [UIAlertAction(title: String.localized("Get a Certificate"), style: .default) { _ in
+						UIApplication.shared.open(link)
+					}]
+				)
+			}
 		}
 	}
 

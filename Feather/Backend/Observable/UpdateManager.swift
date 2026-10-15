@@ -20,6 +20,9 @@ struct AppUpdate: Identifiable, Equatable {
 	let downloadURL: URL
 	let sourceURL: URL
 	let sourceProvenance: SourceAppProvenance
+	/// Offered by one of Accretion's own sources rather than the source the app came from. Such an
+	/// update is announced but never signed on its own, even with "Update apps automatically" on.
+	var crossSource = false
 }
 
 @MainActor

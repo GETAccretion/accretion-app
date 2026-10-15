@@ -11,8 +11,11 @@ import UIKit
 // MARK: - Updates from every source
 extension UpdateManager {
 	/// Feather only offers updates from the source an app was installed from. Accretion also looks
-	/// in every other source for the same bundle ID, and takes the newest strictly higher version,
-	/// so a mod or tweak hosted elsewhere still gets its updates and nothing ever downgrades.
+	/// in its own sources (the store, Accretion Mods, personal source links; see AccretionSources)
+	/// for the same bundle ID, and takes the newest strictly higher version, so a mod or tweak
+	/// hosted there still gets its updates and nothing ever downgrades. Any other source may only
+	/// update the apps that came from it, so one added source can't offer a "newer version" of
+	/// every installed app. These updates are marked `crossSource`: announced, never auto-signed.
 	func addingCrossSourceUpdates(
 		to found: [String: AppUpdate],
 		repositories: [(AltSource, ASRepository)],
@@ -34,6 +37,7 @@ extension UpdateManager {
 			for (source, repository) in repositories {
 				guard
 					let sourceURL = source.sourceURL,
+					AccretionSources.trustsForCrossSourceUpdates(sourceURL, accountHost: AccretionAccount.accountHost),
 					let remoteApp = repository.apps.first(where: { $0.id == identifier }),
 					let remoteVersion = remoteApp.currentVersion,
 					remoteApp.currentDownloadUrl != nil,
@@ -61,7 +65,8 @@ extension UpdateManager {
 				bundleIdentifier: identifier,
 				downloadURL: downloadURL,
 				sourceURL: best.sourceURL,
-				sourceProvenance: provenance
+				sourceProvenance: provenance,
+				crossSource: true
 			)
 		}
 
@@ -98,11 +103,15 @@ extension UpdateManager {
 		if !sources.isEmpty {
 			await checkForUpdates(sources: sources, localApps: localApps)
 			// "Update apps automatically": download and sign right away, so only iOS's install
-			// prompt is left; signing replaces the old copies, so the same update won't repeat
+			// prompt is left; signing replaces the old copies, so the same update won't repeat.
+			// An update from a source other than the one the app came from is only announced:
+			// it is never signed with the user's certificate on its own.
 			if UserDefaults.standard.bool(forKey: Self.autoInstallKey), !updates.isEmpty {
-				AutoSignPipeline.shared.update(Array(updates.values))
+				let sameSource = updates.values.filter { !$0.crossSource }
+				if !sameSource.isEmpty { AutoSignPipeline.shared.update(sameSource) }
+				_alertNewUpdates(updates.values.filter(\.crossSource))
 			} else {
-				_alertNewUpdates()
+				_alertNewUpdates(Array(updates.values))
 			}
 		}
 		_recheckSelectedCertificate()
@@ -166,11 +175,11 @@ extension UpdateManager {
 		}
 	}
 
-	private func _alertNewUpdates() {
+	private func _alertNewUpdates(_ candidates: [AppUpdate]) {
 		let alerted = Set(UserDefaults.standard.stringArray(forKey: Self._alertedKey) ?? [])
 		// one entry per app and version, so a signed and an imported copy alert once together
 		var fresh: [String: AppUpdate] = [:]
-		for update in updates.values where !alerted.contains("\(update.bundleIdentifier)@\(update.remoteVersion)") {
+		for update in candidates where !alerted.contains("\(update.bundleIdentifier)@\(update.remoteVersion)") {
 			fresh["\(update.bundleIdentifier)@\(update.remoteVersion)"] = update
 		}
 		// the alert helper presents on the top view controller; wait for the next check if there's none yet
@@ -179,7 +188,13 @@ extension UpdateManager {
 
 		let lines = fresh.values
 			.sorted { $0.appName.localizedCaseInsensitiveCompare($1.appName) == .orderedAscending }
-			.map { "\($0.appName) \($0.localVersion ?? "?") → \($0.remoteVersion)" }
+			.map { update in
+				let line = "\(update.appName) \(update.localVersion ?? "?") → \(update.remoteVersion)"
+				// name the source when it isn't the one the app came from, so the user can judge it
+				guard update.crossSource else { return line }
+				let source = update.sourceProvenance.sourceRepositoryName ?? update.sourceURL.host ?? update.sourceURL.absoluteString
+				return line + " " + String.localized("(from %@)", arguments: source)
+			}
 		let title: String = fresh.count == 1
 			? String.localized("Update available")
 			: String.localized("%@ updates available", arguments: String(fresh.count))

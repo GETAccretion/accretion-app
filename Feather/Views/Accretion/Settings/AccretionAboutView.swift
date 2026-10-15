@@ -137,7 +137,7 @@ struct AccretionAboutView: View {
 				.font(.subheadline)
 				.foregroundStyle(AccretionTheme.muted)
 			HStack(spacing: 6) {
-				AccretionBadge(text: "v\(Bundle.main.version)", color: AccretionTheme.accent2)
+				AccretionBadge(text: "v\(Bundle.main.version)", color: AccretionTheme.link)
 				if _isBetaBuild {
 					AccretionBadge(text: String.localized("Beta"), color: AccretionTheme.warn)
 				}

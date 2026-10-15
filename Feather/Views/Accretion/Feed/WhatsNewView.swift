@@ -79,9 +79,9 @@ struct AnnouncementCard: View {
 
 	private var _label: (text: String, color: Color) {
 		switch item.kind {
-		case "release": return (String.localized("Accretion update"), AccretionTheme.accent)
-		case "mod": return (String.localized("Accretion Mod"), AccretionTheme.accent)
-		case "fix": return (String.localized("Fix"), AccretionTheme.accent2)
+		case "release": return (String.localized("Accretion update"), AccretionTheme.accentText)
+		case "mod": return (String.localized("Accretion Mod"), AccretionTheme.accentText)
+		case "fix": return (String.localized("Fix"), AccretionTheme.link)
 		default: return (String.localized("News"), AccretionTheme.good)
 		}
 	}
@@ -113,7 +113,7 @@ struct AnnouncementCard: View {
 					}
 				} label: {
 					Text(verbatim: "♥" + ((item.likes ?? 0) > 0 ? " \(item.likes ?? 0)" : ""))
-						.foregroundStyle(liked ? Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255) : AccretionTheme.muted)
+						.foregroundStyle(liked ? AccretionTheme.rose : AccretionTheme.muted)
 				}
 				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
 				.accessibilityLabel(liked ? String.localized("Unlike") : String.localized("Like"))
@@ -147,7 +147,7 @@ struct WhatsNewSection: View {
 					NavigationLink(value: WhatsNewRoute()) {
 						Text(verbatim: String.localized("See all"))
 							.font(.system(size: 14, weight: .semibold))
-							.foregroundStyle(AccretionTheme.accent2)
+							.foregroundStyle(AccretionTheme.link)
 					}
 					.buttonStyle(.plain)
 					.accessibilityLabel(String.localized("See all of What's new"))

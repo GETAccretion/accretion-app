@@ -104,7 +104,7 @@ struct AccretionSettingsView: View {
 				Text(verbatim: String.localized("Every source, pulled into one."))
 					.font(.footnote)
 					.foregroundStyle(AccretionTheme.muted)
-				AccretionBadge(text: "v\(Bundle.main.version)", color: AccretionTheme.accent2)
+				AccretionBadge(text: "v\(Bundle.main.version)", color: AccretionTheme.link)
 			}
 			Spacer(minLength: 0)
 		}

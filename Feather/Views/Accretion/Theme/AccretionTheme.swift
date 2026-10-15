@@ -23,9 +23,21 @@ enum AccretionTheme {
 	static let good = _dynamic(AccretionTokens.good)
 	static let warn = _dynamic(AccretionTokens.warn)
 	static let bad = _dynamic(AccretionTokens.bad)
-	static let star = Color(red: 245.0 / 255, green: 184.0 / 255, blue: 59.0 / 255)
-	/// color-mix(accent 55%, accent-2): the far end of the primary button's gradient
-	static let accentMix = _dynamic(dark: 0x5C93F2, light: 0x4568C8)
+	/// Violet as text (badges, highlighted names); `accent` is for fills, borders and marks
+	static let accentText = _dynamic(AccretionTokens.accentText)
+	/// Cyan as text (links, versions); `accent2` is for fills, charts and marks
+	static let link = _dynamic(AccretionTokens.link)
+	/// The primary button's gradient, under white text
+	static let accentFill = _dynamic(AccretionTokens.accentFill)
+	static let accentFillEnd = _dynamic(AccretionTokens.accentFillEnd)
+	/// Likes, support, admin and destructive actions; `roseFill` under white text (unread counts)
+	static let rose = _dynamic(AccretionTokens.rose)
+	static let roseFill = _dynamic(AccretionTokens.roseFill)
+	static let star = _dynamic(AccretionTokens.star)
+	/// Edges of text fields and empty rating stars (3:1); `line` is a decorative hairline
+	static let lineStrong = _dynamic(AccretionTokens.lineStrong)
+	/// Initials on the avatar colours
+	static let avatarInk = _dynamic(AccretionTokens.avatarInk)
 
 	static let radius: CGFloat = AccretionTokens.radius
 
@@ -154,7 +166,7 @@ struct AccretionBadge: View {
 			.padding(.horizontal, 6)
 			.padding(.vertical, 2)
 			.foregroundStyle(color)
-			.background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+			.background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
 	}
 }
 
@@ -208,7 +220,7 @@ struct AccretionButtonStyle: ButtonStyle {
 			.foregroundStyle(prominent ? Color.white : on ? AccretionTheme.good : AccretionTheme.fg)
 			.background {
 				if prominent {
-					shape.fill(LinearGradient(colors: [AccretionTheme.accent, AccretionTheme.accentMix], startPoint: .topLeading, endPoint: .bottomTrailing))
+					shape.fill(LinearGradient(colors: [AccretionTheme.accentFill, AccretionTheme.accentFillEnd], startPoint: .topLeading, endPoint: .bottomTrailing))
 				} else if !ghost {
 					shape.fill(AccretionTheme.raised)
 				}

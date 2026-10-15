@@ -142,7 +142,7 @@ struct DiscoverView: View {
 										.foregroundStyle(Color.white)
 										.padding(.horizontal, 4)
 										.frame(minWidth: 16, minHeight: 16)
-										.background(Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255), in: Capsule())
+										.background(AccretionTheme.roseFill, in: Capsule())
 								}
 							}
 					}
@@ -220,7 +220,7 @@ struct DiscoverView: View {
 			Button { _openURL(URL(string: "https://getaccretion.app/#/support")!) } label: {
 				Text(verbatim: "♥")
 					.font(.system(size: 14, weight: .semibold))
-					.foregroundStyle(Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255))
+					.foregroundStyle(AccretionTheme.rose)
 					.frame(maxWidth: .infinity)
 					.padding(.vertical, 8)
 			}
@@ -312,7 +312,7 @@ struct DiscoverView: View {
 			NavigationLink(value: StatusRoute()) {
 				Text(verbatim: String.localized("Store status →"))
 					.font(.system(size: 13, weight: .semibold))
-					.foregroundStyle(AccretionTheme.accent2)
+					.foregroundStyle(AccretionTheme.link)
 			}
 			.buttonStyle(.plain)
 			.padding(.top, 10)
@@ -490,7 +490,7 @@ struct StoreAvatar: View {
 	var body: some View {
 		Circle()
 			.fill(RadialGradient(
-				colors: [_shade(toward: 1, by: 0.25), _shade(toward: 1, by: 0), _shade(toward: 0, by: 0.4)],
+				colors: [_shade(toward: 1, by: 0.25), _shade(toward: 1, by: 0), _shade(toward: 0, by: 0.2)],
 				center: UnitPoint(x: 0.3, y: 0.25),
 				startRadius: 0,
 				endRadius: size * 0.75
@@ -499,8 +499,7 @@ struct StoreAvatar: View {
 			.overlay {
 				Text(verbatim: letter)
 					.font(.accretionDisplay(size * 0.42))
-					.foregroundStyle(Color.white)
-					.shadow(color: .black.opacity(0.3), radius: 1, y: 1)
+					.foregroundStyle(AccretionTheme.avatarInk)
 			}
 	}
 }
@@ -524,7 +523,7 @@ struct StoreShelfView: View {
 					NavigationLink(value: seeAll) {
 						Text(verbatim: String.localized("See all"))
 							.font(.system(size: 14, weight: .semibold))
-							.foregroundStyle(AccretionTheme.accent2)
+							.foregroundStyle(AccretionTheme.link)
 					}
 					.buttonStyle(.plain)
 					.accessibilityLabel(String.localized("See all %@", arguments: shelf.title))
@@ -619,7 +618,7 @@ struct StoreAppRow: View {
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
 					HStack(spacing: 6) {
-						if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accent) }
+						if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
 						Text(verbatim: StoreFormat.meta(app))
 							.font(.accretionMono(12, weight: .regular))
 							.foregroundStyle(AccretionTheme.muted)
@@ -654,9 +653,9 @@ struct StoreAppCard: View {
 						.font(.system(size: 15, weight: .semibold))
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
-					if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accent) }
+					if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
 					if _store.hasUpdate(app) {
-						AccretionBadge(text: "update", color: AccretionTheme.accent2)
+						AccretionBadge(text: "update", color: AccretionTheme.link)
 					} else if _store.isNew(app) {
 						AccretionBadge(text: "new")
 					}
@@ -666,7 +665,7 @@ struct StoreAppCard: View {
 					.foregroundStyle(AccretionTheme.muted)
 					.lineLimit(1)
 				HStack(spacing: 8) {
-					Text(verbatim: "v\(app.v)").foregroundStyle(AccretionTheme.accent2)
+					Text(verbatim: "v\(app.v)").foregroundStyle(AccretionTheme.link)
 					Text(verbatim: StoreFormat.since(app))
 					if let size = app.z { Text(verbatim: StoreFormat.bytes(size)) }
 				}

@@ -1,7 +1,8 @@
 """Plain-language summary of Feather commits Accretion doesn't have yet, for the Feather updates
 workflow (job summary and pull request body). Sends only Feather's public commit messages and the
-list of changed files to an OpenRouter model; prints Markdown. Without OPENROUTER_API_KEY, prints
-nothing (the workflow then shows the plain commit list only).
+list of changed files to a free model (Gemini first, else OpenRouter ":free" models, listed in one
+request so OpenRouter falls back in order); prints Markdown. Never calls a paid model. Without
+OPENROUTER_API_KEY, prints nothing (the workflow then shows the plain commit list only).
 
 Usage: python3 .github/scripts/upstream_summary.py   (in a checkout with an `upstream` remote fetched)
 """
@@ -14,7 +15,19 @@ import time
 import urllib.error
 import urllib.request
 
-MODEL = os.environ.get("SUMMARY_MODEL", "google/gemini-2.5-flash")
+DEFAULT_MODELS = [
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3.5-lightning:free",
+]
+# free models only: anything that does not end in ":free" is dropped
+MODELS = [
+    m
+    for m in (
+        [x.strip() for x in os.environ.get("SUMMARY_MODELS", "").split(",") if x.strip()] or DEFAULT_MODELS
+    )
+    if m.endswith(":free")
+]
 
 
 def gemini(system, user, max_tokens):
@@ -69,10 +82,10 @@ def main():
         print(f"#### Summary\n\n{text}\n\n_Summary by Gemini; check the commits before merging._")
         return 0
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not key:
+    if not key or not MODELS:
         return 0
     body = {
-        "model": MODEL,
+        "models": MODELS,
         "max_tokens": 700,
         "messages": [
             {"role": "system", "content": PROMPT},
@@ -87,13 +100,16 @@ def main():
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
-            text = json.loads(r.read())["choices"][0]["message"]["content"].strip()
+            data = json.loads(r.read())
+        text = data["choices"][0]["message"]["content"].strip()
+        model = str(data.get("model") or "a free model")
     except urllib.error.HTTPError as e:
         print(f"_AI summary unavailable ({e.code})._")
         return 0
-    print(
-        f"#### Summary\n\n{text}\n\n_Summary by `{MODEL}` via OpenRouter; check the commits before merging._"
-    )
+    except (urllib.error.URLError, KeyError, IndexError, ValueError, TypeError, AttributeError, OSError) as e:
+        print(f"_AI summary unavailable ({type(e).__name__})._")
+        return 0
+    print(f"#### Summary\n\n{text}\n\n_Summary by `{model}` via OpenRouter; check the commits before merging._")
     return 0
 
 

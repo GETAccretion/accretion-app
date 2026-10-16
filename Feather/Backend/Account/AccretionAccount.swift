@@ -65,9 +65,10 @@ final class AccretionAccount: ObservableObject {
 			let response = try? await URLSession.shared.data(from: source),
 			let text = String(data: response.0, encoding: .utf8),
 			let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"),
-			let json = try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8)) as? [String: String],
-			let url = json["supabaseUrl"].flatMap(URL.init(string:)),
-			let key = json["supabaseKey"],
+			// [String: Any]: the site also puts flags in this file; only these two text values matter here
+			let json = try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8)) as? [String: Any],
+			let url = (json["supabaseUrl"] as? String).flatMap(URL.init(string:)),
+			let key = json["supabaseKey"] as? String,
 			// pinned: a changed config.js can't send sign-ins and passwords to another server
 			url.scheme == "https", url.host == Self.accountHost
 		else {

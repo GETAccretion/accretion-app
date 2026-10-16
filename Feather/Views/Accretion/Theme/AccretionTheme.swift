@@ -59,6 +59,15 @@ enum AccretionTheme {
 		_dynamic(dark: pair.dark, light: pair.light)
 	}
 
+	/// The window tint for Settings → Appearance's theme colour. The default ("Accretion", #8B5CF6)
+	/// is the store's accent as a light/dark pair, darker in light mode so text stays readable; any
+	/// other choice is that one colour. Used at launch and when the choice changes, so both match.
+	static func windowTint(_ hex: String) -> UIColor {
+		hex.uppercased() == "#8B5CF6"
+			? uiDynamic(dark: AccretionTokens.accent.dark, light: AccretionTokens.accent.light)
+			: UIColor(Color(hex: hex))
+	}
+
 	/// UIKit version, for appearance proxies (navigation bars, tab bar)
 	static func uiDynamic(dark: UInt32, light: UInt32) -> UIColor {
 		UIColor { traits in

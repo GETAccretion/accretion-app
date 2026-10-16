@@ -65,7 +65,8 @@ struct AppearanceTintColorView: View {
 			}
 		}
 		.onChange(of: _selectedColorHex) { value in
-			UIApplication.topViewController()?.view.window?.tintColor = UIColor(Color(hex: value))
+			// Accretion: the same tint as at launch (the default follows light/dark)
+			UIApplication.topViewController()?.view.window?.tintColor = AccretionTheme.windowTint(value)
 		}
 	}
 }

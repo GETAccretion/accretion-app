@@ -65,9 +65,7 @@ struct FeatherApp: App {
 				
 				// Accretion: the default accent is the store's violet, lighter in dark mode like the website
 				let tint = UserDefaults.standard.string(forKey: "Feather.userTintColor") ?? "#8B5CF6"
-				UIApplication.topViewController()?.view.window?.tintColor = tint.uppercased() == "#8B5CF6"
-					? AccretionTheme.uiDynamic(dark: AccretionTokens.accent.dark, light: AccretionTokens.accent.light)
-					: UIColor(Color(hex: tint))
+				UIApplication.topViewController()?.view.window?.tintColor = AccretionTheme.windowTint(tint)
 			}
 		}
 	}

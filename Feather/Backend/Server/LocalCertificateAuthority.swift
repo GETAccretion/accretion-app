@@ -36,6 +36,13 @@ enum LocalCertificateAuthority {
 		FileManager.default.fileExists(atPath: _caCert.path) && FileManager.default.fileExists(atPath: _caKey.path)
 	}
 
+	/// Whether this iPhone's authority can only vouch for its own names (made by Accretion 1.0.33 or
+	/// newer, with nameConstraints). Older ones should be replaced (issue #30).
+	static var isLimitedToThisDevice: Bool {
+		guard let der = caCertificateDER() else { return false }
+		return der.range(of: Data([0x06, 0x03, 0x55, 0x1D, 0x1E])) != nil // OID 2.5.29.30
+	}
+
 	/// The authority's name as it appears in Settings → Certificate Trust Settings
 	static var displayName: String? {
 		guard let der = caCertificateDER(), let cert = SecCertificateCreateWithData(nil, der as CFData) else { return nil }

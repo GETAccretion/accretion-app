@@ -13,11 +13,33 @@ struct OfflineInstallSetupView: View {
 	@State private var _name: String?
 	@State private var _error: String?
 	@State private var _confirmReset = false
+	@State private var _outdated = false
 
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 12) {
 				_status
+
+				if _outdated {
+					VStack(alignment: .leading, spacing: 8) {
+						Text(verbatim: String.localized("Renew this certificate"))
+							.font(.system(size: 15, weight: .semibold))
+							.foregroundStyle(AccretionTheme.fg)
+						Text(verbatim: String.localized("It was made by an older Accretion and isn't limited to this iPhone. A new one only works for installs on this iPhone, so it's safer if another app ever reads it. Make a new one, remove the old \"Accretion Offline Installs\" profile, then install and trust the new one (about a minute)."))
+							.font(.system(size: 13))
+							.foregroundStyle(AccretionTheme.muted)
+							.fixedSize(horizontal: false, vertical: true)
+						Button {
+							LocalCertificateAuthority.reset()
+							_refresh()
+						} label: {
+							Text(verbatim: String.localized("Make a New Certificate")).frame(maxWidth: .infinity)
+						}
+						.buttonStyle(AccretionButtonStyle())
+					}
+					.padding(12)
+					.accretionCard()
+				}
 
 				Text(verbatim: String.localized("Offline installs use a certificate made on this iPhone. Its key never leaves the device. Set it up once:"))
 					.foregroundStyle(AccretionTheme.muted)
@@ -138,6 +160,7 @@ struct OfflineInstallSetupView: View {
 			_error = error.localizedDescription
 		}
 		_name = LocalCertificateAuthority.displayName
+		_outdated = LocalCertificateAuthority.isCreated && !LocalCertificateAuthority.isLimitedToThisDevice
 		_trusted = LocalCertificateAuthority.isTrusted
 	}
 }

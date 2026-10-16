@@ -843,23 +843,47 @@ enum CertificateSeal {
 	}
 }
 
-// MARK: - Keychain
-/// The account email and refresh token, kept in the Keychain, never in UserDefaults.
+// MARK: - Account storage
+/// The account email, user ID and refresh token. They live in the app's own Application Support
+/// folder (file protection until first unlock, excluded from backups), not the Keychain: apps
+/// signed with the same certificate can share a Keychain, but never this app's files (issue #30).
+/// Values an older version kept in the Keychain are moved here on first read, then removed there.
+/// Named _Keychain so the rest of this file reads as before.
 private enum _Keychain {
 	private static let service = "io.github.getaccretion.account"
 
+	private static var _folder: URL {
+		URL.applicationSupportDirectory.appendingPathComponent("Account", isDirectory: true)
+	}
+
+	private static func _file(_ account: String) -> URL {
+		_folder.appendingPathComponent(account.filter { $0.isLetter || $0.isNumber }, isDirectory: false)
+	}
+
 	static func write(_ value: String, for account: String) {
-		delete(account)
-		SecItemAdd([
-			kSecClass as String: kSecClassGenericPassword,
-			kSecAttrService as String: service,
-			kSecAttrAccount as String: account,
-			kSecValueData as String: Data(value.utf8),
-			kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-		] as [String: Any] as CFDictionary, nil)
+		let manager = FileManager.default
+		try? manager.createDirectory(at: _folder, withIntermediateDirectories: true)
+		var folder = _folder
+		var values = URLResourceValues()
+		values.isExcludedFromBackup = true
+		try? folder.setResourceValues(values)
+		try? Data(value.utf8).write(to: _file(account), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+		_legacyDelete(account)
 	}
 
 	static func read(_ account: String) -> String? {
+		if let data = try? Data(contentsOf: _file(account)) { return String(data: data, encoding: .utf8) }
+		guard let legacy = _legacyRead(account) else { return nil }
+		write(legacy, for: account) // moves it out of the shared Keychain
+		return legacy
+	}
+
+	static func delete(_ account: String) {
+		try? FileManager.default.removeItem(at: _file(account))
+		_legacyDelete(account)
+	}
+
+	private static func _legacyRead(_ account: String) -> String? {
 		var result: AnyObject?
 		let status = SecItemCopyMatching([
 			kSecClass as String: kSecClassGenericPassword,
@@ -871,7 +895,7 @@ private enum _Keychain {
 		return String(data: data, encoding: .utf8)
 	}
 
-	static func delete(_ account: String) {
+	private static func _legacyDelete(_ account: String) {
 		SecItemDelete([
 			kSecClass as String: kSecClassGenericPassword,
 			kSecAttrService as String: service,

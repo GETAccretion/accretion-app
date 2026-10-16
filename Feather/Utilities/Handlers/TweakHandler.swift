@@ -208,10 +208,16 @@ class TweakHandler {
 		let arFiles = try await handler.extract()
 		
 		for arFile in arFiles {
-			let outputPath = uniqueSubDir.appendingPathComponent(arFile.name)
+			// Accretion: an ar member is a plain file name (GNU ar may end it with "/"); anything with a
+			// folder or ".." in it would be written outside this folder (handbook issue #28)
+			let memberName = arFile.name.hasSuffix("/") ? String(arFile.name.dropLast()) : arFile.name
+			guard ArchiveCheck.isSafe(memberName), !memberName.contains("/") else {
+				throw ArchiveCheck.Failure.unsafePath(arFile.name)
+			}
+			let outputPath = uniqueSubDir.appendingPathComponent(memberName)
 			try arFile.content.write(to: outputPath)
 			
-			if ["data.tar.lzma", "data.tar.gz", "data.tar.xz", "data.tar.bz2"].contains(arFile.name) {
+			if ["data.tar.lzma", "data.tar.gz", "data.tar.xz", "data.tar.bz2"].contains(memberName) {
 				var fileToProcess = outputPath
 				try extractFile(at: &fileToProcess)
 				try extractFile(at: &fileToProcess)

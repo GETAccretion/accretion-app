@@ -75,8 +75,10 @@ extension ServerInstaller {
 	// 1 Semi Local: HTTP on this iPhone, with the install manifest from Accretion's server
 	// 2 Offline: HTTPS on this iPhone with a certificate made on it (LocalCertificateAuthority)
 
-	/// The install manifest service Semi Local uses
-	static let manifestService = "https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/manifest"
+	/// The install manifest service Semi Local uses. iOS names its host in the install prompt
+	/// ("dl.getaccretion.app would like to install …"); the store's download proxy serves it
+	/// (workers/download-proxy). Copies before 1.0.35 use the Supabase function, which stays up.
+	static let manifestService = "https://dl.getaccretion.app/manifest"
 
 	/// The mode an install actually uses. When Fully Local's certificate has been revoked, it can't
 	/// work again until a new one is issued, so the setting moves to Offline (when its certificate is

@@ -611,12 +611,16 @@ final class AccretionAccount: ObservableObject {
 	/// The store's download server hands apps only to account holders: Accretion's own builds, and
 	/// every other source's app (the store no longer publishes source URLs, only server links). For
 	/// those this returns the server link with the user's personal key; any other link stays `url`.
+	/// A server link names its app itself: that ID wins over `bundleID`, which for Accretion is this
+	/// copy's own ID and differs when a signer gave it another one (the self-update link otherwise
+	/// asked the server for an app that doesn't exist).
 	func downloadURL(for bundleID: String, fallback url: URL) async -> URL {
 		guard isSignedIn else { return Self.tagged(url) }
 		do {
 			let config = try await _configuration()
 			var viaServer = AccretionBuildSelection.isServerLink(url, host: Self.accountHost)
-			if !viaServer { viaServer = try await _hostedBundleIDs().contains(bundleID) }
+			let target = viaServer ? (AccretionBuildSelection.bundleID(in: url) ?? bundleID) : bundleID
+			if !viaServer { viaServer = try await _hostedBundleIDs().contains(target) }
 			guard viaServer else { return url }
 			if _downloadKey == nil {
 				let keyData = try await _rest("rpc/my_download_key", method: "POST", body: ["rotate": false])
@@ -624,7 +628,7 @@ final class AccretionAccount: ObservableObject {
 			}
 			guard let key = _downloadKey else { return url }
 			return AccretionBuildSelection.personalURL(
-				base: config.url, bundleID: bundleID, key: key, source: url,
+				base: config.url, bundleID: target, key: key, source: url,
 				appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
 			) ?? Self.tagged(url)
 		} catch {
@@ -665,14 +669,16 @@ final class AccretionAccount: ObservableObject {
 	/// for other links and for builds published before fingerprints existed.
 	func expectedSHA256(for url: URL, bundleID: String) async throws -> String? {
 		guard url.scheme == "https", url.host == Self.accountHost, url.path == "/functions/v1/download" else { return nil }
-		let data = try await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(bundleID))", anonymous: true)
+		// the app the link asks for, not this copy's (possibly re-signed) bundle ID
+		let target = AccretionBuildSelection.bundleID(in: url) ?? bundleID
+		let data = try await _rest("hosted_builds?select=version,sha256&bundle_id=eq.\(Self._quoted(target))", anonymous: true)
 		let builds = try JSONDecoder().decode([AccretionBuildSelection.Build].self, from: data)
 		// other sources' apps also come through the server now, but only our own builds have fingerprints
 		guard !builds.isEmpty else { return nil }
 		// our own builds are only installed with a fingerprint; the server serves only those too
 		let verified = builds.filter { AccretionBuildSelection.isFingerprint($0.sha256) }
 		let wanted = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "version" }?.value
-		guard let build = AccretionBuildSelection.select(verified, bundleID: bundleID, version: wanted), let sha = build.sha256 else {
+		guard let build = AccretionBuildSelection.select(verified, bundleID: target, version: wanted), let sha = build.sha256 else {
 			throw AccountError.server(String.localized("Couldn't verify the published build. Try again."))
 		}
 		return sha

@@ -9,7 +9,8 @@ import UIKit
 // MARK: - Models (the web store's data feed, built by scripts/site.py in getaccretion.github.io)
 struct StoreSource: Decodable, Hashable {
 	let name: String
-	let url: String
+	/// Empty (or missing) when the store keeps source URLs private (PRIVATE_LINKS)
+	let url: String?
 	let core: Bool?
 	let mod: Bool?
 }

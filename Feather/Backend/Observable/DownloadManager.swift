@@ -217,6 +217,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
 		// of importing it (401/403: not signed in, or a replaced personal key)
 		if let http = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
 			let status = http.statusCode
+			let reason = ServerMessage.from(fileAt: location) // read now: the file is gone after this returns
 			DispatchQueue.main.async {
 				if let index = self.getDownloadIndex(by: download.id) { self.downloads.remove(at: index) }
 				if status == 401 || status == 403 { AccretionAccount.shared.forgetDownloadKey() }
@@ -226,7 +227,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
 						title: String.localized("Download failed"),
 						message: status == 401 || status == 403
 							? String.localized("Sign in to your Accretion account to download this app.")
-							: String.localized("The download server answered %@. Try again later.", arguments: String(status))
+							: reason ?? String.localized("The download server answered %@. Try again later.", arguments: String(status))
 					)
 				}
 				#if !targetEnvironment(macCatalyst)

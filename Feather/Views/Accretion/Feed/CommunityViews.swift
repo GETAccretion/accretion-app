@@ -786,11 +786,13 @@ struct StoreSourcesView: View {
 							 + Text(verbatim: " " + String.localized("apps")).foregroundColor(AccretionTheme.muted))
 								.font(.accretionMono(13, weight: .regular))
 						}
-						Text(verbatim: row.source.url)
-							.font(.accretionMono(11.5, weight: .regular))
-							.foregroundStyle(AccretionTheme.muted)
-							.lineLimit(1)
-							.truncationMode(.middle)
+						if let url = row.source.url, !url.isEmpty {
+							Text(verbatim: url)
+								.font(.accretionMono(11.5, weight: .regular))
+								.foregroundStyle(AccretionTheme.muted)
+								.lineLimit(1)
+								.truncationMode(.middle)
+						}
 						HStack(spacing: 8) {
 							if row.count > 0 {
 								NavigationLink(value: StoreListRoute(title: row.source.name, source: row.index)) {
@@ -798,12 +800,14 @@ struct StoreSourcesView: View {
 								}
 								.buttonStyle(AccretionButtonStyle(prominent: false, compact: true))
 							}
-							Button(_copied == row.source.url ? String.localized("Copied") : String.localized("Copy")) {
-								UIPasteboard.general.string = row.source.url
-								AccretionHaptics.select()
-								_copied = row.source.url
+							if let url = row.source.url, !url.isEmpty {
+								Button(_copied == url ? String.localized("Copied") : String.localized("Copy")) {
+									UIPasteboard.general.string = url
+									AccretionHaptics.select()
+									_copied = url
+								}
+								.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
 							}
-							.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
 						}
 					}
 					.padding(14)

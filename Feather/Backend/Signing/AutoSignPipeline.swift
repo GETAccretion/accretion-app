@@ -330,11 +330,13 @@ final class AutoSignPipeline: ObservableObject {
 		}
 		if !label.isEmpty { status = label }
 		if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+			// the download server says why in the body ("Too many downloads…"); show that when it does
+			let message = ServerMessage.from(fileAt: ipa)
 			try? FileManager.default.removeItem(at: ipa)
 			if http.statusCode == 401 || http.statusCode == 403 {
 				throw PipelineError.unauthorized
 			}
-			throw PipelineError.download("HTTP \(http.statusCode)")
+			throw PipelineError.download(message ?? "HTTP \(http.statusCode)")
 		}
 		return ipa
 	}

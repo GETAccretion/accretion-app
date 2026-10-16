@@ -6,7 +6,7 @@
 import SwiftUI
 
 // MARK: - Shared pieces
-private let _heart = Color(red: 244.0 / 255, green: 63.0 / 255, blue: 94.0 / 255)
+private let _heart = AccretionTheme.rose
 
 /// A post's text: https links tappable (Core's accretionLinked) and underlined, like the website
 func accretionPostText(_ text: String) -> AttributedString {
@@ -84,7 +84,7 @@ struct PostRow: View {
 				Text(accretionPostText(post.body))
 					.font(.system(size: 15))
 					.foregroundStyle(AccretionTheme.fg)
-					.tint(AccretionTheme.accent2)
+					.tint(AccretionTheme.link)
 					.fixedSize(horizontal: false, vertical: true)
 				if let app = post.app_id.flatMap({ id in _store.index?.apps.first { $0.i == id } }) {
 					NavigationLink(value: app) {
@@ -780,7 +780,7 @@ struct StoreSourcesView: View {
 								.font(.system(size: 15, weight: .semibold))
 								.foregroundStyle(AccretionTheme.fg)
 								.lineLimit(1)
-							if row.source.core == true { AccretionBadge(text: "core", color: AccretionTheme.accent2) }
+							if row.source.core == true { AccretionBadge(text: "core", color: AccretionTheme.link) }
 							Spacer(minLength: 0)
 							(Text(verbatim: row.count.formatted()).bold().foregroundColor(AccretionTheme.fg)
 							 + Text(verbatim: " " + String.localized("apps")).foregroundColor(AccretionTheme.muted))

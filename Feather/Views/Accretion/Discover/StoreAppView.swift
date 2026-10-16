@@ -139,7 +139,7 @@ struct StoreAppView: View {
 						}
 						.buttonStyle(.plain)
 						.font(.system(size: 13))
-						.foregroundStyle(AccretionTheme.accent2)
+						.foregroundStyle(AccretionTheme.link)
 						.padding(.top, 10)
 					}
 				}
@@ -294,7 +294,7 @@ struct StoreAppView: View {
 								} label: {
 									Text(verbatim: "★")
 										.font(.system(size: 24))
-										.foregroundStyle(star <= social.stars ? AccretionTheme.star : AccretionTheme.line)
+										.foregroundStyle(star <= social.stars ? AccretionTheme.star : AccretionTheme.lineStrong)
 										.padding(2)
 								}
 								.buttonStyle(.plain)
@@ -401,12 +401,12 @@ struct StoreAppView: View {
 				(String.localized("First seen"), app.f ?? ""),
 			])
 			if _store.isMod(app) {
-				(Text(verbatim: "ACCRETION MOD").font(.accretionMono(10)).foregroundColor(AccretionTheme.accent)
+				(Text(verbatim: "ACCRETION MOD").font(.accretionMono(10)).foregroundColor(AccretionTheme.accentText)
 				 + Text(verbatim: "  ")
 				 + Text(_modNote))
 				.font(.system(size: 13))
 				.foregroundStyle(AccretionTheme.muted)
-				.tint(AccretionTheme.accent2)
+				.tint(AccretionTheme.link)
 			} else {
 				Text(verbatim: String.localized("Files are hosted by the source above, not by Accretion. Install what you trust."))
 					.font(.system(size: 13))
@@ -469,7 +469,7 @@ struct StoreAppView: View {
 						Text(verbatim: String.localized("Download")).underline()
 					}
 					.buttonStyle(.plain)
-					.foregroundStyle(AccretionTheme.accent2)
+					.foregroundStyle(AccretionTheme.link)
 				}
 			}
 			.font(.accretionMono(13, weight: .regular))
@@ -544,7 +544,7 @@ struct StoreAppView: View {
 						Spacer()
 						Button(String.localized("Cancel")) { _replyTo = nil }
 							.font(.system(size: 13))
-							.foregroundStyle(AccretionTheme.accent2)
+							.foregroundStyle(AccretionTheme.link)
 					}
 				}
 				TextField(String.localized("Say something about %@…", arguments: app.n), text: $_draft, axis: .vertical)
@@ -618,7 +618,7 @@ struct StoreAppView: View {
 		let fill = Color(red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
 		return Text(verbatim: String(name.prefix(1)).uppercased())
 			.font(.accretionDisplay(15))
-			.foregroundStyle(Color.white)
+			.foregroundStyle(AccretionTheme.avatarInk)
 			.frame(width: 36, height: 36)
 			.background(fill, in: Circle())
 	}

@@ -151,7 +151,7 @@ struct StatusView: View {
 			Text(verbatim: String.localized("Community"))
 				.font(.accretionDisplay(20))
 				.foregroundStyle(AccretionTheme.fg)
-			AccretionBadge(text: "moderators only", color: AccretionTheme.accent)
+			AccretionBadge(text: "moderators only", color: AccretionTheme.accentText)
 		}
 		.padding(.top, 8)
 		let n: (Int?) -> String = { ($0 ?? 0).formatted() }

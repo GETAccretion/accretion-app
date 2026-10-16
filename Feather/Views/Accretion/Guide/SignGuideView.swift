@@ -59,7 +59,7 @@ struct CertificateLine: View {
 						Text(verbatim: seller.name).underline()
 					}
 					.buttonStyle(.plain)
-					.foregroundStyle(AccretionTheme.accent2)
+					.foregroundStyle(AccretionTheme.link)
 				}
 				Text(verbatim: "· " + String.localized("affiliate"))
 					.foregroundStyle(AccretionTheme.muted)
@@ -150,7 +150,7 @@ struct SignGuideView: View {
 					}
 					.buttonStyle(.plain)
 					.font(.system(size: 13))
-					.foregroundStyle(AccretionTheme.accent2)
+					.foregroundStyle(AccretionTheme.link)
 					.padding(.top, 4)
 				}
 			}
@@ -170,7 +170,7 @@ struct SignGuideView: View {
 					.font(.accretionMono(14, weight: .bold))
 					.foregroundStyle(Color.white)
 					.frame(width: 28, height: 28)
-					.background(AccretionTheme.accent, in: Circle())
+					.background(AccretionTheme.accentFill, in: Circle())
 				Text(verbatim: title)
 					.font(.accretionDisplay(18))
 					.foregroundStyle(AccretionTheme.fg)
@@ -192,7 +192,7 @@ struct SignGuideView: View {
 	private func _tip(_ what: String, _ where_: String) -> some View {
 		VStack(alignment: .leading, spacing: 2) {
 			Text(verbatim: what).font(.system(size: 15)).foregroundStyle(AccretionTheme.fg)
-			Text(verbatim: where_).font(.accretionMono(12, weight: .regular)).foregroundStyle(AccretionTheme.accent)
+			Text(verbatim: where_).font(.accretionMono(12, weight: .regular)).foregroundStyle(AccretionTheme.accentText)
 		}
 	}
 

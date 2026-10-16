@@ -155,8 +155,8 @@ extension LibraryCellView {
 		if isMod || hasUpdate || hasRecipe {
 			HStack(spacing: 6) {
 				if hasUpdate { AccretionBadge(text: String.localized("Update"), color: AccretionTheme.warn) }
-				if hasRecipe { AccretionBadge(text: String.localized("Recipe"), color: AccretionTheme.accent2) }
-				if isMod { AccretionBadge(text: String.localized("Accretion Mod"), color: AccretionTheme.accent) }
+				if hasRecipe { AccretionBadge(text: String.localized("Recipe"), color: AccretionTheme.link) }
+				if isMod { AccretionBadge(text: String.localized("Accretion Mod"), color: AccretionTheme.accentText) }
 			}
 		}
 	}

@@ -67,13 +67,7 @@ struct DiscoverView: View {
 				await _store.load(force: true)
 				await WhatsNewFeed.shared.load(force: true)
 			}
-			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
-			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
-			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
-			.navigationDestination(for: StatusRoute.self) { _ in StatusView() }
-			.navigationDestination(for: CommunityFeedRoute.self) { CommunityFeedView(whatsNew: $0.whatsNew) }
-			.navigationDestination(for: NotificationsRoute.self) { _ in NotificationsView() }
-			.navigationDestination(for: StoreSourcesRoute.self) { _ in StoreSourcesView() }
+			.accretionStoreDestinations()
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)

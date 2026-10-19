@@ -42,7 +42,7 @@ struct DiscoverView: View {
 					} else {
 						if !_isBrowsing {
 							_hero()
-							WhatsNewSection(onNeedsAccount: { _isSigningIn = true })
+							WhatsNewSection()
 								.padding(.bottom, 18)
 							// the website's order: store shelves, the community ones, then Utilities
 							let shelves = _store.shelves(onlyFitting: _onlyFitting)
@@ -70,9 +70,8 @@ struct DiscoverView: View {
 			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
 			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
 			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
-			.navigationDestination(for: WhatsNewRoute.self) { _ in WhatsNewView() }
 			.navigationDestination(for: StatusRoute.self) { _ in StatusView() }
-			.navigationDestination(for: CommunityFeedRoute.self) { _ in CommunityFeedView() }
+			.navigationDestination(for: CommunityFeedRoute.self) { CommunityFeedView(whatsNew: $0.whatsNew) }
 			.navigationDestination(for: NotificationsRoute.self) { _ in NotificationsView() }
 			.navigationDestination(for: StoreSourcesRoute.self) { _ in StoreSourcesView() }
 			.toolbar(.hidden, for: .navigationBar)

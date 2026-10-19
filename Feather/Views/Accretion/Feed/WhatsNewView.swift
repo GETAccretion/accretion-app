@@ -64,9 +64,6 @@ final class WhatsNewFeed: ObservableObject {
 	}
 }
 
-/// Navigation value for the full list
-struct WhatsNewRoute: Hashable {}
-
 /// One post: kind label, time, title, text, ♥ and Open
 struct AnnouncementCard: View {
 	@ObservedObject private var _feed = WhatsNewFeed.shared
@@ -132,73 +129,44 @@ struct AnnouncementCard: View {
 	}
 }
 
-/// Discover's "What's new" section: the three latest posts and See all
+/// Discover's "What's new": one row with the newest post (title and age) that opens the Feed on
+/// its What's new tab, where the full posts are. Owner's call (2026-10-19): the cards took too
+/// much of Discover.
 struct WhatsNewSection: View {
 	@ObservedObject private var _feed = WhatsNewFeed.shared
-	var onNeedsAccount: () -> Void
 
 	var body: some View {
-		if !_feed.items.isEmpty {
-			VStack(alignment: .leading, spacing: 10) {
-				HStack(alignment: .firstTextBaseline, spacing: 12) {
-					(Text(verbatim: String.localized("What's new")).font(.accretionDisplay(20)).foregroundColor(AccretionTheme.fg)
-					 + Text(verbatim: "  " + String.localized("from Accretion")).font(.accretionMono(12, weight: .regular)).foregroundColor(AccretionTheme.muted))
-					Spacer(minLength: 0)
-					NavigationLink(value: WhatsNewRoute()) {
-						Text(verbatim: String.localized("See all"))
-							.accretionFont(14, weight: .semibold)
-							.foregroundStyle(AccretionTheme.link)
+		if let latest = _feed.items.first {
+			NavigationLink(value: CommunityFeedRoute(whatsNew: true)) {
+				HStack(spacing: 12) {
+					Image(systemName: "sparkles")
+						.accretionFont(17, weight: .semibold)
+						.foregroundStyle(AccretionTheme.accentText)
+						.accessibilityHidden(true)
+					VStack(alignment: .leading, spacing: 2) {
+						Text(verbatim: String.localized("What's new"))
+							.font(.accretionDisplay(15, weight: .semibold))
+							.foregroundStyle(AccretionTheme.fg)
+						Text(verbatim: latest.title + " · " + StoreFormat.ago(latest.created_at))
+							.accretionFont(13)
+							.foregroundStyle(AccretionTheme.muted)
+							.lineLimit(1)
 					}
-					.buttonStyle(.plain)
-					.accessibilityLabel(String.localized("See all of What's new"))
+					Spacer(minLength: 0)
+					Image(systemName: "chevron.right")
+						.accretionFont(13, weight: .semibold)
+						.foregroundStyle(AccretionTheme.muted)
+						.accessibilityHidden(true)
 				}
-				ForEach(_feed.items.prefix(3)) { item in
-					AnnouncementCard(item: item, compact: true, onNeedsAccount: onNeedsAccount)
-				}
+				.padding(.vertical, 12)
+				.padding(.horizontal, 14)
+				.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+				.accretionCard()
+				.contentShape(Rectangle())
 			}
+			.buttonStyle(AccretionPressStyle())
+			.accessibilityElement(children: .combine)
+			.accessibilityHint(String.localized("Opens What's new in the Feed"))
 		}
-	}
-}
-
-/// The full What's new list
-struct WhatsNewView: View {
-	@ObservedObject private var _feed = WhatsNewFeed.shared
-	@State private var _isSigningIn = false
-	@State private var _message: String?
-
-	var body: some View {
-		ScrollView {
-			LazyVStack(alignment: .leading, spacing: 12) {
-				AccretionBackButton()
-				Text(verbatim: String.localized("What's new"))
-					.font(.accretionDisplay(28))
-					.foregroundStyle(AccretionTheme.headline)
-					.padding(.top, 6)
-				Text(verbatim: String.localized("New Accretion versions, mods and fixes, posted automatically."))
-					.foregroundStyle(AccretionTheme.muted)
-				if let error = _feed.error {
-					Text(verbatim: error).accretionFont(13).foregroundStyle(AccretionTheme.warn)
-				}
-				if let message = _message {
-					Text(verbatim: message).accretionFont(13).foregroundStyle(AccretionTheme.warn)
-				}
-				ForEach(_feed.items) { item in
-					AnnouncementCard(item: item, onNeedsAccount: { _isSigningIn = true }, onError: { _message = $0 })
-				}
-				if _feed.canLoadMore {
-					Button(String.localized("Load more")) { Task { await _feed.loadMore() } }
-						.buttonStyle(AccretionButtonStyle(prominent: false))
-						.frame(maxWidth: .infinity)
-				}
-			}
-			.padding(.horizontal, 16)
-			.padding(.top, 8)
-			.padding(.bottom, 40)
-		}
-		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
-		.refreshable { await _feed.load(force: true) }
-		.task { await _feed.load() }
-		.sheet(isPresented: $_isSigningIn) { AccountSheet() }
 	}
 }

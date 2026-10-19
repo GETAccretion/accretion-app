@@ -1,5 +1,7 @@
 # Contributing
 
+> **Note:** this guide comes from upstream [Feather](https://github.com/claration/Feather), kept for reference. Its rules and build steps are Feather's and apply to contributions to Feather itself. Accretion's code layout, build and release notes are in the [README](README.md).
+
 Feather is a sideloading app meant to be used on stock versions, to keep compatibility we have to utililize stock features to keep it working. As such, we have specific contribution rules in place to maintain this and Feathers integrity.
 
 Any contributions should follow the [Code of Conduct](./CODE_OF_CONDUCT.md).

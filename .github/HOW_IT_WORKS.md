@@ -1,3 +1,5 @@
+> **Note:** this page comes from upstream [Feather](https://github.com/claration/Feather) and describes how Feather installs apps. Accretion's server installs offer Semi Local (the default, with its install manifest from `dl.getaccretion.app/manifest`), Offline and Fully Local. What Accretion adds to Feather is in the [README](README.md).
+
 ## How does it work?
 
 How Feather works is a bit complicated, with having multiple ways to install, app management, tweaks, etc. However, I'll point out how the important features work here.

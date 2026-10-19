@@ -1,6 +1,6 @@
 # Accretion app
 
-The iPhone app for [Accretion](https://getaccretion.app): browse the Accretion store, then sign and install apps on your device with your own certificate. Current version: 1.0.5.
+The iPhone app for [Accretion](https://getaccretion.app): browse the Accretion store, then sign and install apps on your device with your own certificate. The current version is listed in [`app-repo.json`](../app-repo.json).
 
 Accretion is a fork of [Feather](https://github.com/claration/Feather) by claration, and is licensed under GPL-3.0 like Feather. Feather's original README follows below the line for reference; its Download section is about Feather itself, not Accretion.
 
@@ -69,7 +69,7 @@ Accretion is a fork of [Feather](https://github.com/claration/Feather) by clarat
 - **Encrypted App Store copies are rejected**, since they won't run after injection.
 
 ### Updates
-- **Updates from every source:** if an app's own source has nothing newer, every other source is checked for the same bundle ID. The newest higher version wins; there are no downgrades.
+- **Updates from Accretion's catalogs:** if an app's own source has nothing newer, Accretion's own catalogs (the store lists, Accretion Mods and the Accretion app source, including personal copies of them) are checked for the same bundle ID. Other sources only update their own apps. The newest higher version wins; there are no downgrades. These updates are never installed automatically, and the alert names the source they come from.
 - **Automatic checks** at launch and whenever the app returns to the front (at most hourly), with a count badge on the Library tab and one "Updates available" alert per new version.
 - **Settings → Installing** has "Check for Updates Automatically" and "Update Apps Automatically".
 - **Update and Install:** one tap downloads, signs with the app's recipe and opens the install screen.

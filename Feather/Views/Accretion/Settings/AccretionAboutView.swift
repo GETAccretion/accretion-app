@@ -54,7 +54,6 @@ struct AccretionAboutView: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 18) {
-				AccretionBackButton()
 				_hero()
 				_build()
 				_group(String.localized("Accretion")) {
@@ -92,7 +91,7 @@ struct AccretionAboutView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(String.localized("About"))
 	}
 
 	// MARK: Build facts

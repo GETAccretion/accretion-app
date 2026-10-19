@@ -8,18 +8,16 @@ import UIKit
 import NukeUI
 
 // MARK: - Discover
-/// The Accretion store inside the app, a copy of getaccretion.app's home page: the top bar
-/// (logo, Sign in, Add source, search, nav), hero with stats, the same shelves, and All apps with
-/// category chips, the iOS filter and the Sort menu.
+/// The Accretion store inside the app, a copy of getaccretion.app's home page in a native frame:
+/// the system bar (logo, Feed, Support, bell, account, Add source), hero with stats, the same
+/// shelves, and All apps with category chips, the iOS filter and the Sort menu. Search, Sources
+/// and Saved are their own tabs.
 struct DiscoverView: View {
 	@ObservedObject private var _store = StoreService.shared
 	@ObservedObject private var _account = AccretionAccount.shared
 	@Environment(\.openURL) private var _openURL
 	@AppStorage("accretion.discover.onlyFitting") private var _onlyFitting = true
 	@AppStorage("accretion.discover.sort") private var _sort: StoreService.Sort = .updated
-	@State private var _query = ""
-	/// What the list searches for: the typed text once typing pauses (150 ms, like the website)
-	@State private var _search = ""
 	@State private var _category: String?
 	@State private var _shown = 60
 	@State private var _isSigningIn = false
@@ -29,9 +27,9 @@ struct DiscoverView: View {
 	/// Most liked, Top rated, Most discussed (the website's community shelves)
 	@State private var _community: [StoreService.Shelf] = []
 	@State private var _path = NavigationPath()
-	@FocusState private var _searchFocused: Bool
 
-	private var _isBrowsing: Bool { !_search.isEmpty || _category != nil }
+	/// A category chip is picked: the shelves step aside for that category's apps
+	private var _isBrowsing: Bool { _category != nil }
 
 	var body: some View {
 		NavigationStack(path: $_path) {
@@ -58,29 +56,21 @@ struct DiscoverView: View {
 				.padding(.horizontal, 16)
 				.padding(.bottom, 40)
 			}
-			.scrollDismissesKeyboard(.immediately)
-			// the sticky bar sits outside the scroll view, so content scrolls under it and never
-			// shows through the status bar
-			.safeAreaInset(edge: .top, spacing: 0) { _topBar() }
 			.accretionBackground()
 			.refreshable {
 				await _store.load(force: true)
 				await WhatsNewFeed.shared.load(force: true)
 			}
 			.accretionStoreDestinations()
-			.toolbar(.hidden, for: .navigationBar)
+			// the system bar (D1-A); search, Sources and Saved live in their own tabs (D2-A)
+			.accretionNavigationBar(String.localized("Discover"))
+			.toolbar { _toolbar() }
 		}
 		.tint(AccretionTheme.accent)
 		.task {
 			await _store.load()
 			await WhatsNewFeed.shared.load()
 			await _loadCommunity()
-		}
-		.task(id: _query) {
-			if !_query.isEmpty { try? await Task.sleep(nanoseconds: 150_000_000) }
-			guard !Task.isCancelled else { return }
-			_search = _query.trimmingCharacters(in: .whitespaces)
-			_shown = 60
 		}
 		.sheet(isPresented: $_isSigningIn) { AccountSheet() }
 		.sheet(isPresented: $_isAddingSource) { SourcesAddView() }
@@ -102,188 +92,81 @@ struct DiscoverView: View {
 		].compactMap { $0 }
 	}
 
-	// MARK: Top bar (.top): logo, Sign in, Add source, search, nav
-	private func _topBar() -> some View {
-		VStack(spacing: 10) {
-			HStack(spacing: 12) {
-				HStack(spacing: 9) {
-					LazyImage(url: StoreService.base.appendingPathComponent("icon-192.png")) { state in
-						if let image = state.image { image.resizable() } else { AccretionTheme.raised }
-					}
-					.frame(width: 30, height: 30)
-					.clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-					.accessibilityHidden(true) // the logo; the name next to it says it
-					Text(verbatim: "Accretion")
-						.font(.accretionDisplay(17))
-						.foregroundStyle(AccretionTheme.fg)
-						.lineLimit(1)
-						.fixedSize()
+	// MARK: Toolbar (the website's top bar in the system bar): logo, Feed, ♥, bell, account, Add source
+	@ToolbarContentBuilder
+	private func _toolbar() -> some ToolbarContent {
+		ToolbarItem(placement: .principal) {
+			HStack(spacing: 8) {
+				LazyImage(url: StoreService.base.appendingPathComponent("icon-192.png")) { state in
+					if let image = state.image { image.resizable() } else { AccretionTheme.raised }
 				}
-				.accessibilityElement(children: .combine)
-				.accessibilityAddTraits(.isHeader)
-				Spacer(minLength: 0)
-				if _account.isSignedIn {
-					// the website's bell: unread likes, replies and follows
-					Button {
-						_unread = 0
-						_path.append(NotificationsRoute())
-					} label: {
-						Image(systemName: "bell")
-							.accretionFont(17, weight: .semibold)
-							.foregroundStyle(AccretionTheme.fg)
-							.frame(width: 36, height: 36)
-							.accretionHitArea(4)
-							.overlay(alignment: .topTrailing) {
-								if _unread > 0 {
-									Text(verbatim: _unread > 9 ? "9+" : "\(_unread)")
-										.accretionFont(10, weight: .bold)
-										.foregroundStyle(Color.white)
-										.padding(.horizontal, 4)
-										.frame(minWidth: 16, minHeight: 16)
-										.background(AccretionTheme.roseFill, in: Capsule())
-								}
-							}
-					}
-					.buttonStyle(.plain)
-					.accessibilityLabel(String.localized("Notifications"))
-					.task(id: _account.email) {
-						// every minute while Discover is showing, like the website
-						while !Task.isCancelled {
-							_unread = await _account.unreadNotifications()
-							try? await Task.sleep(nanoseconds: 60_000_000_000)
-						}
-					}
-				}
-				// the website's account spot: your avatar when signed in, Sign in otherwise
-				if _account.isSignedIn {
-					Button { _isSigningIn = true } label: {
-						StoreAvatar(letter: _avatar?.letter ?? "", hex: _avatar?.color ?? "8B5CF6", size: 32)
-							.accretionHitArea(6)
-					}
-					.buttonStyle(.plain)
-					.accessibilityLabel(String.localized("Account"))
-					.task(id: _account.email) { _avatar = await _account.myAvatar() }
-				} else {
-					Button(String.localized("Sign in")) { _isSigningIn = true }
-						.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
-				}
-				Button(String.localized("Add source")) { _isAddingSource = true }
-					.buttonStyle(AccretionButtonStyle())
+				.frame(width: 26, height: 26)
+				.clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+				.accessibilityHidden(true) // the logo; the name next to it says it
+				Text(verbatim: "Accretion")
+					.font(.accretionDisplay(17))
+					.foregroundStyle(AccretionTheme.fg)
+					.lineLimit(1)
 					.fixedSize()
 			}
-			_searchField()
-			_nav()
+			.accessibilityElement(children: .combine)
+			.accessibilityAddTraits(.isHeader)
 		}
-		.padding(.horizontal, 16)
-		.padding(.top, 10)
-		.padding(.bottom, 10)
-		.background {
-			// the store background, up under the clock, over a blur like the website's header
-			// (backdrop-filter): without it the rows scrolling under the bar show through faintly.
-			// The material alone turns grey over the dark page, so the colour stays on top.
-			AccretionTheme.bg.opacity(0.96)
-				.background(.ultraThinMaterial)
-				.ignoresSafeArea(edges: .top)
-		}
-		.overlay(alignment: .bottom) { AccretionTheme.line.frame(height: 1) }
-	}
-
-	private func _searchField() -> some View {
-		HStack(spacing: 12) {
-			HStack(spacing: 8) {
-				Image(systemName: "magnifyingglass")
-					.accretionFont(15)
-					.foregroundStyle(AccretionTheme.muted)
-					.accessibilityHidden(true)
-				TextField(String.localized("Search apps, developers, bundle IDs"), text: $_query)
-					.accretionFont(15)
-					.focused($_searchFocused)
-					.submitLabel(.search)
-					.textInputAutocapitalization(.never)
-					.autocorrectionDisabled()
-					.foregroundStyle(AccretionTheme.fg)
-					.padding(.vertical, 10)
-				if !_query.isEmpty {
-					Button { _query = "" } label: { Image(systemName: "xmark.circle.fill") }
-						.foregroundStyle(AccretionTheme.muted)
-						.accretionHitArea(12)
-						.accessibilityLabel(String.localized("Clear search"))
-				}
+		ToolbarItemGroup(placement: .topBarLeading) {
+			Button { _path.append(CommunityFeedRoute()) } label: {
+				Image(systemName: "bubble.left.and.bubble.right")
 			}
-			.padding(.horizontal, 12)
-			.background(AccretionTheme.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-			.overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
-			// the system search field's Cancel: leaves search and puts the keyboard away
-			if _searchFocused {
-				Button(String.localized("Cancel")) {
-					_query = ""
-					_searchFocused = false
-				}
-				.accretionFont(15, weight: .semibold)
-				.foregroundStyle(AccretionTheme.accentText)
-				.accretionHitArea(10)
-				.transition(.move(edge: .trailing).combined(with: .opacity))
-			}
-		}
-		.animation(.easeOut(duration: 0.2), value: _searchFocused)
-	}
-
-	/// Discover · Sources · Feed · Saved · ♥, spread across the width like the web store on a phone
-	private func _nav() -> some View {
-		HStack(spacing: 4) {
-			_navItem(String.localized("Discover"), on: !_isBrowsing) { _query = ""; _category = nil }
-			_navItem(String.localized("Sources")) { _path.append(StoreSourcesRoute()) }
-			_navItem(String.localized("Feed")) { _path.append(CommunityFeedRoute()) }
-			_navItem(String.localized("Saved"), badge: _savedBadge.text, hot: _savedBadge.hot) {
-				_path.append(StoreListRoute(title: String.localized("Saved"), saved: true))
-			}
+			.accessibilityLabel(String.localized("Feed"))
 			Button { _openURL(URL(string: "https://getaccretion.app/#/support")!) } label: {
-				Text(verbatim: "♥")
-					.accretionFont(14, weight: .semibold)
+				Image(systemName: "heart")
 					.foregroundStyle(AccretionTheme.rose)
-					.frame(maxWidth: .infinity)
-					.padding(.vertical, 8)
-					.accretionHitArea(6, .vertical)
 			}
-			.buttonStyle(.plain)
 			.accessibilityLabel(String.localized("Support Accretion"))
 		}
-	}
-
-	/// "3", or "2 new" in green when saved apps have updates, like the website's Saved pill
-	private var _savedBadge: (text: String?, hot: Bool) {
-		let summary = _store.savedSummary()
-		if summary.updates > 0 { return (String.localized("%@ new", arguments: String(summary.updates)), true) }
-		return (summary.count > 0 ? String(summary.count) : nil, false)
-	}
-
-	private func _navItem(_ title: String, on: Bool = false, badge: String? = nil, hot: Bool = false, action: @escaping () -> Void) -> some View {
-		Button {
-			AccretionHaptics.select()
-			withAnimation(.easeOut(duration: 0.2)) { action() }
-		} label: {
-			HStack(spacing: 6) {
-				Text(verbatim: title)
-				if let badge {
-					Text(verbatim: badge)
-						.font(.accretionMono(11))
-						.foregroundStyle(hot ? AccretionTheme.good : AccretionTheme.muted)
-						.padding(.horizontal, 6)
-						.padding(.vertical, 1)
-						.background(hot ? AccretionTheme.good.opacity(0.2) : AccretionTheme.raised, in: Capsule())
-						.overlay(Capsule().stroke(hot ? Color.clear : AccretionTheme.line, lineWidth: 1))
+		ToolbarItemGroup(placement: .topBarTrailing) {
+			if _account.isSignedIn {
+				// the website's bell: unread likes, replies and follows
+				Button {
+					_unread = 0
+					_path.append(NotificationsRoute())
+				} label: {
+					Image(systemName: "bell")
+						.overlay(alignment: .topTrailing) {
+							if _unread > 0 {
+								Text(verbatim: _unread > 9 ? "9+" : "\(_unread)")
+									.accretionFont(10, weight: .bold)
+									.foregroundStyle(Color.white)
+									.padding(.horizontal, 4)
+									.frame(minWidth: 16, minHeight: 16)
+									.background(AccretionTheme.roseFill, in: Capsule())
+									.offset(x: 8, y: -6)
+							}
+						}
 				}
+				.accessibilityLabel(_unread > 0
+					? String.localized("Notifications, %@ unread", arguments: String(_unread))
+					: String.localized("Notifications"))
+				.task(id: _account.email) {
+					// every minute while Discover is showing, like the website
+					while !Task.isCancelled {
+						_unread = await _account.unreadNotifications()
+						try? await Task.sleep(nanoseconds: 60_000_000_000)
+					}
+				}
+				// the website's account spot: your avatar when signed in
+				Button { _isSigningIn = true } label: {
+					StoreAvatar(letter: _avatar?.letter ?? "", hex: _avatar?.color ?? "8B5CF6", size: 28)
+				}
+				.accessibilityLabel(String.localized("Account"))
+				.task(id: _account.email) { _avatar = await _account.myAvatar() }
+			} else {
+				Button(String.localized("Sign in")) { _isSigningIn = true }
 			}
-			.accretionFont(14, weight: .semibold)
-			.lineLimit(1)
-			.minimumScaleFactor(0.85)
-			.foregroundStyle(on ? AccretionTheme.fg : AccretionTheme.muted)
-			.frame(maxWidth: .infinity)
-			.padding(.vertical, 8)
-			.background(on ? AccretionTheme.raised : Color.clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-			.accretionHitArea(6, .vertical)
+			Button { _isAddingSource = true } label: {
+				Image(systemName: "plus")
+			}
+			.accessibilityLabel(String.localized("Add source"))
 		}
-		.buttonStyle(.plain)
 	}
 
 	// MARK: Hero (.hero): eyebrow, headline, lede, Sign your own apps, stats
@@ -364,11 +247,9 @@ struct DiscoverView: View {
 	// MARK: All apps (.all): title, count, chips, iOS filter, sort, cards
 	@ViewBuilder
 	private func _all() -> some View {
-		let apps = _store.apps(matching: _search, category: _category, onlyFitting: _onlyFitting, sort: _sort)
+		let apps = _store.apps(matching: "", category: _category, onlyFitting: _onlyFitting, sort: _sort)
 		VStack(alignment: .leading, spacing: 0) {
-			Text(verbatim: _search.isEmpty
-				? (_category.flatMap { StoreService.categoryNames[$0] } ?? String.localized("All apps"))
-				: String.localized("Results for “%@”", arguments: _search))
+			Text(verbatim: _category.flatMap { StoreService.categoryNames[$0] } ?? String.localized("All apps"))
 				.font(.accretionDisplay(20))
 				.foregroundStyle(AccretionTheme.fg)
 				.padding(.top, _isBrowsing ? 18 : 0)
@@ -428,7 +309,7 @@ struct DiscoverView: View {
 					.frame(maxWidth: .infinity)
 					.padding(.top, 18)
 			} else if apps.isEmpty {
-				Text(verbatim: String.localized("Nothing matches. Try other words, or turn off the iOS filter."))
+				Text(verbatim: String.localized("Nothing matches. Turn off the iOS filter to see more."))
 					.font(.footnote)
 					.foregroundStyle(AccretionTheme.muted)
 			}

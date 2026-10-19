@@ -53,8 +53,6 @@ struct StoreAppView: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 12) {
-				AccretionBackButton()
-					.padding(.bottom, 2)
 				_head()
 				_community()
 				if _detail != nil {
@@ -70,7 +68,7 @@ struct StoreAppView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(app.n)
 		.overlay(alignment: .bottom) { _toastView() }
 		.task { await SupportLinks.shared.load() }
 		.task {
@@ -766,7 +764,6 @@ struct StoreListView: View {
 	var body: some View {
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 12) {
-				AccretionBackButton()
 				HStack(alignment: .firstTextBaseline) {
 					Text(verbatim: route.title)
 						.font(.accretionDisplay(20))
@@ -796,6 +793,6 @@ struct StoreListView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(route.title)
 	}
 }

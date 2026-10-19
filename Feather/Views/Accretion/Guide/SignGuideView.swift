@@ -82,7 +82,6 @@ struct SignGuideView: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 12) {
-				AccretionBackButton()
 				Text(verbatim: String.localized("Sign your own apps"))
 					.font(.accretionDisplay(28))
 					.foregroundStyle(AccretionTheme.headline)
@@ -159,7 +158,7 @@ struct SignGuideView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(String.localized("Sign your own apps"))
 		.task { await _support.load() }
 	}
 

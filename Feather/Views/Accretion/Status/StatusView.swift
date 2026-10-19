@@ -63,7 +63,7 @@ struct StatusView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		.refreshable { await _load() }
 		.task { await _load() }
 	}
@@ -258,7 +258,7 @@ struct StatusView: View {
 				.foregroundStyle(AccretionTheme.muted)
 			Spacer()
 			Text(verbatim: String.localized("%@ apps", arguments: (s.apps ?? 0).formatted()))
-				.font(.system(size: 14, weight: .semibold))
+				.accretionFont(14, weight: .semibold)
 				.foregroundStyle(AccretionTheme.fg)
 		}
 		_GrowthChart(values: points.map(\.apps))
@@ -289,7 +289,7 @@ struct StatusView: View {
 	private func _row(_ name: String, _ detail: String) -> some View {
 		HStack(spacing: 10) {
 			Text(verbatim: name)
-				.font(.system(size: 14))
+				.accretionFont(14)
 				.foregroundStyle(AccretionTheme.fg)
 				.lineLimit(1)
 			Spacer(minLength: 0)

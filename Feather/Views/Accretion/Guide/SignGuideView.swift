@@ -64,7 +64,7 @@ struct CertificateLine: View {
 				Text(verbatim: "· " + String.localized("affiliate"))
 					.foregroundStyle(AccretionTheme.muted)
 			}
-			.font(.system(size: 13))
+			.accretionFont(13)
 		}
 	}
 }
@@ -99,9 +99,9 @@ struct SignGuideView: View {
 						ForEach(_support.sellers) { seller in
 							HStack(spacing: 10) {
 								VStack(alignment: .leading, spacing: 2) {
-									Text(verbatim: seller.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
+									Text(verbatim: seller.name).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg)
 									if let note = seller.note, !note.isEmpty {
-										Text(verbatim: note).font(.system(size: 13)).foregroundStyle(AccretionTheme.muted)
+										Text(verbatim: note).accretionFont(13).foregroundStyle(AccretionTheme.muted)
 									}
 								}
 								Spacer(minLength: 0)
@@ -149,7 +149,7 @@ struct SignGuideView: View {
 						Text(verbatim: "♥ " + String.localized("Accretion is free and ad-free. Support it")).underline()
 					}
 					.buttonStyle(.plain)
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.link)
 					.padding(.top, 4)
 				}
@@ -159,7 +159,7 @@ struct SignGuideView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		.task { await _support.load() }
 	}
 
@@ -184,22 +184,22 @@ struct SignGuideView: View {
 
 	private func _text(_ text: String) -> some View {
 		Text(verbatim: text)
-			.font(.system(size: 15))
+			.accretionFont(15)
 			.foregroundStyle(AccretionTheme.fg)
 			.fixedSize(horizontal: false, vertical: true)
 	}
 
 	private func _tip(_ what: String, _ where_: String) -> some View {
 		VStack(alignment: .leading, spacing: 2) {
-			Text(verbatim: what).font(.system(size: 15)).foregroundStyle(AccretionTheme.fg)
+			Text(verbatim: what).accretionFont(15).foregroundStyle(AccretionTheme.fg)
 			Text(verbatim: where_).font(.accretionMono(12, weight: .regular)).foregroundStyle(AccretionTheme.accentText)
 		}
 	}
 
 	private func _faq(_ question: String, _ answer: String) -> some View {
 		VStack(alignment: .leading, spacing: 4) {
-			Text(verbatim: question).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
-			Text(verbatim: answer).font(.system(size: 14)).foregroundStyle(AccretionTheme.muted).fixedSize(horizontal: false, vertical: true)
+			Text(verbatim: question).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg)
+			Text(verbatim: answer).accretionFont(14).foregroundStyle(AccretionTheme.muted).fixedSize(horizontal: false, vertical: true)
 		}
 		.padding(.bottom, 6)
 	}

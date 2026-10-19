@@ -92,7 +92,7 @@ struct AccretionAboutView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 	}
 
 	// MARK: Build facts
@@ -220,7 +220,7 @@ struct AccretionAboutView: View {
 		HStack(spacing: 12) {
 			leading()
 			VStack(alignment: .leading, spacing: 2) {
-				Text(verbatim: title).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
+				Text(verbatim: title).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg)
 				Text(verbatim: subtitle).font(.caption).foregroundStyle(AccretionTheme.muted).lineLimit(1)
 			}
 			Spacer(minLength: 0)
@@ -237,7 +237,7 @@ struct AccretionAboutView: View {
 		} label: {
 			_row(title, subtitle) {
 				Image(systemName: icon)
-					.font(.system(size: 15, weight: .semibold))
+					.accretionFont(15, weight: .semibold)
 					.foregroundStyle(AccretionTheme.accent2)
 					.frame(width: 32, height: 32)
 					.background(AccretionTheme.accent2.opacity(0.16), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -252,7 +252,7 @@ struct AccretionAboutView: View {
 		} label: {
 			_row(String.localized("Privacy choices"), String.localized("Ad consent"), leading: {
 				Image(systemName: "hand.raised")
-					.font(.system(size: 15, weight: .semibold))
+					.accretionFont(15, weight: .semibold)
 					.foregroundStyle(AccretionTheme.accent2)
 					.frame(width: 32, height: 32)
 					.background(AccretionTheme.accent2.opacity(0.16), in: RoundedRectangle(cornerRadius: 9, style: .continuous))

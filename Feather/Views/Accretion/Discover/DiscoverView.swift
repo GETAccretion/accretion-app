@@ -29,6 +29,7 @@ struct DiscoverView: View {
 	/// Most liked, Top rated, Most discussed (the website's community shelves)
 	@State private var _community: [StoreService.Shelf] = []
 	@State private var _path = NavigationPath()
+	@FocusState private var _searchFocused: Bool
 
 	private var _isBrowsing: Bool { !_search.isEmpty || _category != nil }
 
@@ -118,12 +119,15 @@ struct DiscoverView: View {
 					}
 					.frame(width: 30, height: 30)
 					.clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+					.accessibilityHidden(true) // the logo; the name next to it says it
 					Text(verbatim: "Accretion")
 						.font(.accretionDisplay(17))
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
 						.fixedSize()
 				}
+				.accessibilityElement(children: .combine)
+				.accessibilityAddTraits(.isHeader)
 				Spacer(minLength: 0)
 				if _account.isSignedIn {
 					// the website's bell: unread likes, replies and follows
@@ -132,13 +136,14 @@ struct DiscoverView: View {
 						_path.append(NotificationsRoute())
 					} label: {
 						Image(systemName: "bell")
-							.font(.system(size: 17, weight: .semibold))
+							.accretionFont(17, weight: .semibold)
 							.foregroundStyle(AccretionTheme.fg)
 							.frame(width: 36, height: 36)
+							.accretionHitArea(4)
 							.overlay(alignment: .topTrailing) {
 								if _unread > 0 {
 									Text(verbatim: _unread > 9 ? "9+" : "\(_unread)")
-										.font(.system(size: 10, weight: .bold))
+										.accretionFont(10, weight: .bold)
 										.foregroundStyle(Color.white)
 										.padding(.horizontal, 4)
 										.frame(minWidth: 16, minHeight: 16)
@@ -160,6 +165,7 @@ struct DiscoverView: View {
 				if _account.isSignedIn {
 					Button { _isSigningIn = true } label: {
 						StoreAvatar(letter: _avatar?.letter ?? "", hex: _avatar?.color ?? "8B5CF6", size: 32)
+							.accretionHitArea(6)
 					}
 					.buttonStyle(.plain)
 					.accessibilityLabel(String.localized("Account"))
@@ -179,33 +185,54 @@ struct DiscoverView: View {
 		.padding(.top, 10)
 		.padding(.bottom, 10)
 		.background {
-			// solid store background (a material turns grey over the dark page), up under the clock
-			AccretionTheme.bg.opacity(0.96).ignoresSafeArea(edges: .top)
+			// the store background, up under the clock, over a blur like the website's header
+			// (backdrop-filter): without it the rows scrolling under the bar show through faintly.
+			// The material alone turns grey over the dark page, so the colour stays on top.
+			AccretionTheme.bg.opacity(0.96)
+				.background(.ultraThinMaterial)
+				.ignoresSafeArea(edges: .top)
 		}
 		.overlay(alignment: .bottom) { AccretionTheme.line.frame(height: 1) }
 	}
 
 	private func _searchField() -> some View {
-		HStack(spacing: 8) {
-			Image(systemName: "magnifyingglass")
-				.font(.system(size: 15))
-				.foregroundStyle(AccretionTheme.muted)
-			TextField(String.localized("Search apps, developers, bundle IDs"), text: $_query)
-				.font(.system(size: 15))
-				.submitLabel(.search)
-				.textInputAutocapitalization(.never)
-				.autocorrectionDisabled()
-				.foregroundStyle(AccretionTheme.fg)
-				.padding(.vertical, 10)
-			if !_query.isEmpty {
-				Button { _query = "" } label: { Image(systemName: "xmark.circle.fill") }
+		HStack(spacing: 12) {
+			HStack(spacing: 8) {
+				Image(systemName: "magnifyingglass")
+					.accretionFont(15)
 					.foregroundStyle(AccretionTheme.muted)
-					.accessibilityLabel(String.localized("Clear search"))
+					.accessibilityHidden(true)
+				TextField(String.localized("Search apps, developers, bundle IDs"), text: $_query)
+					.accretionFont(15)
+					.focused($_searchFocused)
+					.submitLabel(.search)
+					.textInputAutocapitalization(.never)
+					.autocorrectionDisabled()
+					.foregroundStyle(AccretionTheme.fg)
+					.padding(.vertical, 10)
+				if !_query.isEmpty {
+					Button { _query = "" } label: { Image(systemName: "xmark.circle.fill") }
+						.foregroundStyle(AccretionTheme.muted)
+						.accretionHitArea(12)
+						.accessibilityLabel(String.localized("Clear search"))
+				}
+			}
+			.padding(.horizontal, 12)
+			.background(AccretionTheme.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+			.overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+			// the system search field's Cancel: leaves search and puts the keyboard away
+			if _searchFocused {
+				Button(String.localized("Cancel")) {
+					_query = ""
+					_searchFocused = false
+				}
+				.accretionFont(15, weight: .semibold)
+				.foregroundStyle(AccretionTheme.accentText)
+				.accretionHitArea(10)
+				.transition(.move(edge: .trailing).combined(with: .opacity))
 			}
 		}
-		.padding(.horizontal, 12)
-		.background(AccretionTheme.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-		.overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+		.animation(.easeOut(duration: 0.2), value: _searchFocused)
 	}
 
 	/// Discover · Sources · Feed · Saved · ♥, spread across the width like the web store on a phone
@@ -219,10 +246,11 @@ struct DiscoverView: View {
 			}
 			Button { _openURL(URL(string: "https://getaccretion.app/#/support")!) } label: {
 				Text(verbatim: "♥")
-					.font(.system(size: 14, weight: .semibold))
+					.accretionFont(14, weight: .semibold)
 					.foregroundStyle(AccretionTheme.rose)
 					.frame(maxWidth: .infinity)
 					.padding(.vertical, 8)
+					.accretionHitArea(6, .vertical)
 			}
 			.buttonStyle(.plain)
 			.accessibilityLabel(String.localized("Support Accretion"))
@@ -253,13 +281,14 @@ struct DiscoverView: View {
 						.overlay(Capsule().stroke(hot ? Color.clear : AccretionTheme.line, lineWidth: 1))
 				}
 			}
-			.font(.system(size: 14, weight: .semibold))
+			.accretionFont(14, weight: .semibold)
 			.lineLimit(1)
 			.minimumScaleFactor(0.85)
 			.foregroundStyle(on ? AccretionTheme.fg : AccretionTheme.muted)
 			.frame(maxWidth: .infinity)
 			.padding(.vertical, 8)
 			.background(on ? AccretionTheme.raised : Color.clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+			.accretionHitArea(6, .vertical)
 		}
 		.buttonStyle(.plain)
 	}
@@ -289,7 +318,7 @@ struct DiscoverView: View {
 			(Text(verbatim: String.localized("Apps from") + " ")
 			 + Text(verbatim: (stats?.sources ?? index?.sources.count ?? 0).formatted()).bold().foregroundColor(AccretionTheme.fg)
 			 + Text(verbatim: " " + String.localized("public AltStore and SideStore sources, merged and cleaned. One entry per app, always the newest version.")))
-				.font(.system(size: 15)) // .lede: the page's 15px body text
+				.accretionFont(15) // .lede: the page's 15px body text
 				.foregroundStyle(AccretionTheme.muted)
 				.fixedSize(horizontal: false, vertical: true)
 			NavigationLink(value: SignGuideRoute()) {
@@ -311,8 +340,9 @@ struct DiscoverView: View {
 			.padding(.top, 24)
 			NavigationLink(value: StatusRoute()) {
 				Text(verbatim: String.localized("Store status →"))
-					.font(.system(size: 13, weight: .semibold))
+					.accretionFont(13, weight: .semibold)
 					.foregroundStyle(AccretionTheme.link)
+					.accretionHitArea(14)
 			}
 			.buttonStyle(.plain)
 			.padding(.top, 10)
@@ -359,7 +389,7 @@ struct DiscoverView: View {
 					Text(verbatim: _onlyFitting
 						? String.localized("Works on iOS %@ ✓", arguments: UIDevice.current.systemVersion)
 						: String.localized("Show only apps for iOS %@", arguments: UIDevice.current.systemVersion))
-						.font(.system(size: 13, weight: .semibold))
+						.accretionFont(13, weight: .semibold)
 						.foregroundStyle(_onlyFitting ? AccretionTheme.good : AccretionTheme.muted)
 						.padding(.horizontal, 12)
 						.padding(.vertical, 9)
@@ -376,9 +406,9 @@ struct DiscoverView: View {
 				} label: {
 					HStack(spacing: 6) {
 						Text(verbatim: _sort.title)
-						Image(systemName: "chevron.up.chevron.down").font(.system(size: 11))
+						Image(systemName: "chevron.up.chevron.down").accretionFont(11)
 					}
-					.font(.system(size: 15))
+					.accretionFont(15)
 					.foregroundStyle(AccretionTheme.fg)
 					.padding(.horizontal, 10)
 					.padding(.vertical, 9)
@@ -438,7 +468,7 @@ struct DiscoverView: View {
 			withAnimation(.easeOut(duration: 0.2)) { action() }
 		} label: {
 			HStack(spacing: 6) {
-				Text(verbatim: title).font(.system(size: 13, weight: .medium))
+				Text(verbatim: title).accretionFont(13, weight: .medium)
 				Text(verbatim: count.formatted())
 					.font(.accretionMono(11, weight: .regular))
 					.foregroundStyle(selected ? AccretionTheme.bg.opacity(0.7) : AccretionTheme.muted)
@@ -522,8 +552,9 @@ struct StoreShelfView: View {
 				if let seeAll = shelf.seeAll {
 					NavigationLink(value: seeAll) {
 						Text(verbatim: String.localized("See all"))
-							.font(.system(size: 14, weight: .semibold))
+							.accretionFont(14, weight: .semibold)
 							.foregroundStyle(AccretionTheme.link)
+							.accretionHitArea(13)
 					}
 					.buttonStyle(.plain)
 					.accessibilityLabel(String.localized("See all %@", arguments: shelf.title))
@@ -614,7 +645,7 @@ struct StoreAppRow: View {
 			HStack(spacing: 4) {
 				VStack(alignment: .leading, spacing: 2) {
 					Text(verbatim: app.n)
-						.font(.system(size: 15, weight: .semibold))
+						.accretionFont(15, weight: .semibold)
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
 					HStack(spacing: 6) {
@@ -627,7 +658,7 @@ struct StoreAppRow: View {
 				}
 				Spacer(minLength: 0)
 				Text(verbatim: "›")
-					.font(.system(size: 22))
+					.accretionFont(22)
 					.foregroundStyle(AccretionTheme.muted)
 					.accessibilityHidden(true)
 			}
@@ -650,7 +681,7 @@ struct StoreAppCard: View {
 			VStack(alignment: .leading, spacing: 0) {
 				HStack(spacing: 7) {
 					Text(verbatim: app.n)
-						.font(.system(size: 15, weight: .semibold))
+						.accretionFont(15, weight: .semibold)
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
 					if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
@@ -661,7 +692,7 @@ struct StoreAppCard: View {
 					}
 				}
 				Text(verbatim: app.d)
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 					.lineLimit(1)
 				HStack(spacing: 8) {

@@ -146,19 +146,63 @@ enum AccretionFonts {
 }
 
 extension Font {
-	/// Headings, in the store's Sora (600 or 700, like the website)
+	/// Headings, in the store's Sora (600 or 700, like the website). The website's size at the
+	/// default text size; it grows and shrinks with the user's text size (Dynamic Type).
 	static func accretionDisplay(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
 		let name = weight == .bold || weight == .heavy || weight == .black ? "Sora-Bold" : "Sora-SemiBold"
 		guard AccretionFonts.available.contains(name) else { return .system(size: size, weight: weight, design: .rounded) }
-		return .custom(name, fixedSize: size)
+		return .custom(name, size: size, relativeTo: .accretion(for: size))
 	}
 	/// Badges and small labels, in the store's JetBrains Mono (400, or 500 for anything heavier,
-	/// the nearest weight the website loads)
+	/// the nearest weight the website loads). Follows the user's text size like `accretionDisplay`.
 	static func accretionMono(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
 		let name = weight == .regular || weight == .light || weight == .thin || weight == .ultraLight
 			? "JetBrainsMono-Regular" : "JetBrainsMono-Medium"
 		guard AccretionFonts.available.contains(name) else { return .system(size: size, weight: weight, design: .monospaced) }
-		return .custom(name, fixedSize: size)
+		return .custom(name, size: size, relativeTo: .accretion(for: size))
+	}
+}
+
+extension Font.TextStyle {
+	/// The system text style nearest a website size, so that size scales like that style does
+	static func accretion(for size: CGFloat) -> Font.TextStyle {
+		switch size {
+		case 30...: return .largeTitle
+		case 25..<30: return .title
+		case 21..<25: return .title2
+		case 19..<21: return .title3
+		case 16.5..<19: return .body
+		case 15.5..<16.5: return .callout
+		case 14.5..<15.5: return .subheadline
+		case 12.5..<14.5: return .footnote
+		case 11.5..<12.5: return .caption
+		default: return .caption2
+		}
+	}
+}
+
+/// The system font at a website size (exact at the default text size) that follows the user's
+/// text size (Dynamic Type), like `.font(.system(size:weight:design:))` without the fixed size.
+struct AccretionScaledFont: ViewModifier {
+	@ScaledMetric private var _size: CGFloat
+	private let _weight: Font.Weight
+	private let _design: Font.Design
+
+	init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+		__size = ScaledMetric(wrappedValue: size, relativeTo: .accretion(for: size))
+		_weight = weight
+		_design = design
+	}
+
+	func body(content: Content) -> some View {
+		content.font(.system(size: _size, weight: _weight, design: _design))
+	}
+}
+
+extension View {
+	/// `.font(.system(size:weight:design:))` that follows the user's text size
+	func accretionFont(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> some View {
+		modifier(AccretionScaledFont(size: size, weight: weight, design: design))
 	}
 }
 
@@ -197,7 +241,31 @@ extension View {
 	}
 
 	/// The store's page background, in the website's paint order: the colour, the faint grid
-	/// (body's background-image), then the drifting light (body::before) over it.
+	/// (body's background-image), then the drifting light (body::before) over it. Text on these
+	/// pages follows the user's text size up to Accessibility 2; larger sizes break the website's
+	/// card and row layouts.
+	/// A larger tap area around a small control without moving anything: grows the hit area by
+	/// `grow` on `edges`, so small links and icons reach Apple's 44 × 44 pt minimum.
+	func accretionHitArea(_ grow: CGFloat, _ edges: Edge.Set = .all) -> some View {
+		padding(edges, grow).contentShape(Rectangle()).padding(edges, -grow)
+	}
+
+	/// Pages without a top bar: the store background, over a blur, behind the status bar, so text
+	/// scrolling up never runs under the clock (Discover's bar and the website's sticky header do
+	/// the same). A zero-height inset whose background reaches up under the clock.
+	func accretionStatusBarBackdrop() -> some View {
+		safeAreaInset(edge: .top, spacing: 0) {
+			Color.clear
+				.frame(height: 0)
+				.background {
+					AccretionTheme.bg.opacity(0.96)
+						.background(.ultraThinMaterial)
+						.ignoresSafeArea(edges: .top)
+						.allowsHitTesting(false)
+				}
+		}
+	}
+
 	func accretionBackground() -> some View {
 		background(
 			ZStack {
@@ -207,6 +275,7 @@ extension View {
 			}
 			.ignoresSafeArea()
 		)
+		.dynamicTypeSize(...DynamicTypeSize.accessibility2)
 	}
 }
 
@@ -222,7 +291,7 @@ struct AccretionButtonStyle: ButtonStyle {
 	func makeBody(configuration: Configuration) -> some View {
 		let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
 		configuration.label
-			.font(.system(size: compact ? 13 : 14, weight: .semibold))
+			.accretionFont(compact ? 13 : 14, weight: .semibold)
 			.lineLimit(1)
 			.padding(.horizontal, compact ? 12 : 14)
 			.frame(minHeight: compact ? 34 : 40)
@@ -300,7 +369,7 @@ struct AccretionFact: View {
 				.tracking(1)
 				.foregroundStyle(AccretionTheme.muted)
 			Text(verbatim: value.isEmpty ? "–" : value)
-				.font(.system(size: 15, weight: .semibold))
+				.accretionFont(15, weight: .semibold)
 				.foregroundStyle(AccretionTheme.fg)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -388,13 +457,13 @@ struct AccretionEmptyState<Actions: View>: View {
 	var body: some View {
 		VStack(spacing: 10) {
 			Image(systemName: systemImage)
-				.font(.system(size: 40))
+				.accretionFont(40)
 				.foregroundStyle(AccretionTheme.muted)
 			Text(verbatim: title)
 				.font(.accretionDisplay(20))
 				.foregroundStyle(AccretionTheme.fg)
 			Text(verbatim: message)
-				.font(.system(size: 15))
+				.accretionFont(15)
 				.foregroundStyle(AccretionTheme.muted)
 				.multilineTextAlignment(.center)
 			actions.padding(.top, 4)

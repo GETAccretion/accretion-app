@@ -92,7 +92,7 @@ struct AnnouncementCard: View {
 			HStack(spacing: 10) {
 				AccretionBadge(text: _label.text, color: _label.color)
 				Text(verbatim: StoreFormat.ago(item.created_at))
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 			}
 			Text(verbatim: item.title)
@@ -100,7 +100,7 @@ struct AnnouncementCard: View {
 				.foregroundStyle(AccretionTheme.fg)
 			if !item.body.isEmpty {
 				Text(verbatim: item.body)
-					.font(.system(size: 14))
+					.accretionFont(14)
 					.foregroundStyle(AccretionTheme.fg)
 					.lineLimit(compact ? 4 : nil)
 					.fixedSize(horizontal: false, vertical: true)
@@ -146,7 +146,7 @@ struct WhatsNewSection: View {
 					Spacer(minLength: 0)
 					NavigationLink(value: WhatsNewRoute()) {
 						Text(verbatim: String.localized("See all"))
-							.font(.system(size: 14, weight: .semibold))
+							.accretionFont(14, weight: .semibold)
 							.foregroundStyle(AccretionTheme.link)
 					}
 					.buttonStyle(.plain)
@@ -177,10 +177,10 @@ struct WhatsNewView: View {
 				Text(verbatim: String.localized("New Accretion versions, mods and fixes, posted automatically."))
 					.foregroundStyle(AccretionTheme.muted)
 				if let error = _feed.error {
-					Text(verbatim: error).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
+					Text(verbatim: error).accretionFont(13).foregroundStyle(AccretionTheme.warn)
 				}
 				if let message = _message {
-					Text(verbatim: message).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
+					Text(verbatim: message).accretionFont(13).foregroundStyle(AccretionTheme.warn)
 				}
 				ForEach(_feed.items) { item in
 					AnnouncementCard(item: item, onNeedsAccount: { _isSigningIn = true }, onError: { _message = $0 })
@@ -196,7 +196,7 @@ struct WhatsNewView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		.refreshable { await _feed.load(force: true) }
 		.task { await _feed.load() }
 		.sheet(isPresented: $_isSigningIn) { AccountSheet() }

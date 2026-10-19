@@ -23,10 +23,10 @@ struct OfflineInstallSetupView: View {
 				if _outdated {
 					VStack(alignment: .leading, spacing: 8) {
 						Text(verbatim: String.localized("Renew this certificate"))
-							.font(.system(size: 15, weight: .semibold))
+							.accretionFont(15, weight: .semibold)
 							.foregroundStyle(AccretionTheme.fg)
 						Text(verbatim: String.localized("It was made by an older Accretion and isn't limited to this iPhone. A new one only works for installs on this iPhone, so it's safer if another app ever reads it. Make a new one, remove the old \"Accretion Offline Installs\" profile, then install and trust the new one (about a minute)."))
-							.font(.system(size: 13))
+							.accretionFont(13)
 							.foregroundStyle(AccretionTheme.muted)
 							.fixedSize(horizontal: false, vertical: true)
 						Button {
@@ -47,7 +47,7 @@ struct OfflineInstallSetupView: View {
 
 				if !_trusted {
 					Text(verbatim: String.localized("Set this up before, then deleted Accretion or moved to a new iPhone? First remove the old \"Accretion Offline Installs\" profile in Settings → General → VPN & Device Management. It can't be used any more."))
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.warn)
 						.fixedSize(horizontal: false, vertical: true)
 				}
@@ -78,7 +78,7 @@ struct OfflineInstallSetupView: View {
 
 				if let _error {
 					Text(verbatim: _error)
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.warn)
 						.fixedSize(horizontal: false, vertical: true)
 				}
@@ -92,7 +92,7 @@ struct OfflineInstallSetupView: View {
 				.padding(.top, 12)
 
 				Text(verbatim: String.localized("Only needed if something went wrong. The old profile stops working: remove it in Settings → General → VPN & Device Management, then set up again."))
-					.font(.system(size: 12))
+					.accretionFont(12)
 					.foregroundStyle(AccretionTheme.muted)
 					.fixedSize(horizontal: false, vertical: true)
 			}
@@ -119,15 +119,15 @@ struct OfflineInstallSetupView: View {
 		HStack(alignment: .top, spacing: 12) {
 			Image(systemName: _trusted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
 				.foregroundStyle(_trusted ? AccretionTheme.good : AccretionTheme.warn)
-				.font(.system(size: 18))
+				.accretionFont(18)
 			VStack(alignment: .leading, spacing: 3) {
 				Text(verbatim: _trusted ? String.localized("Ready") : String.localized("Not set up yet"))
-					.font(.system(size: 15, weight: .semibold))
+					.accretionFont(15, weight: .semibold)
 					.foregroundStyle(AccretionTheme.fg)
 				Text(verbatim: _trusted
 					? String.localized("iOS trusts this iPhone's install certificate. Installs work without the internet.")
 					: String.localized("iOS doesn't trust this iPhone's install certificate yet. Follow the steps below."))
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 					.fixedSize(horizontal: false, vertical: true)
 			}
@@ -141,12 +141,12 @@ struct OfflineInstallSetupView: View {
 	private func _step(_ number: Int, _ text: String) -> some View {
 		HStack(alignment: .top, spacing: 10) {
 			Text(verbatim: "\(number)")
-				.font(.system(size: 13, weight: .bold))
+				.accretionFont(13, weight: .bold)
 				.foregroundStyle(AccretionTheme.fg)
 				.frame(width: 22, height: 22)
 				.background(Circle().fill(AccretionTheme.line))
 			Text(verbatim: text)
-				.font(.system(size: 14))
+				.accretionFont(14)
 				.foregroundStyle(AccretionTheme.fg)
 				.fixedSize(horizontal: false, vertical: true)
 		}

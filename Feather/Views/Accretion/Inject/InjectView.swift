@@ -112,7 +112,7 @@ struct InjectView: View {
 					FRAppIconView(app: app, size: 48)
 					VStack(alignment: .leading, spacing: 2) {
 						Text(verbatim: app.name ?? String.localized("Unknown"))
-							.font(.system(size: 15, weight: .semibold))
+							.accretionFont(15, weight: .semibold)
 							.foregroundStyle(AccretionTheme.fg)
 						Text(verbatim: [app.identifier, app.version.map { "v\($0)" }].compactMap { $0 }.joined(separator: " · "))
 							.font(.accretionMono(12, weight: .regular))
@@ -125,15 +125,15 @@ struct InjectView: View {
 				}
 				if _problems.isEmpty {
 					Label(String.localized("Decrypted: ready for tweaks"), systemImage: "checkmark.seal.fill")
-						.font(.system(size: 13, weight: .semibold))
+						.accretionFont(13, weight: .semibold)
 						.foregroundStyle(AccretionTheme.good)
 				}
 				ForEach(_problems, id: \.title) { problem in
 					VStack(alignment: .leading, spacing: 2) {
 						Text(verbatim: problem.title)
-							.font(.system(size: 13, weight: .semibold))
+							.accretionFont(13, weight: .semibold)
 						Text(verbatim: problem.message)
-							.font(.system(size: 13))
+							.accretionFont(13)
 							.fixedSize(horizontal: false, vertical: true)
 					}
 					.foregroundStyle(problem.isBlocking ? AccretionTheme.warn : AccretionTheme.muted)
@@ -146,7 +146,7 @@ struct InjectView: View {
 			} else {
 				if let error = _importError {
 					Text(verbatim: error)
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.warn)
 						.fixedSize(horizontal: false, vertical: true)
 				}
@@ -173,7 +173,7 @@ struct InjectView: View {
 		AccretionSection(String.localized("2 · Tweaks")) {
 			if _tweaks.isEmpty {
 				Text(verbatim: String.localized("Add .deb or .dylib files. Tweaks that need CydiaSubstrate get ElleKit (option below)."))
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 					.fixedSize(horizontal: false, vertical: true)
 			}
@@ -209,7 +209,7 @@ struct InjectView: View {
 				ForEach(suggested) { tweak in _catalogRow(tweak) }
 			}
 			if let error = _downloadError {
-				Text(verbatim: error).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
+				Text(verbatim: error).accretionFont(13).foregroundStyle(AccretionTheme.warn)
 			}
 			AccretionFlow(spacing: 8) {
 				Button(String.localized("Add from Files")) { _isPickingTweaks = true }
@@ -225,9 +225,9 @@ struct InjectView: View {
 		let added = _tweaks.contains { $0.lastPathComponent == tweak.debURL.lastPathComponent }
 		return HStack(spacing: 10) {
 			VStack(alignment: .leading, spacing: 2) {
-				Text(verbatim: tweak.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
+				Text(verbatim: tweak.name).accretionFont(14, weight: .semibold).foregroundStyle(AccretionTheme.fg)
 				Text(verbatim: tweak.description)
-					.font(.system(size: 12))
+					.accretionFont(12)
 					.foregroundStyle(AccretionTheme.muted)
 					.lineLimit(2)
 			}
@@ -295,8 +295,8 @@ struct InjectView: View {
 
 	private func _toggleLabel(_ title: String, _ detail: String) -> some View {
 		VStack(alignment: .leading, spacing: 2) {
-			Text(verbatim: title).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
-			Text(verbatim: detail).font(.system(size: 12)).foregroundStyle(AccretionTheme.muted).fixedSize(horizontal: false, vertical: true)
+			Text(verbatim: title).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg)
+			Text(verbatim: detail).accretionFont(12).foregroundStyle(AccretionTheme.muted).fixedSize(horizontal: false, vertical: true)
 		}
 	}
 
@@ -318,7 +318,7 @@ struct InjectView: View {
 				}
 			}
 			Text(verbatim: String.localized("Export makes an unsigned IPA with the tweaks inside, to sign with any tool. Only use apps you own, and keep mods out of online games."))
-				.font(.system(size: 12))
+				.accretionFont(12)
 				.foregroundStyle(AccretionTheme.muted)
 				.fixedSize(horizontal: false, vertical: true)
 		}

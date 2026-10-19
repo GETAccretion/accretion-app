@@ -70,7 +70,7 @@ struct StoreAppView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		.overlay(alignment: .bottom) { _toastView() }
 		.task { await SupportLinks.shared.load() }
 		.task {
@@ -123,7 +123,7 @@ struct StoreAppView: View {
 				}
 				if !_store.fits(app) {
 					Text(verbatim: String.localized("Needs iOS %@ or later. This device is on %@.", arguments: app.m ?? "", UIDevice.current.systemVersion))
-						.font(.system(size: 15, weight: .semibold))
+						.accretionFont(15, weight: .semibold)
 						.foregroundStyle(AccretionTheme.warn)
 						.padding(.top, 10)
 				}
@@ -138,7 +138,7 @@ struct StoreAppView: View {
 							Text(verbatim: String.localized("How to sign your own apps →")).underline()
 						}
 						.buttonStyle(.plain)
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.link)
 						.padding(.top, 10)
 					}
@@ -280,6 +280,12 @@ struct StoreAppView: View {
 					.buttonStyle(AccretionButtonStyle(prominent: false, on: social.liked))
 
 					HStack(spacing: 10) {
+						// outlined stars until you rate, so five empty stars don't read as a five-star score
+						if social.stars == 0 {
+							Text(verbatim: String.localized("Rate"))
+								.accretionFont(13)
+								.foregroundStyle(AccretionTheme.muted)
+						}
 						HStack(spacing: 2) {
 							ForEach(1...5, id: \.self) { star in
 								Button {
@@ -292,8 +298,8 @@ struct StoreAppView: View {
 										} catch { _show(error.localizedDescription) }
 									}
 								} label: {
-									Text(verbatim: "★")
-										.font(.system(size: 24))
+									Text(verbatim: star <= social.stars ? "★" : "☆")
+										.accretionFont(24)
 										.foregroundStyle(star <= social.stars ? AccretionTheme.star : AccretionTheme.lineStrong)
 										.padding(2)
 								}
@@ -304,13 +310,13 @@ struct StoreAppView: View {
 						Text(verbatim: social.average.map {
 							String.localized("%@ ★ from %@ ratings", arguments: String(format: "%.1f", $0), String(social.ratings))
 						} ?? String.localized("No ratings yet"))
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.muted)
 					}
 				}
 			} else {
 				Text(verbatim: _socialError ?? String.localized("Loading community…"))
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 			}
 		}
@@ -332,9 +338,7 @@ struct StoreAppView: View {
 		])
 		.padding(.vertical, 4)
 
-		if let notes = latest?.notes, !notes.isEmpty {
-			AccretionSection(String.localized("What's new")) { _prose(notes) }
-		}
+		// screenshots first, like the App Store (and the website): what the app is, then its notes
 		if let shots = _detail?.shots, !shots.isEmpty {
 			AccretionSection(String.localized("Screenshots")) {
 				ScrollView(.horizontal, showsIndicators: false) {
@@ -350,6 +354,9 @@ struct StoreAppView: View {
 					}
 				}
 			}
+		}
+		if let notes = latest?.notes, !notes.isEmpty {
+			AccretionSection(String.localized("What's new")) { _prose(notes) }
 		}
 		if let desc = _detail?.desc, !desc.isEmpty {
 			AccretionSection(String.localized("About")) { _prose(desc) }
@@ -404,12 +411,12 @@ struct StoreAppView: View {
 				(Text(verbatim: "ACCRETION MOD").font(.accretionMono(10)).foregroundColor(AccretionTheme.accentText)
 				 + Text(verbatim: "  ")
 				 + Text(_modNote))
-				.font(.system(size: 13))
+				.accretionFont(13)
 				.foregroundStyle(AccretionTheme.muted)
 				.tint(AccretionTheme.link)
 			} else {
 				Text(verbatim: String.localized("Files are hosted by the source above, not by Accretion. Install what you trust."))
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 			}
 		}
@@ -428,9 +435,11 @@ struct StoreAppView: View {
 		return name
 	}
 
-	/// The store's `.facts` grid: two equal columns on a phone, rows as tall as their tallest cell
-	private func _factsGrid(_ facts: [(String, String)]) -> some View {
-		Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+	/// The store's `.facts` grid: two equal columns on a phone, rows as tall as their tallest cell.
+	/// A fact the source doesn't give is left out instead of shown as "–", like the website.
+	private func _factsGrid(_ all: [(String, String)]) -> some View {
+		let facts = all.filter { !$0.1.isEmpty }
+		return Grid(horizontalSpacing: 10, verticalSpacing: 10) {
 			ForEach(Array(stride(from: 0, to: facts.count, by: 2)), id: \.self) { start in
 				GridRow {
 					ForEach(start..<min(start + 2, facts.count), id: \.self) { index in
@@ -475,7 +484,7 @@ struct StoreAppView: View {
 			.font(.accretionMono(13, weight: .regular))
 			if let notes = version.notes, !notes.isEmpty, !isLatest {
 				Text(verbatim: notes)
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.muted)
 					.fixedSize(horizontal: false, vertical: true)
 			}
@@ -508,7 +517,7 @@ struct StoreAppView: View {
 
 			if let error = _threadError {
 				Text(verbatim: error)
-					.font(.system(size: 13))
+					.accretionFont(13)
 					.foregroundStyle(AccretionTheme.warn)
 					.padding(.vertical, 12)
 					.padding(.horizontal, 4)
@@ -516,7 +525,7 @@ struct StoreAppView: View {
 				let top = posts.filter { $0.parent_id == nil }.reversed()
 				if top.isEmpty {
 					Text(verbatim: String.localized("No comments yet. Be the first."))
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.muted)
 						.padding(.vertical, 12)
 						.padding(.horizontal, 4)
@@ -539,11 +548,11 @@ struct StoreAppView: View {
 				if let reply = _replyTo {
 					HStack {
 						Text(verbatim: String.localized("Replying to @%@", arguments: reply.username))
-							.font(.system(size: 13))
+							.accretionFont(13)
 							.foregroundStyle(AccretionTheme.muted)
 						Spacer()
 						Button(String.localized("Cancel")) { _replyTo = nil }
-							.font(.system(size: 13))
+							.accretionFont(13)
 							.foregroundStyle(AccretionTheme.link)
 					}
 				}
@@ -705,7 +714,7 @@ struct StoreAppView: View {
 	private func _toastView() -> some View {
 		if let toast = _toast {
 			Text(verbatim: toast)
-				.font(.system(size: 14, weight: .semibold))
+				.accretionFont(14, weight: .semibold)
 				.foregroundStyle(AccretionTheme.fg)
 				.padding(.horizontal, 16)
 				.padding(.vertical, 10)
@@ -778,7 +787,7 @@ struct StoreListView: View {
 						.frame(maxWidth: .infinity)
 				} else if _apps.isEmpty {
 					Text(verbatim: route.saved ? String.localized("Nothing saved yet. Tap Save on an app to keep it here.") : String.localized("Nothing here yet."))
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.muted)
 				}
 			}
@@ -787,6 +796,6 @@ struct StoreListView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 	}
 }

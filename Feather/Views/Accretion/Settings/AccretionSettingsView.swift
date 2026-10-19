@@ -88,7 +88,7 @@ struct AccretionSettingsView: View {
 				.padding(.bottom, 40)
 			}
 			.accretionBackground()
-			.toolbar(.hidden, for: .navigationBar)
+			.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		}
 		.tint(AccretionTheme.accent)
 	}
@@ -97,6 +97,7 @@ struct AccretionSettingsView: View {
 	private func _header() -> some View {
 		HStack(spacing: 14) {
 			FRAppIconView(size: 64)
+				.accessibilityHidden(true) // the icon; the name next to it says it
 			VStack(alignment: .leading, spacing: 4) {
 				Text(verbatim: Bundle.main.name)
 					.font(.accretionDisplay(26, weight: .heavy))
@@ -105,9 +106,11 @@ struct AccretionSettingsView: View {
 					.font(.footnote)
 					.foregroundStyle(AccretionTheme.muted)
 				AccretionBadge(text: "v\(Bundle.main.version)", color: AccretionTheme.link)
+					.accessibilityLabel(String.localized("Version %@", arguments: Bundle.main.version))
 			}
 			Spacer(minLength: 0)
 		}
+		.accessibilityElement(children: .combine)
 		.padding(16)
 		.accretionCard()
 		.padding(.top, 12)
@@ -131,7 +134,7 @@ struct AccretionSettingsView: View {
 
 	private func _tile(_ icon: String, _ tint: Color) -> some View {
 		Image(systemName: icon)
-			.font(.system(size: 15, weight: .semibold))
+			.accretionFont(15, weight: .semibold)
 			.foregroundStyle(tint)
 			.frame(width: 32, height: 32)
 			.background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -141,7 +144,7 @@ struct AccretionSettingsView: View {
 		HStack(spacing: 12) {
 			_tile(icon, tint)
 			VStack(alignment: .leading, spacing: 2) {
-				Text(verbatim: title).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
+				Text(verbatim: title).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg)
 				Text(verbatim: subtitle).font(.caption).foregroundStyle(AccretionTheme.muted).lineLimit(1)
 			}
 			Spacer(minLength: 0)

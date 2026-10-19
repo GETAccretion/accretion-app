@@ -17,7 +17,7 @@ struct RequiredUpdateView: View {
 		VStack(spacing: 18) {
 			Spacer()
 			Image(systemName: "arrow.down.app.fill")
-				.font(.system(size: 56))
+				.accretionFont(56)
 				.foregroundStyle(AccretionTheme.accent)
 			Text(verbatim: String.localized("Update required"))
 				.font(.accretionDisplay(28))
@@ -26,7 +26,7 @@ struct RequiredUpdateView: View {
 				"Accretion %@ is no longer supported. Version %@ or newer is needed to keep using the store, downloads and signing.",
 				arguments: Bundle.main.version, _policy.minimumVersion ?? ""
 			))
-			.font(.system(size: 15))
+			.accretionFont(15)
 			.foregroundStyle(AccretionTheme.muted)
 			.multilineTextAlignment(.center)
 			.fixedSize(horizontal: false, vertical: true)
@@ -61,7 +61,7 @@ struct RequiredUpdateView: View {
 			.padding(.top, 8)
 
 			Text(verbatim: String.localized("Install the update with the tool you used to install Accretion, for example your certificate seller's signer."))
-				.font(.system(size: 12))
+				.accretionFont(12)
 				.foregroundStyle(AccretionTheme.muted)
 				.multilineTextAlignment(.center)
 				.fixedSize(horizontal: false, vertical: true)

@@ -28,7 +28,7 @@ private struct _ViewHead: View {
 				.font(.accretionDisplay(28))
 				.foregroundStyle(AccretionTheme.headline)
 			Text(verbatim: note)
-				.font(.system(size: 15))
+				.accretionFont(15)
 				.foregroundStyle(AccretionTheme.muted)
 				.fixedSize(horizontal: false, vertical: true)
 		}
@@ -63,10 +63,10 @@ struct PostRow: View {
 			VStack(alignment: .leading, spacing: 4) {
 				AccretionFlow(spacing: 6) {
 					Text(verbatim: _name)
-						.font(.system(size: 14, weight: .semibold))
+						.accretionFont(14, weight: .semibold)
 						.foregroundStyle(AccretionTheme.fg)
 					Text(verbatim: "@\(post.username)")
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.muted)
 					if let role = post.role, role == "admin" || role == "mod" {
 						AccretionBadge(text: role, color: role == "admin" ? _heart : AccretionTheme.good)
@@ -78,11 +78,11 @@ struct PostRow: View {
 						AccretionBadge(text: "hidden", color: AccretionTheme.warn)
 					}
 					Text(verbatim: "· " + StoreFormat.ago(post.created_at) + (post.edited_at != nil ? " · " + String.localized("edited") : ""))
-						.font(.system(size: 13))
+						.accretionFont(13)
 						.foregroundStyle(AccretionTheme.muted)
 				}
 				Text(accretionPostText(post.body))
-					.font(.system(size: 15))
+					.accretionFont(15)
 					.foregroundStyle(AccretionTheme.fg)
 					.tint(AccretionTheme.link)
 					.fixedSize(horizontal: false, vertical: true)
@@ -91,7 +91,7 @@ struct PostRow: View {
 						HStack(spacing: 8) {
 							StoreAppIcon(url: app.iconURL, size: 22, radius: 6)
 							Text(verbatim: app.n)
-								.font(.system(size: 13, weight: .semibold))
+								.accretionFont(13, weight: .semibold)
 								.foregroundStyle(AccretionTheme.fg)
 								.lineLimit(1)
 							Text(verbatim: "›").foregroundStyle(AccretionTheme.muted)
@@ -143,7 +143,7 @@ struct PostRow: View {
 					}
 				} label: {
 					Text(verbatim: "•••")
-						.font(.system(size: 13, weight: .bold))
+						.accretionFont(13, weight: .bold)
 						.foregroundStyle(AccretionTheme.muted)
 						.frame(minWidth: 34, minHeight: 34)
 				}
@@ -376,7 +376,7 @@ struct CommunityFeedView: View {
 				}
 				_tabs()
 				if let message = _message {
-					Text(verbatim: message).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
+					Text(verbatim: message).accretionFont(13).foregroundStyle(AccretionTheme.warn)
 				}
 				if _tab == .updates {
 					ForEach(_whatsNew.items) { item in
@@ -392,7 +392,7 @@ struct CommunityFeedView: View {
 						Text(verbatim: _tab == .following
 							? String.localized("Nothing yet from people you follow. Tap ••• on a post to follow someone.")
 							: String.localized("No posts yet. Say hi!"))
-							.font(.system(size: 14))
+							.accretionFont(14)
 							.foregroundStyle(AccretionTheme.muted)
 							.padding(.vertical, 12)
 					}
@@ -412,7 +412,7 @@ struct CommunityFeedView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		.refreshable { await _reload() }
 		.task(id: _tab) {
 			await _viewer.load()
@@ -454,7 +454,7 @@ struct CommunityFeedView: View {
 			withAnimation(.easeOut(duration: 0.2)) { _tab = tab }
 		} label: {
 			Text(verbatim: title)
-				.font(.system(size: 14, weight: .semibold))
+				.accretionFont(14, weight: .semibold)
 				.foregroundStyle(_tab == tab ? AccretionTheme.fg : AccretionTheme.muted)
 				.padding(.horizontal, 12)
 				.padding(.vertical, 8)
@@ -546,7 +546,7 @@ struct FeedThreadView: View {
 			LazyVStack(alignment: .leading, spacing: 12) {
 				_row(root)
 				if let message = _message {
-					Text(verbatim: message).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
+					Text(verbatim: message).accretionFont(13).foregroundStyle(AccretionTheme.warn)
 				}
 				ForEach(_replies) { reply in
 					_row(reply).padding(.leading, 24)
@@ -658,11 +658,11 @@ struct NotificationsView: View {
 				AccretionBackButton()
 				_ViewHead(title: String.localized("Notifications"), note: String.localized("Likes, replies and new followers."))
 				if let message = _message {
-					Text(verbatim: message).font(.system(size: 13)).foregroundStyle(AccretionTheme.warn)
+					Text(verbatim: message).accretionFont(13).foregroundStyle(AccretionTheme.warn)
 				}
 				if _loaded && _items.isEmpty && _message == nil {
 					Text(verbatim: String.localized("Nothing yet."))
-						.font(.system(size: 14))
+						.accretionFont(14)
 						.foregroundStyle(AccretionTheme.muted)
 						.padding(.vertical, 12)
 				}
@@ -680,7 +680,7 @@ struct NotificationsView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 		.refreshable { await _load() }
 		.task { await _load() }
 		.sheet(item: $_thread) { post in
@@ -700,7 +700,7 @@ struct NotificationsView: View {
 		return HStack(spacing: 12) {
 			StoreAvatar(letter: String(name.prefix(1)).uppercased(), hex: item.actor?.color ?? "8B5CF6", size: 32)
 			(Text(verbatim: name).bold().foregroundColor(AccretionTheme.fg) + Text(verbatim: " " + verb).foregroundColor(AccretionTheme.muted))
-				.font(.system(size: 14))
+				.accretionFont(14)
 				.multilineTextAlignment(.leading)
 			Spacer(minLength: 0)
 			Text(verbatim: StoreFormat.ago(item.created_at))
@@ -777,7 +777,7 @@ struct StoreSourcesView: View {
 					VStack(alignment: .leading, spacing: 8) {
 						HStack(spacing: 8) {
 							Text(verbatim: row.source.name)
-								.font(.system(size: 15, weight: .semibold))
+								.accretionFont(15, weight: .semibold)
 								.foregroundStyle(AccretionTheme.fg)
 								.lineLimit(1)
 							if row.source.core == true { AccretionBadge(text: "core", color: AccretionTheme.link) }
@@ -819,6 +819,6 @@ struct StoreSourcesView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar)
+		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
 	}
 }

@@ -269,13 +269,13 @@ struct AccretionSponsorCard: View {
 				} label: {
 					HStack(spacing: 12) {
 						Image(systemName: offer.icon)
-							.font(.system(size: 17, weight: .semibold))
+							.accretionFont(17, weight: .semibold)
 							.foregroundStyle(offer.isOwn ? AccretionTheme.accent : AccretionTheme.accent2)
 							.frame(width: 38, height: 38)
 							.background((offer.isOwn ? AccretionTheme.accent : AccretionTheme.accent2).opacity(0.16), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 						VStack(alignment: .leading, spacing: 3) {
 							HStack(spacing: 6) {
-								Text(verbatim: offer.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg).lineLimit(1)
+								Text(verbatim: offer.name).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg).lineLimit(1)
 								AccretionBadge(text: offer.isOwn ? "Accretion" : String.localized("Sponsored"), color: AccretionTheme.muted)
 							}
 							Text(verbatim: offer.text).font(.caption).foregroundStyle(AccretionTheme.muted).lineLimit(2)

@@ -158,7 +158,7 @@ struct AccretionAccountView: View {
 		ForEach(_backups) { backup in
 			HStack(spacing: 12) {
 				VStack(alignment: .leading, spacing: 2) {
-					Text(verbatim: backup.label).font(.system(size: 15, weight: .semibold)).foregroundStyle(AccretionTheme.fg)
+					Text(verbatim: backup.label).accretionFont(15, weight: .semibold).foregroundStyle(AccretionTheme.fg)
 					Text(verbatim: [
 						backup.expires.map { String.localized("expires %@", arguments: String($0.prefix(10))) },
 						String.localized("saved %@", arguments: String(backup.created_at.prefix(10))),

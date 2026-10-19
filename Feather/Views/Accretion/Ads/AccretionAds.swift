@@ -123,14 +123,17 @@ final class AdEligibility: ObservableObject {
 
 /// Store-style card with a small "Ad" label and an adaptive banner. Renders nothing when the
 /// account is ad-free; when AdMob has no ad, shows Accretion's own sponsor card instead.
+/// `googleAd` is false while another source's app downloads: those get the sponsor card, so
+/// Google's ads only ever run next to Accretion's own builds (the website follows the same rule).
 struct AccretionAdCard: View {
+	var googleAd = true
 	@ObservedObject private var _eligibility = AdEligibility.shared
 	@ObservedObject private var _consent = AdConsent.shared
 	@State private var _failed = false
 
 	var body: some View {
 		if _eligibility.showAds {
-			if _failed || !_consent.canRequestAds {
+			if !googleAd || _failed || !_consent.canRequestAds {
 				// No ad consent yet, or AdMob had no ad (common while serving is limited): our own sponsor card (no tracking) instead
 				AccretionSponsorCard()
 			} else {

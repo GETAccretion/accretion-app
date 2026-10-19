@@ -15,6 +15,8 @@ struct DownloadHeaderView: View {
 	private static let _minimumAdSeconds: UInt64 = 10
 	@State private var _holdAd = false
 	@State private var _holdToken = 0
+	/// Accretion: Google's ad only while every app downloading is one of Accretion's own builds
+	@State private var _googleAd = false
 
 	var body: some View {
 		ZStack {
@@ -35,8 +37,9 @@ struct DownloadHeaderView: View {
 								}
 							}
 						}
-						// Accretion: ad card while anything downloads (hidden for admins and supporters)
-						AccretionAdCard()
+						// Accretion: ad card while anything downloads (hidden for admins and supporters);
+						// other sources' apps get the sponsor card instead of Google's ad
+						AccretionAdCard(googleAd: _googleAd)
 					}
 					.padding(.horizontal)
 				}
@@ -46,9 +49,15 @@ struct DownloadHeaderView: View {
 		.animation(.spring(), value: downloadManager.manualDownloads.count)
 		.animation(.spring(), value: _isDownloading)
 		.animation(.spring(), value: _holdAd)
+		.onAppear { if _isDownloading { _googleAd = _ownBuildsOnly } }
+		.onChange(of: downloadManager.downloads.count) { _ in
+			// Accretion: decided while downloads run, kept through the 10-second hold afterwards
+			if _isDownloading { _googleAd = _ownBuildsOnly }
+		}
 		.onChange(of: _isDownloading) { downloading in
 			// Accretion: each new download restarts the 10-second minimum for the ad card
 			guard downloading else { return }
+			_googleAd = _ownBuildsOnly
 			_holdToken += 1
 			let token = _holdToken
 			_holdAd = true
@@ -62,6 +71,14 @@ struct DownloadHeaderView: View {
 	/// Accretion: an app is downloading (not only a pasted link; archive exports don't count)
 	private var _isDownloading: Bool {
 		downloadManager.downloads.contains { !$0.onlyArchiving }
+	}
+
+	/// Accretion: every app downloading is one of Accretion's own builds (Accretion, Accretion Mods)
+	private var _ownBuildsOnly: Bool {
+		let active = downloadManager.downloads.filter { !$0.onlyArchiving }
+		return !active.isEmpty && active.allSatisfy {
+			AccretionBuildSelection.isOwnBuildDownload($0.url, host: AccretionAccount.accountHost)
+		}
 	}
 }
 

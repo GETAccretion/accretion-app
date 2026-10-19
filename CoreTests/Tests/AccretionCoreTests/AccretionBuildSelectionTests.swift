@@ -84,4 +84,20 @@ final class AccretionBuildSelectionTests: XCTestCase {
 		let url = try XCTUnwrap(AccretionBuildSelection.personalURL(base: base, bundleID: app, key: "fictional", source: source, appVersion: "1.0.30"))
 		XCTAssertFalse(url.absoluteString.contains("version="))
 	}
+
+	func testOwnBuildDownloadsAreOurAppsOnOurServer() throws {
+		let host = "fixture.supabase.co"
+		func own(_ link: String) throws -> Bool {
+			AccretionBuildSelection.isOwnBuildDownload(try XCTUnwrap(URL(string: link)), host: host)
+		}
+		XCTAssertTrue(try own("https://fixture.supabase.co/functions/v1/download?app=io.github.getaccretion.Accretion&key=k"))
+		XCTAssertTrue(try own("https://fixture.supabase.co/functions/v1/download?app=io.github.accretionmods.swiftradio&version=4.0.0-mod1.0.0"))
+		XCTAssertTrue(try own("https://dl.getaccretion.app/download?app=io.github.getaccretion.Accretion"))
+		XCTAssertFalse(try own("https://fixture.supabase.co/functions/v1/download?app=com.mojang.minecraftpe&key=k"), "another source's app")
+		XCTAssertFalse(try own("https://other.invalid/functions/v1/download?app=io.github.getaccretion.Accretion"), "not our server")
+		XCTAssertFalse(try own("https://source.invalid/Accretion.ipa"), "a plain file link")
+		XCTAssertFalse(try own("http://dl.getaccretion.app/download?app=io.github.getaccretion.Accretion"), "not https")
+		XCTAssertFalse(AccretionBuildSelection.isOwnApp("io.github.getaccretionx.App"))
+		XCTAssertFalse(AccretionBuildSelection.isOwnApp(nil))
+	}
 }

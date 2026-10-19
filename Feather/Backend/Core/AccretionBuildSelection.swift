@@ -40,6 +40,22 @@ enum AccretionBuildSelection {
 		URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "app" }?.value
 	}
 
+	/// Accretion's own apps (the Accretion app and Accretion Mods). Only Accretion's own sources may
+	/// list these prefixes; the store pipeline refuses them from anyone else.
+	static let ownPrefixes = ["io.github.getaccretion.", "io.github.accretionmods."]
+
+	static func isOwnApp(_ bundleID: String?) -> Bool {
+		guard let bundleID else { return false }
+		return ownPrefixes.contains { bundleID.hasPrefix($0) }
+	}
+
+	/// A download of one of Accretion's own builds: a link to our download server (the account host's
+	/// function or the store's download address) that asks for one of our apps.
+	static func isOwnBuildDownload(_ url: URL, host: String) -> Bool {
+		let store = url.scheme == "https" && url.host == "dl.getaccretion.app" && url.path == "/download"
+		return (isServerLink(url, host: host) || store) && isOwnApp(bundleID(in: url))
+	}
+
 	static func personalURL(base: URL, bundleID: String, key: String, source: URL, appVersion: String) -> URL? {
 		guard var link = URLComponents(url: base.appendingPathComponent("functions/v1/download"), resolvingAgainstBaseURL: false) else { return nil }
 		var items = [URLQueryItem(name: "app", value: bundleID), URLQueryItem(name: "key", value: key)]

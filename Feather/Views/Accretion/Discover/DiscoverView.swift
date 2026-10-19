@@ -39,8 +39,10 @@ struct DiscoverView: View {
 						_placeholder()
 					} else {
 						if !_isBrowsing {
-							_hero()
+							// content first (UX review phase 2): What's new and the shelves open the
+							// page; the headline and stats follow, before All apps
 							WhatsNewSection()
+								.padding(.top, 12)
 								.padding(.bottom, 18)
 							// the website's order: store shelves, the community ones, then Utilities
 							let shelves = _store.shelves(onlyFitting: _onlyFitting)
@@ -49,6 +51,7 @@ struct DiscoverView: View {
 									.padding(.top, 8)
 									.padding(.bottom, 18)
 							}
+							_hero()
 						}
 						_all()
 					}

@@ -334,8 +334,10 @@ private struct _PostActions {
 }
 
 // MARK: - Feed
-/// Navigation value for the community feed
-struct CommunityFeedRoute: Hashable {}
+/// Navigation value for the community feed; `whatsNew` opens it on the What's new tab
+struct CommunityFeedRoute: Hashable {
+	var whatsNew = false
+}
 
 /// The website's Feed: What's new (Accretion's own posts), Everyone, and Following when signed in
 struct CommunityFeedView: View {
@@ -344,7 +346,11 @@ struct CommunityFeedView: View {
 	@ObservedObject private var _account = AccretionAccount.shared
 	@ObservedObject private var _whatsNew = WhatsNewFeed.shared
 	@ObservedObject private var _viewer = CommunityViewer.shared
-	@State private var _tab: Tab = .everyone
+	@State private var _tab: Tab
+
+	init(whatsNew: Bool = false) {
+		__tab = State(initialValue: whatsNew ? .updates : .everyone)
+	}
 	@State private var _posts: [AccretionAccount.Post] = []
 	@State private var _liked: Set<Int> = []
 	@State private var _canLoadMore = false

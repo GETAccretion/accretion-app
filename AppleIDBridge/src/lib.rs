@@ -283,7 +283,14 @@ async fn sign(session: &DeveloperSession, request: &CallRequest, prompt: &Prompt
             bundle.get_bundle_identifier().as_deref(),
             bundle.get_bundle_name().as_deref(),
         );
-        let mut signer = Signer::new(Some(identity), SignerOptions::new_for_app(kind.app));
+        let mut options = SignerOptions::new_for_app(kind.app);
+        // Re-signing an app already signed this way: keep its ID instead of adding the team twice
+        if let Some(id) = bundle.get_bundle_identifier() {
+            if id.ends_with(&format!(".{team}")) {
+                options.custom_identifier = Some(id);
+            }
+        }
+        let mut signer = Signer::new(Some(identity), options);
         signer
             .modify_bundle(&bundle, &Some(team.clone()))
             .await

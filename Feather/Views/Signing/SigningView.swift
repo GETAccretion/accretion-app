@@ -265,7 +265,12 @@ extension SigningView {
 	@ViewBuilder
 	private func _cert() -> some View {
 		NBSection(.localized("Signing")) {
-			if let cert = _selectedCert() {
+			if AppleIDSigning.isActive, let email = AppleIDClient.session?.email {
+				// Accretion: signed with the Apple ID (Settings → Apple ID), not a certificate
+				LabeledContent(String.localized("Apple ID (7 days)")) {
+					Text(verbatim: email)
+				}
+			} else if let cert = _selectedCert() {
 				NavigationLink {
 					CertificatesView(selectedCert: $_temporaryCertificate).accretionList() // Accretion: store style
 				} label: {
@@ -353,7 +358,7 @@ extension SigningView {
 extension SigningView {
 	private func _start() {
 		guard
-			_selectedCert() != nil || _temporaryOptions.signingOption != .default
+			_selectedCert() != nil || _temporaryOptions.signingOption != .default || AppleIDSigning.isActive // Accretion
 		else {
 			UIAlertController.showAlertWithOk(
 				title: .localized("No Certificate"),
@@ -365,7 +370,7 @@ extension SigningView {
 
 		// Accretion: explain problems before signing; blocking ones stop here. Checked against the
 		// profile this app will actually be signed with when the certificate has several.
-		let cert = _selectedCert()
+		let cert = AppleIDSigning.isActive ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
 		_useAppProfile(cert)
 		let problems = Preflight.problems(for: app, certificate: cert, options: _temporaryOptions)
 		if let cert { ProfileOverride.set(nil, for: cert) }
@@ -386,7 +391,7 @@ extension SigningView {
 		generator.impactOccurred()
 		_isSigning = true
 
-		let cert = _selectedCert()
+		let cert = AppleIDSigning.isActive ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
 		_useAppProfile(cert)
 
 		FR.signPackageFile(

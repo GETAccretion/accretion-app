@@ -133,7 +133,7 @@ final class AutoSignPipeline: ObservableObject {
 	) async throws -> Bool {
 		let installed = _installedCopy(uuid: localUUID, bundleID: bundleID)
 		let oldImported = localUUID.flatMap { _imported(uuid: $0) }
-		if installed != nil || signNew, _usableCertificate(installed?.certificate) == nil, _selectedCertificate == nil {
+		if installed != nil || signNew, !AppleIDSigning.isActive, _usableCertificate(installed?.certificate) == nil, _selectedCertificate == nil {
 			throw PipelineError.noCertificate
 		}
 		
@@ -184,7 +184,13 @@ final class AutoSignPipeline: ObservableObject {
 		guard !isRunning else { return }
 		let request: NSFetchRequest<Signed> = Signed.fetchRequest()
 		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
-		let apps = (try? Storage.shared.context.fetch(request)) ?? []
+		var apps = (try? Storage.shared.context.fetch(request)) ?? []
+		// Accretion: with Apple ID signing on, only the apps signed that way (a free Apple ID allows
+		// 3 at a time, so certificate-signed apps aren't moved over)
+		if AppleIDSigning.isActive {
+			AppleIDSigning.prune(keeping: Set(apps.compactMap(\.uuid)))
+			apps = apps.filter { AppleIDSigning.isAppleIDSigned(uuid: $0.uuid) }
+		}
 		guard !apps.isEmpty else { return }
 
 		Task {
@@ -219,7 +225,8 @@ final class AutoSignPipeline: ObservableObject {
 		let request: NSFetchRequest<Signed> = Signed.fetchRequest()
 		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
 		// only real signed copies: an unsigned export (Inject → Export) is never an update target
-		let signed = ((try? Storage.shared.context.fetch(request)) ?? []).filter { $0.certificate != nil }
+		// (Accretion: or signed with the Apple ID, which has no certificate entry)
+		let signed = ((try? Storage.shared.context.fetch(request)) ?? []).filter { $0.certificate != nil || AppleIDSigning.isAppleIDSigned(uuid: $0.uuid) }
 		return signed.first { uuid != nil && $0.uuid == uuid }
 			?? signed.first { $0.identifier == bundleID || RecipeStore.key(for: $0) == bundleID }
 	}
@@ -362,6 +369,9 @@ final class AutoSignPipeline: ObservableObject {
 		requireSameTeam: Bool = true,
 		optionsOverride: Options? = nil
 	) async throws -> Bool {
+		if AppleIDSigning.isActive {
+			return try await _signWithAppleID(app, replacing: old, updating: installed, optionsOverride: optionsOverride)
+		}
 		// updates keep the certificate the installed copy was signed with while it's still good
 		let preferred = preferInstalledCertificate ? _usableCertificate(installed?.certificate) : nil
 		guard let cert = preferred ?? _selectedCertificate else { throw PipelineError.noCertificate }
@@ -419,6 +429,42 @@ final class AutoSignPipeline: ObservableObject {
 			Storage.shared.deleteApp(for: entry)
 		}
 		return sameTeam
+	}
+
+	/// Accretion: `_sign` for Apple ID signing (Settings → Apple ID): no certificate or profile slots.
+	/// SigningHandler adds the team suffix to the bundle ID; an installed copy's (already suffixed) ID
+	/// is kept, so re-signing replaces it in place.
+	private func _signWithAppleID(
+		_ app: AppInfoPresentable,
+		replacing old: [AppInfoPresentable],
+		updating installed: Signed?,
+		optionsOverride: Options?
+	) async throws -> Bool {
+		let base = OptionsManager.shared.options
+		let recipe = optionsOverride == nil ? RecipeStore.load(for: app, base: base) : nil
+		var options = optionsOverride ?? recipe?.options ?? base
+		options.signingOption = .default
+		let icon = recipe?.icon
+		if let original = app.identifier, let renamed = options.identifiers[original] { options.appIdentifier = renamed }
+		if let installedID = installed?.identifier { options.appIdentifier = installedID }
+		if let name = app.name, let renamed = options.displayNames[name] { options.appName = renamed }
+		options.post_installAppAfterSigned = false // the pipeline opens the install screen itself
+
+		if let problem = Preflight.problems(for: app, certificate: nil, options: options).first(where: \.isBlocking) {
+			throw PipelineError.blocked("\(problem.title). \(problem.message)")
+		}
+		try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+			FR.signPackageFile(app, using: options, icon: icon, certificate: nil) { error in
+				if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+			}
+		}
+		if recipe != nil {
+			RecipeStore.save(options: options, icon: icon, for: app)
+		}
+		for entry in old {
+			Storage.shared.deleteApp(for: entry)
+		}
+		return true
 	}
 
 	private func _finish(done: [String], failures: [String], verb: String, installSingle: Bool) {

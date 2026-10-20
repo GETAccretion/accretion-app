@@ -21,6 +21,11 @@ struct AppleIDView: View {
 	@State private var _team: AppleIDTeam?
 	@State private var _hasCertificate: Bool?
 	@State private var _appIDCount: Int?
+	@AppStorage(AppleIDSigning.enabledKey) private var _signApps = false
+	@State private var _udid = AppleIDSigning.udid
+	@State private var _typedUDID = ""
+	@State private var _records = AppleIDSigning.records
+	@ObservedObject private var _pipeline = AutoSignPipeline.shared
 
 	var body: some View {
 		ScrollView {
@@ -102,6 +107,7 @@ struct AppleIDView: View {
 			Spacer()
 			Button(String.localized("Sign Out")) {
 				AppleIDClient.signOut()
+				AppleIDSigning.teamID = nil
 				_session = nil
 				_team = nil
 				_hasCertificate = nil
@@ -127,6 +133,102 @@ struct AppleIDView: View {
 			Task { await _reload() }
 		}
 		.buttonStyle(AccretionButtonStyle(prominent: false))
+
+		Toggle(isOn: $_signApps) {
+			VStack(alignment: .leading, spacing: 2) {
+				Text(verbatim: String.localized("Sign Apps with This Apple ID")).accretionFont(15, weight: .semibold)
+				Text(verbatim: String.localized("Used instead of your certificate for signing, store installs and updates."))
+					.font(.caption)
+					.foregroundStyle(AccretionTheme.muted)
+			}
+		}
+		.padding(14)
+		.accretionCard()
+
+		_device()
+		_signedApps()
+	}
+
+	// MARK: This iPhone
+	@ViewBuilder
+	private func _device() -> some View {
+		Text(verbatim: String.localized("THIS IPHONE"))
+			.font(.accretionMono(11))
+			.tracking(1)
+			.foregroundStyle(AccretionTheme.muted)
+		VStack(alignment: .leading, spacing: 10) {
+			if let udid = _udid {
+				_fact(String.localized("Device ID"), "…" + String(udid.suffix(6)))
+				Button(String.localized("Forget Device ID")) {
+					AppleIDSigning.udid = nil
+					_udid = AppleIDSigning.udid
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false, compact: true))
+			} else {
+				Text(verbatim: String.localized("Apple needs this iPhone's device ID to sign apps for it. Get it with a profile: Safari downloads it, then install it in Settings → General → VPN & Device Management. It sends the ID back to Accretion and doesn't stay installed."))
+					.font(.caption)
+					.foregroundStyle(AccretionTheme.muted)
+				Button(String.localized("Get Device ID")) {
+					do { try AppleIDDeviceServer.shared.open() } catch { _message = error.localizedDescription }
+				}
+				.buttonStyle(AccretionButtonStyle())
+				TextField(String.localized("Or paste the device ID (UDID)"), text: $_typedUDID)
+					.textInputAutocapitalization(.characters)
+					.autocorrectionDisabled()
+					.font(.accretionMono(13, weight: .regular))
+					.padding(10)
+					.accretionCard()
+				Button(String.localized("Save Device ID")) {
+					AppleIDSigning.udid = _typedUDID
+					_udid = AppleIDSigning.udid
+					_message = _udid == nil ? String.localized("That isn't a device ID.") : nil
+				}
+				.buttonStyle(AccretionButtonStyle(prominent: false, compact: true))
+				.disabled(_typedUDID.trimmingCharacters(in: .whitespaces).isEmpty)
+			}
+		}
+		.padding(14)
+		.accretionCard()
+		.onReceive(NotificationCenter.default.publisher(for: AppleIDSigning.udidFound)) { _ in
+			_udid = AppleIDSigning.udid
+		}
+	}
+
+	// MARK: Signed apps
+	@ViewBuilder
+	private func _signedApps() -> some View {
+		Text(verbatim: String.localized("SIGNED WITH THIS APPLE ID"))
+			.font(.accretionMono(11))
+			.tracking(1)
+			.foregroundStyle(AccretionTheme.muted)
+		VStack(alignment: .leading, spacing: 10) {
+			if _records.isEmpty {
+				Text(verbatim: String.localized("None yet. Turn on Sign Apps with This Apple ID, then sign an app from Library."))
+					.font(.caption)
+					.foregroundStyle(AccretionTheme.muted)
+			}
+			ForEach(_records, id: \.bundleID) { record in
+				_fact(record.name, record.expires.map { (expires: Date) -> String in
+					switch ProfileExpiry.status(expires: expires, now: Date()) {
+					case .expired: return String.localized("Expired")
+					case .soon, .ok: return String.localized("%@ days left", arguments: String(ProfileExpiry.daysLeft(expires: expires, now: Date())))
+					}
+				} ?? String.localized("Unknown"))
+			}
+			Button(_pipeline.status ?? String.localized("Re-sign All")) {
+				AutoSignPipeline.shared.resignAll()
+			}
+			.buttonStyle(AccretionButtonStyle())
+			.disabled(_records.isEmpty || _pipeline.isRunning || !AppleIDSigning.isActive)
+			Text(verbatim: String.localized("Each app gets a fresh 7-day profile. iOS asks to confirm each install."))
+				.font(.caption)
+				.foregroundStyle(AccretionTheme.muted)
+		}
+		.padding(14)
+		.accretionCard()
+		.onReceive(_pipeline.$status) { status in
+			if status == nil { _records = AppleIDSigning.records }
+		}
 	}
 
 	private func _fact(_ title: String, _ value: String?) -> some View {
@@ -205,6 +307,7 @@ struct AppleIDView: View {
 				return
 			}
 			_team = team
+			AppleIDSigning.teamID = team.id
 			let certificates = try await AppleIDClient.certificates(team: team.id)
 			_hasCertificate = certificates.contains { $0.machineName == AppleIDClient.machineName }
 			_appIDCount = try await AppleIDClient.appIDs(team: team.id).count

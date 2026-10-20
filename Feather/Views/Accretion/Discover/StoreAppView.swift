@@ -61,6 +61,8 @@ struct StoreAppView: View {
 				} else if _detailLoaded {
 					Text(verbatim: String.localized("Details couldn't load. Check your connection and refresh."))
 						.foregroundStyle(AccretionTheme.muted)
+				} else {
+					AccretionAppPageSkeleton()
 				}
 				_comments()
 			}
@@ -78,6 +80,7 @@ struct StoreAppView: View {
 					_show(_store.isSaved(app) ? String.localized("Saved. You'll see when it updates.") : String.localized("Removed from saved"))
 				} label: {
 					Image(systemName: _store.isSaved(app) ? "bookmark.fill" : "bookmark")
+						.accretionPop(_store.isSaved(app))
 				}
 				.accessibilityLabel(_store.isSaved(app) ? String.localized("Saved") : String.localized("Save"))
 				ShareLink(item: StoreService.base.appendingPathComponent("app/\(app.i)/")) {
@@ -145,7 +148,12 @@ struct StoreAppView: View {
 				if _detail != nil {
 					_actions().padding(.top, 16)
 					if let status = _pipeline.status, _pipeline.activeBundleID == app.i {
-						Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted).padding(.top, 8)
+						HStack(spacing: 10) {
+							// the logo's rings: the outer one fills with the download, the next one loops while signing
+							_installRings(_pipeline.stage)
+							Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted)
+						}
+						.padding(.top, 8)
 					}
 					if _ipa != nil {
 						CertificateLine().padding(.top, 10)
@@ -174,6 +182,18 @@ struct StoreAppView: View {
 		}
 		.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 		.overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+	}
+
+	/// Small ring progress beside the install status: download percentage, then signing
+	private func _installRings(_ stage: AutoSignPipeline.Stage?) -> some View {
+		var downloaded = 0.0
+		if case .downloading(let fraction) = stage { downloaded = fraction }
+		if stage == .signing { downloaded = 1 }
+		return AccretionOrbitProgress(progress: [downloaded, 0, 0], sweeping: stage == .signing ? 1 : nil, size: 44) {
+			Circle()
+				.fill(AccretionMark.starColor)
+				.frame(width: 6, height: 6)
+		}
 	}
 
 	/// Install (and which installer it uses), then "More ways" like the website's "More ways ▾":
@@ -279,6 +299,8 @@ struct StoreAppView: View {
 						}
 					} label: {
 						Text(verbatim: "♥ " + (social.liked ? String.localized("Liked") : String.localized("Like")) + (social.likes > 0 ? " · \(social.likes)" : ""))
+							.accretionNumberRoll(social.likes)
+							.accretionPop(social.liked)
 					}
 					.buttonStyle(AccretionButtonStyle(prominent: false, on: social.liked))
 

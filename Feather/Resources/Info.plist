@@ -158,7 +158,7 @@
 </dict>
 	<!-- Accretion: Google Mobile Ads. This is Google's TEST app ID; swap in the real one. -->
 	<key>GADApplicationIdentifier</key>
-	<string>ca-app-pub-4500603236648893~5825525323</string>
+	<string>ca-app-pub-1352971207491342~7174720263</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

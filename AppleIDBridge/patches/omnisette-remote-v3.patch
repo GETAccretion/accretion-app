@@ -1,0 +1,52 @@
+diff --git a/3rdparty/omnisette/src/lib.rs b/3rdparty/omnisette/src/lib.rs
+index 999dcad..1ce3f0a
+--- a/3rdparty/omnisette/src/lib.rs
++++ b/3rdparty/omnisette/src/lib.rs
+@@ -65,6 +65,8 @@ pub struct AnisetteConfiguration {
+     anisette_url_v3: String,
+     configuration_path: PathBuf,
+     macos_serial: String,
++    // Accretion: phones have no local ADI libraries; skip that path.
++    remote_only: bool,
+ }
+ 
+ impl Default for AnisetteConfiguration {
+@@ -80,9 +82,21 @@ impl AnisetteConfiguration {
+             anisette_url_v3: DEFAULT_ANISETTE_URL_V3.to_string(),
+             configuration_path: PathBuf::new(),
+             macos_serial: "0".to_string(),
++            remote_only: false,
+         }
+     }
+ 
++    // Accretion: anisette v3 server and remote-only switch.
++    pub fn set_anisette_url_v3(mut self, anisette_url_v3: String) -> AnisetteConfiguration {
++        self.anisette_url_v3 = anisette_url_v3;
++        self
++    }
++
++    pub fn set_remote_only(mut self, remote_only: bool) -> AnisetteConfiguration {
++        self.remote_only = remote_only;
++        self
++    }
++
+     pub fn anisette_url(&self) -> &String {
+         &self.anisette_url
+     }
+@@ -138,10 +152,12 @@ impl AnisetteHeaders {
+         configuration: AnisetteConfiguration,
+     ) -> Result<AnisetteHeadersProviderRes, AnisetteError> {
+         // TODO: handle Err because it will just go to remote anisette and not tell the user anything
+-        if let Ok(ssc_anisette_headers_provider) =
+-            AnisetteHeaders::get_ssc_anisette_headers_provider(configuration.clone())
+-        {
+-            return Ok(ssc_anisette_headers_provider);
++        if !configuration.remote_only {
++            if let Ok(ssc_anisette_headers_provider) =
++                AnisetteHeaders::get_ssc_anisette_headers_provider(configuration.clone())
++            {
++                return Ok(ssc_anisette_headers_provider);
++            }
+         }
+ 
+         #[cfg(feature = "remote-anisette-v3")]

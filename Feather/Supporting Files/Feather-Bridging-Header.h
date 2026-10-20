@@ -4,3 +4,4 @@
 
 #include "MachOUtils.h"
 #include "iconPoc.h"
+#include "../../AppleIDBridge/include/accretion_appleid.h" // Accretion: Apple ID signing

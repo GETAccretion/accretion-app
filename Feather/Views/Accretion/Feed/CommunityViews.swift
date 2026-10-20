@@ -120,6 +120,8 @@ struct PostRow: View {
 			Button(action: onLike) {
 				Text(verbatim: "♥" + ((post.likes ?? 0) > 0 ? " \(post.likes ?? 0)" : ""))
 					.foregroundStyle(liked ? _heart : AccretionTheme.muted)
+					.accretionNumberRoll(post.likes ?? 0) // Accretion: counts roll, the heart pops
+					.accretionPop(liked)
 			}
 			.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
 			.accessibilityLabel(liked ? String.localized("Unlike") : String.localized("Like"))
@@ -418,7 +420,7 @@ struct CommunityFeedView: View {
 		}
 		.accretionBackground()
 		.accretionNavigationBar(String.localized("Feed"))
-		.refreshable { await _reload() }
+		.refreshable { await _reload(); AccretionHaptics.refreshed() }
 		.task(id: _tab) {
 			await _viewer.load()
 			await _reload()

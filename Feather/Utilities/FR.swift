@@ -49,11 +49,13 @@ enum FR {
 		using options: Options,
 		icon: UIImage?,
 		certificate: CertificatePair?,
+		appleID: Bool? = nil, // Accretion: nil follows Settings → Apple ID
 		completion: @escaping (Error?) -> Void
 	) {
 		Task.detached {
 			let handler = SigningHandler(app: app, options: options)
 			handler.appCertificate = certificate
+			handler.useAppleID = appleID
 			handler.appIcon = icon
 			
 			do {

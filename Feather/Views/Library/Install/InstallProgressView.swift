@@ -9,45 +9,22 @@ import SwiftUI
 import IDeviceSwift
 
 struct InstallProgressView: View {
-	@State private var _isPulsing = false
-	
 	var app: AppInfoPresentable
 	@ObservedObject var viewModel: InstallerStatusViewModel
 	
 	var body: some View {
-		VStack(spacing: 12) {
-			_appIcon()
-				.scaleEffect(_isPulsing ? 0.85 : 0.81)
-				.animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: _isPulsing)
-				.onAppear {
-					_isPulsing = true
-				}
+		// Accretion: the logo's rings around the app's icon fill as the install goes (outer ring
+		// first), and the icon flashes like the logo's star when it's done
+		let progress = viewModel.overallProgress
+		AccretionOrbitProgress(
+			progress: [progress * 3, progress * 3 - 1, progress * 3 - 2].map { min(1, max(0, $0)) },
+			done: viewModel.isCompleted,
+			size: 150
+		) {
+			FRAppIconView(app: app, size: 40)
+				.frame(width: 40, height: 40)
 		}
-	}
-	
-	@ViewBuilder
-	private func _appIcon() -> some View {
-		ZStack {
-			FRAppIconView(app: app)
-				.opacity(0.2)
-				.frame(width: 54, height: 54)
-				.foregroundStyle(Color.black)
-			
-			FRAppIconView(app: app)
-				.frame(width: 54, height: 54)
-				.mask(
-					ZStack {
-						Circle().strokeBorder(Color.white, lineWidth: 4.5)
-						PieShape(progress: viewModel.overallProgress)
-							.scaleEffect(viewModel.isCompleted ? 2.2 : 1)
-							.animation(.smooth, value: viewModel.isCompleted)
-					}
-				)
-				.animation(.smooth, value: viewModel.overallProgress)
-		}
-		// Accretion: a soft green glow when the install finishes
-		.shadow(color: AccretionTheme.good.opacity(viewModel.isCompleted ? 0.7 : 0), radius: viewModel.isCompleted ? 18 : 0)
-		.animation(.easeOut(duration: 0.6), value: viewModel.isCompleted)
+		.offset(y: -14)
 	}
 	
 	struct PieShape: Shape {

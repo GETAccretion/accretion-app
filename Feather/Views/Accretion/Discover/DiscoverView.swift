@@ -27,6 +27,7 @@ struct DiscoverView: View {
 	/// Most liked, Top rated, Most discussed (the website's community shelves)
 	@State private var _community: [StoreService.Shelf] = []
 	@State private var _path = NavigationPath()
+	@Namespace private var _zoom // Accretion: app icons grow into their page
 
 	/// A category chip is picked: the shelves step aside for that category's apps
 	private var _isBrowsing: Bool { _category != nil }
@@ -60,8 +61,10 @@ struct DiscoverView: View {
 			.refreshable {
 				await _store.load(force: true)
 				await WhatsNewFeed.shared.load(force: true)
+				AccretionHaptics.refreshed()
 			}
-			.accretionStoreDestinations()
+			.accretionStoreDestinations(zoom: _zoom)
+			.environment(\.accretionZoom, _zoom)
 			// the system bar (D1-A); search, Sources and Saved live in their own tabs (D2-A)
 			.accretionNavigationBar(String.localized("Discover"))
 			.toolbar { _toolbar() }
@@ -369,7 +372,7 @@ struct DiscoverView: View {
 			.frame(maxWidth: .infinity)
 			.padding(.top, 40)
 		} else {
-			ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+			AccretionDiscoverSkeleton()
 		}
 	}
 }
@@ -516,6 +519,7 @@ struct StoreAppRow: View {
 					.frame(width: 21)
 			}
 			StoreAppIcon(url: app.iconURL, size: 48, radius: 12)
+				.accretionZoomSource(app.i)
 			HStack(spacing: 4) {
 				VStack(alignment: .leading, spacing: 2) {
 					Text(verbatim: app.n)
@@ -552,6 +556,7 @@ struct StoreAppCard: View {
 	var body: some View {
 		HStack(spacing: 13) {
 			StoreAppIcon(url: app.iconURL, size: 60, radius: 14)
+				.accretionZoomSource(app.i)
 			VStack(alignment: .leading, spacing: 0) {
 				HStack(spacing: 7) {
 					Text(verbatim: app.n)

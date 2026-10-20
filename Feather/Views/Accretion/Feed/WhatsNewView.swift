@@ -111,6 +111,8 @@ struct AnnouncementCard: View {
 				} label: {
 					Text(verbatim: "♥" + ((item.likes ?? 0) > 0 ? " \(item.likes ?? 0)" : ""))
 						.foregroundStyle(liked ? AccretionTheme.rose : AccretionTheme.muted)
+						.accretionNumberRoll(item.likes ?? 0)
+						.accretionPop(liked)
 				}
 				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
 				.accessibilityLabel(liked ? String.localized("Unlike") : String.localized("Like"))

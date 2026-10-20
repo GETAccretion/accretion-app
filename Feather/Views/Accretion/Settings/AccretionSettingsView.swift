@@ -43,6 +43,13 @@ struct AccretionSettingsView: View {
 					_group(String.localized("Signing")) {
 						_certificateRow()
 						_divider()
+						// Accretion: free Apple ID (7-day) signing
+						_link(
+							String.localized("Apple ID"),
+							AppleIDClient.session?.email ?? String.localized("Sign apps with a free Apple ID (7 days)"),
+							"person.badge.key"
+						) { AppleIDView() }
+						_divider()
 						_link(String.localized("Signing Options"), String.localized("Defaults for every app you sign"), "signature") { ConfigurationView() }
 						_divider()
 						_link(String.localized("Tweak Library"), String.localized("Tweaks you can add while signing"), "puzzlepiece.extension") { TweakLibraryView() }

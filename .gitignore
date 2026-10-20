@@ -18,6 +18,10 @@ PRIVATE.md
 CoreTests/Sources/
 CoreTests/.build/
 
+# Apple ID signing framework build output (AppleIDBridge/build-ios.sh)
+AppleIDBridge/target/
+AppleIDBridge/build/
+
 # Python workflow checks
 __pycache__/
 *.pyc

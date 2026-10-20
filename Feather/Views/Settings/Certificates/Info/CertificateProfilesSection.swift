@@ -16,8 +16,22 @@ struct CertificateProfilesSection: View {
 	@State private var _profiles: [ProfileStore.Profile] = []
 	@State private var _assigned: [String: String] = [:]
 	@State private var _isImporting = false
+	@AppStorage(CertificateSlots.keepOwnIDKey) private var _keepOwnID = true
 
 	var body: some View {
+		if _profiles.contains(where: { if case .explicit = $0.kind { return true } else { return false } }) {
+			NBSection(.localized("One-App Certificate")) {
+				Toggle(String.localized("Keep Each App's Bundle ID"), isOn: $_keepOwnID)
+			} footer: {
+				Text(verbatim: _keepOwnID
+					? String.localized("Apps keep their own bundle IDs, so several stay installed with this certificate. Logins shared between apps, notifications and iCloud may not work.")
+					: String.localized("Every app is signed with this certificate's one app ID, so each install replaces the last one. Add one profile per app below to keep several."))
+			}
+		}
+		_profilesSection
+	}
+
+	private var _profilesSection: some View {
 		NBSection(.localized("Profiles"), secondary: _profiles.count.description) {
 			ForEach(_profiles) { profile in
 				VStack(alignment: .leading, spacing: 2) {

@@ -181,7 +181,7 @@ struct SigningView: View {
 		   ProfileStore.profiles(for: cert).count > 1,
 		   let choice = ProfileStore.choose(for: key, cert: cert, assign: false) {
 			_slotKind = choice.profile.kind
-			_slotOccupant = choice.replaces
+			_slotOccupant = CertificateSlots.keepsOwnID ? nil : choice.replaces
 			_hasOwnSlot = choice.replaces == nil
 		}
 
@@ -242,7 +242,10 @@ extension SigningView {
 		if case .explicit(let id) = _slotKind {
 			Section {
 				Label {
-					Text(verbatim: _hasOwnSlot
+					// a saved recipe can still carry the certificate's ID (signed before 1.0.37): then the old text holds
+					Text(verbatim: CertificateSlots.keepsOwnID && (_temporaryOptions.appIdentifier ?? app.identifier) != id
+						? String.localized("This certificate covers one app ID (%@). The app keeps its own bundle ID, so it installs next to your other apps. Logins shared between apps, notifications and iCloud may not work. To sign every app as %@ instead, change it in Settings → Certificates.", arguments: id, id)
+						: _hasOwnSlot
 						? String.localized("This app gets its own profile, so it's signed as %@ and installs next to your other apps.", arguments: id)
 						: String.localized(
 							"This certificate covers one app at a time, so this app is signed as %@ and replaces %@ on your device. Add more profiles in Settings → Certificates to give each app its own slot.",

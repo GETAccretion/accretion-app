@@ -7,15 +7,7 @@ import CoreData
 import Foundation
 
 // MARK: - App ID kind
-/// What a provisioning profile lets you sign. Most cheap certificates are explicit: one App ID,
-/// so every app signed with them gets that one bundle ID and replaces the previous one on the device.
-enum AppIDKind: Equatable {
-	/// `TEAM.*` (prefix "") or `TEAM.com.example.*` (prefix "com.example.")
-	case wildcard(prefix: String)
-	/// `TEAM.com.example.app`: exactly one bundle ID
-	case explicit(String)
-}
-
+// AppIDKind and the bundle ID rule live in Backend/Core/AppIDFit.swift (tested in CoreTests).
 extension Certificate {
 	/// The profile's App ID without the team prefix: "*", "com.example.*" or "com.example.app".
 	var accretionAppID: String? {
@@ -24,41 +16,34 @@ extension Certificate {
 		return parts.count == 2 ? String(parts[1]) : raw
 	}
 
-	var accretionAppIDKind: AppIDKind? {
-		guard let id = accretionAppID, !id.isEmpty else { return nil }
-		if id == "*" { return .wildcard(prefix: "") }
-		if id.hasSuffix(".*") { return .wildcard(prefix: String(id.dropLast())) }
-		return .explicit(id)
-	}
+	var accretionAppIDKind: AppIDKind? { AppIDKind(appID: accretionAppID) }
 }
 
 // MARK: - Slots
 enum CertificateSlots {
+	/// Settings → Certificates: with a single-app certificate, keep each app's own bundle ID
+	/// (default, several apps fit) or rename every app to the certificate's one App ID (one slot)
+	static let keepOwnIDKey = "accretion.signing.keepBundleID"
+
+	static var keepsOwnID: Bool {
+		UserDefaults.standard.object(forKey: keepOwnIDKey) as? Bool ?? true
+	}
+
 	/// The App ID kind of a stored certificate, read from its .mobileprovision.
 	static func kind(of cert: CertificatePair?) -> AppIDKind? {
 		guard let cert else { return nil }
 		return Storage.shared.getProvisionFileDecoded(for: cert)?.accretionAppIDKind
 	}
 
-	/// The bundle ID an app must use to be signed with this certificate:
-	/// - explicit App ID: always that ID
-	/// - prefix wildcard: the wanted ID if it fits, otherwise the prefix plus the wanted ID
-	/// - full wildcard or unknown: the wanted ID unchanged
+	/// The bundle ID an app is signed with under this certificate (AppIDFit, with the setting above)
 	static func bundleID(_ wanted: String, for kind: AppIDKind?) -> String {
-		switch kind {
-		case .explicit(let id):
-			return id
-		case .wildcard(let prefix) where !prefix.isEmpty && !wanted.hasPrefix(prefix):
-			return prefix + wanted
-		default:
-			return wanted
-		}
+		AppIDFit.bundleID(wanted, for: kind, keepOwnID: keepsOwnID)
 	}
 
-	/// For an explicit App ID: the app signed most recently into that one slot, which the next
-	/// install will replace on the device.
+	/// For an explicit App ID with the rename option on: the app signed most recently into that one
+	/// slot, which the next install will replace on the device. Nil while apps keep their own IDs.
 	static func occupant(of cert: CertificatePair?) -> Signed? {
-		guard case .explicit(let id) = kind(of: cert) else { return nil }
+		guard !keepsOwnID, case .explicit(let id) = kind(of: cert) else { return nil }
 		let request: NSFetchRequest<Signed> = Signed.fetchRequest()
 		request.predicate = NSPredicate(format: "identifier == %@", id)
 		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]

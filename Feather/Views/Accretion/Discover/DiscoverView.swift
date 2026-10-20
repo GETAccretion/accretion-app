@@ -29,6 +29,7 @@ struct DiscoverView: View {
 	/// Most liked, Top rated, Most discussed (the website's community shelves)
 	@State private var _community: [StoreService.Shelf] = []
 	@State private var _path = NavigationPath()
+	@Namespace private var _zoom // Accretion: app icons grow into their page
 	@FocusState private var _searchFocused: Bool
 
 	private var _isBrowsing: Bool { !_search.isEmpty || _category != nil }
@@ -67,12 +68,13 @@ struct DiscoverView: View {
 				await _store.load(force: true)
 				await WhatsNewFeed.shared.load(force: true)
 			}
-			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0) }
+			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0).accretionZoomDestination($0.i, in: _zoom) }
 			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
 			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
 			.navigationDestination(for: StatusRoute.self) { _ in StatusView() }
 			.navigationDestination(for: CommunityFeedRoute.self) { CommunityFeedView(whatsNew: $0.whatsNew) }
 			.navigationDestination(for: NotificationsRoute.self) { _ in NotificationsView() }
+			.environment(\.accretionZoom, _zoom)
 			.navigationDestination(for: StoreSourcesRoute.self) { _ in StoreSourcesView() }
 			.toolbar(.hidden, for: .navigationBar)
 		}
@@ -641,6 +643,7 @@ struct StoreAppRow: View {
 					.frame(width: 21)
 			}
 			StoreAppIcon(url: app.iconURL, size: 48, radius: 12)
+				.accretionZoomSource(app.i)
 			HStack(spacing: 4) {
 				VStack(alignment: .leading, spacing: 2) {
 					Text(verbatim: app.n)
@@ -677,6 +680,7 @@ struct StoreAppCard: View {
 	var body: some View {
 		HStack(spacing: 13) {
 			StoreAppIcon(url: app.iconURL, size: 60, radius: 14)
+				.accretionZoomSource(app.i)
 			VStack(alignment: .leading, spacing: 0) {
 				HStack(spacing: 7) {
 					Text(verbatim: app.n)

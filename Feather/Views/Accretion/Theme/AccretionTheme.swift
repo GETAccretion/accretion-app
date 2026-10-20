@@ -328,6 +328,8 @@ struct AccretionPressStyle: ButtonStyle {
 enum AccretionHaptics {
 	private static let _selection = UISelectionFeedbackGenerator()
 	static func select() { _selection.selectionChanged() }
+	/// A soft tap, for a finished pull to refresh
+	static func refreshed() { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
 }
 
 /// The store's `.sec` card: surface, 14-pt corners, and a small mono uppercase heading.

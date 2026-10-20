@@ -48,8 +48,3 @@ extension View {
 	func accretionPop(_ on: Bool) -> some View { modifier(AccretionPop(on: on)) }
 	func accretionNumberRoll(_ value: Int) -> some View { modifier(AccretionNumberRoll(value: value)) }
 }
-
-enum AccretionHaptics {
-	/// A soft tap, for a finished pull to refresh
-	static func refreshed() { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
-}

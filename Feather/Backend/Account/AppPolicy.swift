@@ -39,6 +39,8 @@ final class AppPolicy: ObservableObject {
 		let minimum = json["minimumVersion"] as? String
 		minimumVersion = minimum
 		UserDefaults.standard.set(minimum, forKey: Self._minimumKey)
+		// Accretion: fallback anisette servers for Apple ID signing ("anisetteServers"; missing means none)
+		UserDefaults.standard.set(AnisetteServers.remoteList(fromAppConfig: data), forKey: AppleIDClient.remoteAnisetteKey)
 	}
 
 	// MARK: Getting the newest Accretion

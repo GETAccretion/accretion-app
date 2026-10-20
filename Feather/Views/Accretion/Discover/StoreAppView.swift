@@ -221,6 +221,7 @@ struct StoreAppView: View {
 				_show(_store.isSaved(app) ? String.localized("Saved. You'll see when it updates.") : String.localized("Removed from saved"))
 			}
 			.buttonStyle(AccretionButtonStyle(prominent: false, on: _store.isSaved(app)))
+			.accretionPop(_store.isSaved(app))
 
 			ShareLink(item: StoreService.base.appendingPathComponent("app/\(app.i)/")) {
 				Text(verbatim: String.localized("Share"))
@@ -295,6 +296,8 @@ struct StoreAppView: View {
 						}
 					} label: {
 						Text(verbatim: "♥ " + (social.liked ? String.localized("Liked") : String.localized("Like")) + (social.likes > 0 ? " · \(social.likes)" : ""))
+							.accretionNumberRoll(social.likes)
+							.accretionPop(social.liked)
 					}
 					.buttonStyle(AccretionButtonStyle(prominent: false, on: social.liked))
 

@@ -67,6 +67,7 @@ struct DiscoverView: View {
 			.refreshable {
 				await _store.load(force: true)
 				await WhatsNewFeed.shared.load(force: true)
+				AccretionHaptics.refreshed()
 			}
 			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0).accretionZoomDestination($0.i, in: _zoom) }
 			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }

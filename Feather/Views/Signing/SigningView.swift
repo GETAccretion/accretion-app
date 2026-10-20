@@ -29,6 +29,17 @@ struct SigningView: View {
 	// Accretion: per-app recipe (options, icon, tweaks) re-applied on every re-sign and update
 	@State private var _rememberRecipe = true
 	@State private var _usingRecipe = false
+	// Accretion: sign with the Apple ID (Settings → Apple ID) instead of a certificate; the
+	// Settings switch is the default
+	@State private var _appleIDEmail: String? = AppleIDClient.session?.email
+	@State private var _useAppleID = AppleIDSigning.isActive
+	/// The bundle ID change the last certificate fit made, undone when the choice changes
+	@State private var _slotFit: SlotFit?
+	private struct SlotFit {
+		let from: String?
+		let to: String
+	}
+	private var _signsWithAppleID: Bool { _useAppleID && _appleIDEmail != nil }
 	
 	// MARK: Fetch
 	@FetchRequest(
@@ -142,6 +153,7 @@ struct SigningView: View {
 			// ppq protection
 			if
 				_optionsManager.options.ppqProtection,
+				!_signsWithAppleID, // Accretion: the Apple ID adds its team to the ID instead
 				let identifier = app.identifier,
 				let cert = _selectedCert(),
 				cert.ppQCheck
@@ -168,11 +180,20 @@ struct SigningView: View {
 		.onChange(of: _temporaryCertificate) { _ in
 			_applyCertificateSlot()
 		}
+		.onChange(of: _useAppleID) { _ in
+			_applyCertificateSlot()
+		}
 	}
 
 	/// Accretion: fit the bundle ID to what the selected certificate's profile allows.
 	private func _applyCertificateSlot() {
-		let cert = _selectedCert()
+		// start from the ID as it was before the last fit, so another certificate or the Apple ID
+		// doesn't keep a profile's ID
+		if let fit = _slotFit, _temporaryOptions.appIdentifier == fit.to {
+			_temporaryOptions.appIdentifier = fit.from
+		}
+		_slotFit = nil
+		let cert = _signsWithAppleID ? nil : _selectedCert() // the Apple ID makes its own App IDs
 		_slotKind = CertificateSlots.kind(of: cert)
 		_slotOccupant = CertificateSlots.occupant(of: cert)?.name
 		_hasOwnSlot = false
@@ -189,6 +210,7 @@ struct SigningView: View {
 		let wanted = _temporaryOptions.appIdentifier ?? original
 		let fitted = CertificateSlots.bundleID(wanted, for: _slotKind)
 		if fitted != wanted {
+			_slotFit = SlotFit(from: _temporaryOptions.appIdentifier, to: fitted)
 			_temporaryOptions.appIdentifier = fitted
 		}
 	}
@@ -265,8 +287,14 @@ extension SigningView {
 	@ViewBuilder
 	private func _cert() -> some View {
 		NBSection(.localized("Signing")) {
-			if AppleIDSigning.isActive, let email = AppleIDClient.session?.email {
-				// Accretion: signed with the Apple ID (Settings → Apple ID), not a certificate
+			// Accretion: signed in with an Apple ID (Settings → Apple ID): choose it or a certificate
+			if _appleIDEmail != nil {
+				Picker(String.localized("Sign With"), selection: $_useAppleID) {
+					Text(verbatim: String.localized("Certificate")).tag(false)
+					Text(verbatim: String.localized("Apple ID")).tag(true)
+				}
+			}
+			if _signsWithAppleID, let email = _appleIDEmail {
 				LabeledContent(String.localized("Apple ID (7 days)")) {
 					Text(verbatim: email)
 				}
@@ -289,7 +317,9 @@ extension SigningView {
 				Label(.localized("Remember for This App"), systemImage: "wand.and.stars")
 			}
 		} footer: {
-			Text(verbatim: _usingRecipe
+			Text(verbatim: _signsWithAppleID
+				? String.localized("Signed with your Apple ID's team: the bundle ID gets the team added, extensions are left out, and the app opens for 7 days. Re-sign in Settings → Apple ID.")
+				: _usingRecipe
 				? String.localized("Using the name, icon, tweaks and properties saved for this app. Tap Reset to start from your defaults.")
 				: String.localized("Saves the name, icon, tweaks and properties so updates and re-signs keep them."))
 		}
@@ -358,7 +388,7 @@ extension SigningView {
 extension SigningView {
 	private func _start() {
 		guard
-			_selectedCert() != nil || _temporaryOptions.signingOption != .default || AppleIDSigning.isActive // Accretion
+			_selectedCert() != nil || _temporaryOptions.signingOption != .default || _signsWithAppleID // Accretion
 		else {
 			UIAlertController.showAlertWithOk(
 				title: .localized("No Certificate"),
@@ -370,7 +400,7 @@ extension SigningView {
 
 		// Accretion: explain problems before signing; blocking ones stop here. Checked against the
 		// profile this app will actually be signed with when the certificate has several.
-		let cert = AppleIDSigning.isActive ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
+		let cert = _signsWithAppleID ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
 		_useAppProfile(cert)
 		let problems = Preflight.problems(for: app, certificate: cert, options: _temporaryOptions)
 		if let cert { ProfileOverride.set(nil, for: cert) }
@@ -391,14 +421,15 @@ extension SigningView {
 		generator.impactOccurred()
 		_isSigning = true
 
-		let cert = AppleIDSigning.isActive ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
+		let cert = _signsWithAppleID ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
 		_useAppProfile(cert)
 
 		FR.signPackageFile(
 			app,
 			using: _temporaryOptions,
 			icon: appIcon,
-			certificate: cert
+			certificate: cert,
+			appleID: _temporaryOptions.signingOption == .default && _signsWithAppleID // Accretion
 		) { error in
 			ProfileOverride.set(nil, for: cert)
 			if let error {

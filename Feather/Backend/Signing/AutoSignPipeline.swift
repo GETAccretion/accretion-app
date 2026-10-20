@@ -133,7 +133,7 @@ final class AutoSignPipeline: ObservableObject {
 	) async throws -> Bool {
 		let installed = _installedCopy(uuid: localUUID, bundleID: bundleID)
 		let oldImported = localUUID.flatMap { _imported(uuid: $0) }
-		if installed != nil || signNew, !AppleIDSigning.isActive, _usableCertificate(installed?.certificate) == nil, _selectedCertificate == nil {
+		if installed != nil || signNew, !_usesAppleID(installed), _usableCertificate(installed?.certificate) == nil, _selectedCertificate == nil {
 			throw PipelineError.noCertificate
 		}
 		
@@ -180,14 +180,14 @@ final class AutoSignPipeline: ObservableObject {
 	// MARK: Re-sign all
 	/// Re-signs every signed app with the selected certificate, keeping each app's recipe and
 	/// bundle ID, and replaces the old copies.
-	func resignAll() {
+	func resignAll(appleIDOnly: Bool = false) {
 		guard !isRunning else { return }
 		let request: NSFetchRequest<Signed> = Signed.fetchRequest()
 		request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
 		var apps = (try? Storage.shared.context.fetch(request)) ?? []
-		// Accretion: with Apple ID signing on, only the apps signed that way (a free Apple ID allows
-		// 3 at a time, so certificate-signed apps aren't moved over)
-		if AppleIDSigning.isActive {
+		// Accretion: with Apple ID signing on (or from Settings → Apple ID), only the apps signed that
+		// way (a free Apple ID allows 3 at a time, so certificate-signed apps aren't moved over)
+		if AppleIDSigning.isActive || appleIDOnly {
 			AppleIDSigning.prune(keeping: Set(apps.compactMap(\.uuid)))
 			apps = apps.filter { AppleIDSigning.isAppleIDSigned(uuid: $0.uuid) }
 		}
@@ -369,7 +369,7 @@ final class AutoSignPipeline: ObservableObject {
 		requireSameTeam: Bool = true,
 		optionsOverride: Options? = nil
 	) async throws -> Bool {
-		if AppleIDSigning.isActive {
+		if _usesAppleID(installed) {
 			return try await _signWithAppleID(app, replacing: old, updating: installed, optionsOverride: optionsOverride)
 		}
 		// updates keep the certificate the installed copy was signed with while it's still good
@@ -431,6 +431,13 @@ final class AutoSignPipeline: ObservableObject {
 		return sameTeam
 	}
 
+	/// Accretion: Apple ID signing when Settings → Apple ID's switch is on, or for a copy that was
+	/// signed with the Apple ID on the Signing screen (its updates and re-signs stay on the Apple ID)
+	private func _usesAppleID(_ installed: Signed?) -> Bool {
+		AppleIDSigning.isActive
+			|| (AppleIDClient.session != nil && AppleIDSigning.isAppleIDSigned(uuid: installed?.uuid))
+	}
+
 	/// Accretion: `_sign` for Apple ID signing (Settings → Apple ID): no certificate or profile slots.
 	/// SigningHandler adds the team suffix to the bundle ID; an installed copy's (already suffixed) ID
 	/// is kept, so re-signing replaces it in place.
@@ -454,7 +461,7 @@ final class AutoSignPipeline: ObservableObject {
 			throw PipelineError.blocked("\(problem.title). \(problem.message)")
 		}
 		try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-			FR.signPackageFile(app, using: options, icon: icon, certificate: nil) { error in
+			FR.signPackageFile(app, using: options, icon: icon, certificate: nil, appleID: true) { error in
 				if let error { continuation.resume(throwing: error) } else { continuation.resume() }
 			}
 		}

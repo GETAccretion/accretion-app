@@ -137,7 +137,7 @@ struct AppleIDView: View {
 		Toggle(isOn: $_signApps) {
 			VStack(alignment: .leading, spacing: 2) {
 				Text(verbatim: String.localized("Sign Apps with This Apple ID")).accretionFont(15, weight: .semibold)
-				Text(verbatim: String.localized("Used instead of your certificate for signing, store installs and updates."))
+				Text(verbatim: String.localized("The default on the Signing screen, and used for store installs and updates. Off: choose Apple ID per app under Signing."))
 					.font(.caption)
 					.foregroundStyle(AccretionTheme.muted)
 			}
@@ -203,7 +203,7 @@ struct AppleIDView: View {
 			.foregroundStyle(AccretionTheme.muted)
 		VStack(alignment: .leading, spacing: 10) {
 			if _records.isEmpty {
-				Text(verbatim: String.localized("None yet. Turn on Sign Apps with This Apple ID, then sign an app from Library."))
+				Text(verbatim: String.localized("None yet. Sign an app from Library and choose Apple ID under Signing."))
 					.font(.caption)
 					.foregroundStyle(AccretionTheme.muted)
 			}
@@ -216,10 +216,10 @@ struct AppleIDView: View {
 				} ?? String.localized("Unknown"))
 			}
 			Button(_pipeline.status ?? String.localized("Re-sign All")) {
-				AutoSignPipeline.shared.resignAll()
+				AutoSignPipeline.shared.resignAll(appleIDOnly: true)
 			}
 			.buttonStyle(AccretionButtonStyle())
-			.disabled(_records.isEmpty || _pipeline.isRunning || !AppleIDSigning.isActive)
+			.disabled(_records.isEmpty || _pipeline.isRunning)
 			Text(verbatim: String.localized("Each app gets a fresh 7-day profile. iOS asks to confirm each install."))
 				.font(.caption)
 				.foregroundStyle(AccretionTheme.muted)

@@ -106,10 +106,7 @@ struct SigningView: View {
 			.toolbar {
 				NBToolbarButton(role: .dismiss)
 				ToolbarItem(placement: .principal) {
-					Image("Glyph")
-						.resizable()
-						.scaledToFit()
-						.frame(height: 38)
+					FRAppIconView(size: 30) // Accretion: our icon instead of Feather's glyph
 				}
 				NBToolbarButton(
 					.localized("Reset"),

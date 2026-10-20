@@ -30,9 +30,9 @@ struct SigningView: View {
 	@State private var _rememberRecipe = true
 	@State private var _usingRecipe = false
 	// Accretion: sign with the Apple ID (Settings → Apple ID) instead of a certificate; the
-	// Settings switch is the default
-	@State private var _appleIDEmail: String? = AppleIDClient.session?.email
-	@State private var _useAppleID = AppleIDSigning.isActive
+	// Settings switch is the default, and the Apple ID is used when there's no certificate
+	@State private var _appleIDEmail: String?
+	@State private var _useAppleID = UserDefaults.standard.bool(forKey: AppleIDSigning.enabledKey)
 	/// The bundle ID change the last certificate fit made, undone when the choice changes
 	@State private var _slotFit: SlotFit?
 	private struct SlotFit {
@@ -40,6 +40,12 @@ struct SigningView: View {
 		let to: String
 	}
 	private var _signsWithAppleID: Bool { _useAppleID && _appleIDEmail != nil }
+
+	/// Accretion: one Keychain read when the screen opens or the sign-in screen closes
+	private func _refreshAppleID() {
+		_appleIDEmail = AppleIDClient.session?.email
+		if certificates.isEmpty, _appleIDEmail != nil { _useAppleID = true }
+	}
 	
 	// MARK: Fetch
 	@FetchRequest(
@@ -143,6 +149,7 @@ struct SigningView: View {
 			.animation(.smooth, value: _isSigning)
 		}
 		.onAppear {
+			_refreshAppleID() // Accretion
 			// Accretion: start from this app's recipe when it has one
 			if let recipe = RecipeStore.load(for: app, base: _optionsManager.options) {
 				_temporaryOptions = recipe.options
@@ -305,6 +312,22 @@ extension SigningView {
 					CertificatesCellView(
 						cert: cert
 					)
+				}
+			} else if _appleIDEmail == nil {
+				// Accretion: no certificate yet: an Apple ID signs apps too (7 days)
+				NavigationLink {
+					AppleIDView()
+						.onDisappear {
+							_refreshAppleID()
+							_applyCertificateSlot()
+						}
+				} label: {
+					VStack(alignment: .leading, spacing: 2) {
+						Text(verbatim: String.localized("Sign In with Apple ID"))
+						Text(verbatim: String.localized("No certificate? Sign apps with your Apple ID for 7 days, or add a certificate in Settings → Certificates."))
+							.font(.footnote)
+							.foregroundStyle(.secondary)
+					}
 				}
 			} else {
 				Text(.localized("No Certificate"))

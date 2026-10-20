@@ -50,7 +50,7 @@ final class AutoSignPipeline: ObservableObject {
 
 		var errorDescription: String? {
 			switch self {
-			case .noCertificate: return String.localized("No certificate selected. Add one in Settings → Certificates.")
+			case .noCertificate: return String.localized("No certificate selected. Add one in Settings → Certificates, or sign in with an Apple ID in Settings → Apple ID.")
 			case .download(let reason): return String.localized("Download failed: %@", arguments: reason)
 			case .importNotFound: return String.localized("The download didn't import as an app.")
 			case .blocked(let reason): return reason
@@ -431,11 +431,14 @@ final class AutoSignPipeline: ObservableObject {
 		return sameTeam
 	}
 
-	/// Accretion: Apple ID signing when Settings → Apple ID's switch is on, or for a copy that was
-	/// signed with the Apple ID on the Signing screen (its updates and re-signs stay on the Apple ID)
+	/// Accretion: Apple ID signing when Settings → Apple ID's switch is on, for a copy that was
+	/// signed with the Apple ID on the Signing screen (its updates and re-signs stay on the Apple ID),
+	/// and for a new app when there's no certificate
 	private func _usesAppleID(_ installed: Signed?) -> Bool {
-		AppleIDSigning.isActive
-			|| (AppleIDClient.session != nil && AppleIDSigning.isAppleIDSigned(uuid: installed?.uuid))
+		if AppleIDSigning.isActive { return true }
+		guard AppleIDClient.session != nil else { return false }
+		if AppleIDSigning.isAppleIDSigned(uuid: installed?.uuid) { return true }
+		return installed == nil && _selectedCertificate == nil
 	}
 
 	/// Accretion: `_sign` for Apple ID signing (Settings → Apple ID): no certificate or profile slots.

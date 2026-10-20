@@ -20,7 +20,8 @@ struct FeatherApp: App {
 	@StateObject var pipeline = AutoSignPipeline.shared // Accretion: install screen from any tab
 	@StateObject var policy = AppPolicy.shared // Accretion: minimum supported version
 	let storage = Storage.shared
-	
+	@State private var _showLaunch = true // Accretion: the animated logo on a fresh start
+
 	var body: some Scene {
 		WindowGroup {
 			VStack {
@@ -32,6 +33,13 @@ struct FeatherApp: App {
 					.transition(.move(edge: .top).combined(with: .opacity))
 			}
 			.animation(.smooth, value: downloadManager.manualDownloads.description)
+			// Accretion: the animated logo plays over the first screen while it loads
+			.overlay {
+				if _showLaunch {
+					AccretionLaunchView { withAnimation(.easeOut(duration: 0.28)) { _showLaunch = false } }
+						.transition(.opacity)
+				}
+			}
 			.sheet(item: $pipeline.pendingInstall) { app in
 				InstallPreviewView(app: app.base, isSharing: app.archive)
 					.presentationDetents([.height(200)])

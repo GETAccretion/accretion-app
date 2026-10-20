@@ -48,7 +48,6 @@ struct StatusView: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 12) {
-				AccretionBackButton()
 				if let status = _status {
 					_content(status)
 				} else if _failed {
@@ -63,7 +62,7 @@ struct StatusView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(String.localized("Store Status"))
 		.refreshable { await _load() }
 		.task { await _load() }
 	}

@@ -266,6 +266,17 @@ extension View {
 		}
 	}
 
+	/// Store pages inside a navigation stack (owner decision D1-A, native frame): the system bar
+	/// with Back and a small title, on the store background once content scrolls under it. The
+	/// page's own heading stays in the content, like the website.
+	func accretionNavigationBar(_ title: String) -> some View {
+		navigationTitle(title)
+			.navigationBarTitleDisplayMode(.inline)
+			// shown even when pushed from a root that hides its bar (Settings)
+			.toolbar(.visible, for: .navigationBar)
+			.toolbarBackground(AccretionTheme.bg.opacity(0.96), for: .navigationBar)
+	}
+
 	func accretionBackground() -> some View {
 		background(
 			ZStack {

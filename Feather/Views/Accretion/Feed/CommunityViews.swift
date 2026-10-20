@@ -365,7 +365,6 @@ struct CommunityFeedView: View {
 	var body: some View {
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 12) {
-				AccretionBackButton()
 				_ViewHead(title: String.localized("Feed"), note: String.localized("What people are saying about apps, plus anything else on their mind."))
 				if _tab != .updates {
 					if _account.isSignedIn {
@@ -420,7 +419,7 @@ struct CommunityFeedView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(String.localized("Feed"))
 		.refreshable { await _reload(); AccretionHaptics.refreshed() }
 		.task(id: _tab) {
 			await _viewer.load()
@@ -663,7 +662,6 @@ struct NotificationsView: View {
 	var body: some View {
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 10) {
-				AccretionBackButton()
 				_ViewHead(title: String.localized("Notifications"), note: String.localized("Likes, replies and new followers."))
 				if let message = _message {
 					Text(verbatim: message).accretionFont(13).foregroundStyle(AccretionTheme.warn)
@@ -688,7 +686,7 @@ struct NotificationsView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(String.localized("Notifications"))
 		.refreshable { await _load() }
 		.task { await _load() }
 		.sheet(item: $_thread) { post in
@@ -776,7 +774,6 @@ struct StoreSourcesView: View {
 		let rows = _rows
 		ScrollView {
 			LazyVStack(alignment: .leading, spacing: 10) {
-				AccretionBackButton()
 				_ViewHead(
 					title: String.localized("Sources"),
 					note: String.localized("%@ sources feed Accretion. \"Apps\" counts the apps where that source has the newest version.", arguments: rows.count.formatted())
@@ -827,6 +824,6 @@ struct StoreSourcesView: View {
 			.padding(.bottom, 40)
 		}
 		.accretionBackground()
-		.toolbar(.hidden, for: .navigationBar).accretionStatusBarBackdrop()
+		.accretionNavigationBar(String.localized("Sources"))
 	}
 }

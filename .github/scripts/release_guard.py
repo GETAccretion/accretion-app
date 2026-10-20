@@ -16,6 +16,7 @@ NOT_BUILD_INPUTS = (
     ".github/ISSUE_TEMPLATE/**",
     ".github/actions/alert/**",
     ".github/dependabot.yml",
+    ".github/scripts/commit_check.py",
     ".github/tests/**",
     ".github/workflows/pr-build.yml",
     ".github/workflows/screens.yml",

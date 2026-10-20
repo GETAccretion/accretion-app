@@ -18,6 +18,13 @@ jobs:
     steps:
       - name: Check out the code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the commit check reads the commits this push or pull request adds
+      # no AI attribution and no private owner address in new commits or the PR description;
+      # commits Feather already has are its history and are skipped
+      - name: Check new commits
+        id: commit-check
+        run: python3 .github/scripts/commit_check.py --upstream https://github.com/claration/Feather.git
       - name: Script tests
         id: script-tests
         run: python3 -m unittest discover -s .github/tests -v

@@ -5,3 +5,6 @@
 [submodule "IDeviceKitten"]
 	path = IDeviceKitten
 	url = https://github.com/khcrysalis/IDeviceKit
+[submodule "AppleIDBridge/Impactor"]
+	path = AppleIDBridge/Impactor
+	url = https://github.com/khcrysalis/Impactor.git

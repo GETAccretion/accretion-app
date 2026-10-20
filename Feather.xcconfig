@@ -11,5 +11,10 @@ FEATHER_DISAMBIGUATOR=${DEVELOPMENT_TEAM}
 
 AD_HOC_CODE_SIGNING_ALLOWED = YES
 
+// Accretion: Apple ID signing framework (AppleIDBridge/build-ios.sh, run by make; embedded by the Makefile).
+// iPhone builds only: Simulator builds (screens.yml) skip it, and AppleIDClient compiles its calls out there.
+FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*] = $(inherited) $(SRCROOT)/AppleIDBridge/build
+OTHER_LDFLAGS[sdk=iphoneos*] = $(inherited) -framework AccretionAppleID
+
 DEPLOYMENT_LOCATION = YES
 DSTROOT = $(SRCROOT)/_build/

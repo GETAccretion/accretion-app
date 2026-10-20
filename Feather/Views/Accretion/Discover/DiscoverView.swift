@@ -494,7 +494,7 @@ struct DiscoverView: View {
 			.frame(maxWidth: .infinity)
 			.padding(.top, 40)
 		} else {
-			ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
+			AccretionDiscoverSkeleton()
 		}
 	}
 }

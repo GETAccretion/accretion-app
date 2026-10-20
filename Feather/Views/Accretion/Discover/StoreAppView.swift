@@ -62,6 +62,8 @@ struct StoreAppView: View {
 				} else if _detailLoaded {
 					Text(verbatim: String.localized("Details couldn't load. Check your connection and refresh."))
 						.foregroundStyle(AccretionTheme.muted)
+				} else {
+					AccretionAppPageSkeleton()
 				}
 				_comments()
 			}

@@ -42,6 +42,7 @@ struct StoreAppView: View {
 	/// The installer the Install button uses, remembered like the website's choice
 	@AppStorage("accretion.installer") private var _installerID = "accretion"
 	@State private var _isChoosingInstaller = false
+	@State private var _isShowingMoreWays = false
 
 	private var _latest: StoreAppDetail.Version? { _detail?.versions.first }
 	private var _ipa: URL? { _latest.flatMap { URL(string: $0.url) } }
@@ -71,6 +72,23 @@ struct StoreAppView: View {
 		}
 		.accretionBackground()
 		.accretionNavigationBar(app.n)
+		// Save and Share in the system bar (UX review phase 2: the app page's actions)
+		.toolbar {
+			ToolbarItemGroup(placement: .topBarTrailing) {
+				Button {
+					_store.toggleSaved(app)
+					_show(_store.isSaved(app) ? String.localized("Saved. You'll see when it updates.") : String.localized("Removed from saved"))
+				} label: {
+					Image(systemName: _store.isSaved(app) ? "bookmark.fill" : "bookmark")
+						.accretionPop(_store.isSaved(app))
+				}
+				.accessibilityLabel(_store.isSaved(app) ? String.localized("Saved") : String.localized("Save"))
+				ShareLink(item: StoreService.base.appendingPathComponent("app/\(app.i)/")) {
+					Image(systemName: "square.and.arrow.up")
+				}
+				.accessibilityLabel(String.localized("Share"))
+			}
+		}
 		.overlay(alignment: .bottom) { _toastView() }
 		.task { await SupportLinks.shared.load() }
 		.task {
@@ -178,7 +196,8 @@ struct StoreAppView: View {
 		}
 	}
 
-	/// Install, Download IPA, the other installers, Save, Share, Copy IPA link
+	/// Install (and which installer it uses), then "More ways" like the website's "More ways ▾":
+	/// Download IPA and Copy IPA link. Save and Share are in the navigation bar.
 	private func _actions() -> some View {
 		AccretionFlow(spacing: 8) {
 			if let ipa = _ipa {
@@ -203,38 +222,24 @@ struct StoreAppView: View {
 						Text(verbatim: String.localized("Accretion signs and installs here with your certificate. The others open the app in that installer."))
 					}
 
-				Button(String.localized("Download IPA")) {
-					guard _needsAccount() else { return }
-					Task {
-						_ = DownloadManager.shared.startDownload(from: await _resolved(ipa))
-						_show(String.localized("Downloading to your Library"))
+				Button(String.localized("More ways") + " ▾") { _isShowingMoreWays = true }
+					.buttonStyle(AccretionButtonStyle(prominent: false))
+					.confirmationDialog(String.localized("More ways"), isPresented: $_isShowingMoreWays, titleVisibility: .hidden) {
+						Button(String.localized("Download IPA")) {
+							guard _needsAccount() else { return }
+							Task {
+								_ = DownloadManager.shared.startDownload(from: await _resolved(ipa))
+								_show(String.localized("Downloading to your Library"))
+							}
+						}
+						Button(String.localized("Copy IPA link")) {
+							guard _needsAccount() else { return }
+							Task {
+								UIPasteboard.general.string = await _resolved(ipa).absoluteString
+								_show(String.localized("IPA link copied"))
+							}
+						}
 					}
-				}
-				.buttonStyle(AccretionButtonStyle(prominent: false))
-
-			}
-
-			Button(_store.isSaved(app) ? String.localized("Saved") : String.localized("Save")) {
-				_store.toggleSaved(app)
-				_show(_store.isSaved(app) ? String.localized("Saved. You'll see when it updates.") : String.localized("Removed from saved"))
-			}
-			.buttonStyle(AccretionButtonStyle(prominent: false, on: _store.isSaved(app)))
-			.accretionPop(_store.isSaved(app))
-
-			ShareLink(item: StoreService.base.appendingPathComponent("app/\(app.i)/")) {
-				Text(verbatim: String.localized("Share"))
-			}
-			.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
-
-			if let ipa = _ipa {
-				Button(String.localized("Copy IPA link")) {
-					guard _needsAccount() else { return }
-					Task {
-						UIPasteboard.general.string = await _resolved(ipa).absoluteString
-						_show(String.localized("IPA link copied"))
-					}
-				}
-				.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true))
 			}
 		}
 	}

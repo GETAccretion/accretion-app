@@ -15,7 +15,7 @@ import UserMessagingPlatform
 enum AccretionAds {
 	/// AdMob "Download card" banner unit (the app ID is `GADApplicationIdentifier` in Info.plist).
 	/// For testing, Google's test unit is ca-app-pub-3940256099942544/2435281174.
-	static let bannerUnitID = "ca-app-pub-4500603236648893/7187717610"
+	static let bannerUnitID = "ca-app-pub-1352971207491342/9083443164"
 
 	private static var _started = false
 	private static var _consentStarted = false

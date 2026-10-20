@@ -22,6 +22,18 @@ runs:
         path: ${{ env.SPM_DIR }}
         key: spm-${{ runner.os }}-${{ hashFiles('Feather.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'Feather.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
+    # Apple ID signing framework (Rust, AppleIDBridge/): crates and build output, so only changes
+    # recompile. Public code only.
+    - name: Cache Apple ID signing build
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          AppleIDBridge/target
+        key: appleid-${{ runner.os }}-${{ hashFiles('AppleIDBridge/Cargo.lock', 'AppleIDBridge/Cargo.toml', 'AppleIDBridge/src/**', 'AppleIDBridge/patches/**', 'AppleIDBridge/Impactor/Cargo.lock') }}
+        restore-keys: appleid-${{ runner.os }}-
+
     # Xcode 26 sometimes crashes while registering the ~30 Swift packages ("count of array (32)
     # differs from count of index set (31)"). Resolve them up front, retrying.
     - name: Resolve Swift packages

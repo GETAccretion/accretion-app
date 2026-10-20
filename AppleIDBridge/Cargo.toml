@@ -1,0 +1,38 @@
+[package]
+name = "accretion_appleid"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "GPL-3.0-only"
+description = "Accretion: Apple ID signing through Impactor's plume_core/plume_utils (MPL-2.0), as a C library for the app"
+
+[lib]
+# cdylib: shipped as its own framework, so its Rust runtime and ring never clash with IDevice's static lib
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+plume_core = { path = "Impactor/crates/plume_core", features = ["tweaks"] }
+plume_utils = { path = "Impactor/crates/plume_utils" }
+tokio = { version = "1.43", features = ["rt-multi-thread"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+libc = "0.2"
+plist = "1"
+
+# Same fork Impactor's workspace uses.
+[patch.crates-io]
+apple-codesign = { path = "Impactor/3rdparty/apple-codesign-0.29.0" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+# unwind, not abort: every C entry point catches panics and returns them as errors
+panic = "unwind"
+strip = "symbols"
+
+[workspace]
+# Impactor is its own workspace; keep its crates out of this one.
+exclude = ["Impactor"]

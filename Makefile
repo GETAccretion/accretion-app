@@ -26,6 +26,7 @@ deps:
 
 $(PLATFORMS): deps
 	rm -rf _build
+	bash AppleIDBridge/build-ios.sh # Accretion: Apple ID signing framework, linked by Feather.xcconfig
 
 	@if [ "$@" = "iphoneos" ]; then \
 		DEST="generic/platform=iOS"; \
@@ -45,6 +46,9 @@ $(PLATFORMS): deps
 	mkdir -p _build/Payload
 	cp -R _build/Applications/*.app _build/Payload/Accretion.app
 	chmod -R 0755 _build/Payload/Accretion.app
+	mkdir -p _build/Payload/Accretion.app/Frameworks # Accretion: embed the Apple ID signing framework
+	cp -R AppleIDBridge/build/AccretionAppleID.framework _build/Payload/Accretion.app/Frameworks/
+	codesign --force --sign - --timestamp=none _build/Payload/Accretion.app/Frameworks/AccretionAppleID.framework
 	codesign --force --sign - --timestamp=none _build/Payload/Accretion.app
 	cp deps/* _build/Payload/Accretion.app/ || true
 

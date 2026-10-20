@@ -28,6 +28,8 @@ final class SigningHandler: NSObject {
 	// throw an error
 	var appIcon: UIImage?
 	var appCertificate: CertificatePair?
+	/// Accretion: sign with the Apple ID instead of the certificate (nil: Settings → Apple ID's switch)
+	var useAppleID: Bool?
 	
 	init(app: AppInfoPresentable, options: Options = OptionsManager.shared.options) {
 		self._app = app
@@ -116,7 +118,16 @@ final class SigningHandler: NSObject {
 		
 		let handler = ZsignHandler(appUrl: movedAppPath, options: _options, cert: appCertificate)
 		try await handler.disinject()
-		
+
+		// Accretion: Apple ID signing (Settings → Apple ID) signs this copy in place instead of zsign:
+		// App IDs, profile and codesign come from the Apple ID's own team
+		if _options.signingOption == .default, useAppleID ?? AppleIDSigning.isActive {
+			try await AppleIDSigning.sign(app: movedAppPath, signedUUID: _uuid, name: _app.name)
+			try await self.move()
+			try await self.addToDatabase()
+			return
+		}
+
 		if
 			_options.signingOption == .default,
 			appCertificate != nil

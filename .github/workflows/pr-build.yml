@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: ${{ vars.MAC_RUNNER || 'macos-26' }}
     timeout-minutes: 60
     steps:
       - name: Checkout

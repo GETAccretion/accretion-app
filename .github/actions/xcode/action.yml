@@ -31,8 +31,8 @@ runs:
           ~/.cargo/registry
           ~/.cargo/git
           AppleIDBridge/target
-        key: appleid-${{ runner.os }}-${{ hashFiles('AppleIDBridge/Cargo.lock', 'AppleIDBridge/Cargo.toml', 'AppleIDBridge/src/**', 'AppleIDBridge/patches/**', 'AppleIDBridge/Impactor/Cargo.lock') }}
-        restore-keys: appleid-${{ runner.os }}-
+        key: appleid-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('AppleIDBridge/Cargo.lock', 'AppleIDBridge/Cargo.toml', 'AppleIDBridge/src/**', 'AppleIDBridge/patches/**', 'AppleIDBridge/Impactor/Cargo.lock') }}
+        restore-keys: appleid-${{ runner.os }}-${{ runner.arch }}-
 
     # Xcode 26 sometimes crashes while registering the ~30 Swift packages ("count of array (32)
     # differs from count of index set (31)"). Resolve them up front, retrying.

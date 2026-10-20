@@ -6,7 +6,7 @@
 import SwiftUI
 
 // MARK: - Brand mark
-/// The ringed star from the app icon, drawn as vectors: four rings tilted 17° (violet to cream)
+/// The ringed star from the app icon, drawn as vectors: four rings tilted 21° (violet to cream)
 /// around a bright star. Colours and proportions are sampled from the icon.
 /// `pulled` false: the rings sit wide and faint, and the launch animation pulls them into orbit
 /// (inner ring first). `lit` false: the star is small and dim; true: it flashes and settles.
@@ -17,12 +17,12 @@ struct AccretionMark: View {
 
 	/// Outer to inner: half-widths and half-heights as a share of `size`, and colours
 	private static let rings: [(rx: CGFloat, ry: CGFloat, color: Color)] = [
-		(0.420, 0.147, _rgb(0x956FFF)),
-		(0.365, 0.133, _rgb(0xD195FF)),
-		(0.310, 0.120, _rgb(0xFFD9FF)),
-		(0.250, 0.105, _rgb(0xFEFECD)),
+		(0.440, 0.140, _rgb(0x956FFF)),
+		(0.380, 0.126, _rgb(0xD195FF)),
+		(0.320, 0.112, _rgb(0xFFD9FF)),
+		(0.260, 0.098, _rgb(0xFEFECD)),
 	]
-	static let tilt: Double = 17
+	static let tilt: Double = 21
 	/// Outer to inner, for other ring drawings (the install progress)
 	static let ringColors: [Color] = rings.map { $0.color }
 	static let starColor = _rgb(0xFFF8EE)

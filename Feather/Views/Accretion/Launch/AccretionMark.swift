@@ -22,7 +22,9 @@ struct AccretionMark: View {
 		(0.310, 0.120, _rgb(0xFFD9FF)),
 		(0.250, 0.105, _rgb(0xFEFECD)),
 	]
-	private static let tilt: Double = 17
+	static let tilt: Double = 17
+	/// Outer to inner, for other ring drawings (the install progress)
+	static let ringColors: [Color] = rings.map { $0.color }
 	static let starColor = _rgb(0xFFF8EE)
 	static let glowColor = _rgb(0xFFDDB3)
 

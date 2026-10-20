@@ -130,7 +130,12 @@ struct StoreAppView: View {
 				if _detail != nil {
 					_actions().padding(.top, 16)
 					if let status = _pipeline.status, _pipeline.activeBundleID == app.i {
-						Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted).padding(.top, 8)
+						HStack(spacing: 10) {
+							// the logo's rings: the outer one fills with the download, the next one loops while signing
+							_installRings(_pipeline.stage)
+							Text(verbatim: status).font(.footnote).foregroundStyle(AccretionTheme.muted)
+						}
+						.padding(.top, 8)
 					}
 					if _ipa != nil {
 						CertificateLine().padding(.top, 10)
@@ -159,6 +164,18 @@ struct StoreAppView: View {
 		}
 		.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 		.overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+	}
+
+	/// Small ring progress beside the install status: download percentage, then signing
+	private func _installRings(_ stage: AutoSignPipeline.Stage?) -> some View {
+		var downloaded = 0.0
+		if case .downloading(let fraction) = stage { downloaded = fraction }
+		if stage == .signing { downloaded = 1 }
+		return AccretionOrbitProgress(progress: [downloaded, 0, 0], sweeping: stage == .signing ? 1 : nil, size: 44) {
+			Circle()
+				.fill(AccretionMark.starColor)
+				.frame(width: 6, height: 6)
+		}
 	}
 
 	/// Install, Download IPA, the other installers, Save, Share, Copy IPA link

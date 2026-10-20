@@ -19,7 +19,18 @@ final class AutoSignPipeline: ObservableObject {
 	static let shared = AutoSignPipeline()
 
 	/// What's happening now, for the Library banner; nil when idle
-	@Published private(set) var status: String? { didSet { _keepRunningInBackground(status != nil) } }
+	@Published private(set) var status: String? {
+		didSet {
+			_keepRunningInBackground(status != nil)
+			if status == nil { stage = nil }
+		}
+	}
+	/// Where a store install is, for the ring progress on the app page
+	enum Stage: Equatable {
+		case downloading(Double)
+		case signing
+	}
+	@Published private(set) var stage: Stage?
 	private var _backgroundTask: UIBackgroundTaskIdentifier = .invalid
 
 	/// Downloading and signing take a while; keep going for a bit if the user switches apps
@@ -159,6 +170,7 @@ final class AutoSignPipeline: ObservableObject {
 			}
 		}
 		
+		stage = .signing
 		let started = Date().addingTimeInterval(-1)
 		try await _import(ipa, provenance: provenance)
 		guard let imported = _newestImported(identifier: bundleID, since: started) else {
@@ -326,11 +338,15 @@ final class AutoSignPipeline: ObservableObject {
 			}
 			var shown = -1
 			observation = task.progress.observe(\.fractionCompleted) { progress, _ in
-				let percent = Int(progress.fractionCompleted * 100)
+				let fraction = progress.fractionCompleted
+				let percent = Int(fraction * 100)
 				guard percent != shown, !label.isEmpty else { return }
 				shown = percent
 				Task { @MainActor in
-					if self.isRunning { self.status = "\(label) \(percent)%" }
+					if self.isRunning {
+						self.status = "\(label) \(percent)%"
+						self.stage = .downloading(fraction)
+					}
 				}
 			}
 			task.resume()

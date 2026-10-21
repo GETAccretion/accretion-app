@@ -16,6 +16,7 @@ on:
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/actions/alert/**'
       - '.github/dependabot.yml'
+      - '.github/pr-build.pub'
       - '.github/scripts/commit_check.py'
       - '.github/tests/**'
       - '.github/workflows/pr-build.yml'
@@ -134,14 +135,95 @@ jobs:
           echo "done=true" >> "$GITHUB_OUTPUT"
           echo "Reused main's build ${{ steps.find-main-build.outputs.sha }}: $OLD → $NEW" >> "$GITHUB_STEP_SUMMARY"
 
+      # A push to main reuses the pull request's build when the merge has exactly the code the pull
+      # request built (same git tree) and the pull request came from this repo, not a fork. The
+      # build arrives encrypted to .github/pr-build.pub (pr-build.yml); PR_BUILD_KEY decrypts it.
+      # Anything missing or different: compile as before.
+      - name: Find the pull request build of this code
+        id: find-pr-build
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/commits/$GITHUB_SHA/pulls" \
+            --jq "[.[] | select(.merged_at != null and .head.repo.full_name == \"$REPO\")][0].head.sha // empty") || head=""
+          [ -n "$head" ] || { echo "No pull request from this repo for this commit; compiling."; exit 0; }
+          if ! git fetch -q --no-tags --depth=1 origin "$head" 2>/dev/null; then
+            echo "The pull request's commit isn't reachable; compiling."; exit 0
+          fi
+          if [ "$(git rev-parse "$head^{tree}")" != "$(git rev-parse "HEAD^{tree}")" ]; then
+            echo "The merged code differs from what the pull request built; compiling."; exit 0
+          fi
+          run=$(gh run list --workflow pr-build.yml --commit "$head" --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty') || run=""
+          [ -n "$run" ] || { echo "No successful pull request build of $head; compiling."; exit 0; }
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the pull request build
+        id: restore-pr-build
+        if: steps.find-pr-build.outputs.run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BUILD_KEY: ${{ secrets.PR_BUILD_KEY }}
+          RUN_ID: ${{ steps.find-pr-build.outputs.run }}
+          HEAD_SHA: ${{ steps.find-pr-build.outputs.head }}
+        run: |
+          set -euo pipefail
+          test -n "$PR_BUILD_KEY" || { echo "PR_BUILD_KEY isn't set; compiling."; exit 0; }
+          dir="$RUNNER_TEMP/pr-build"
+          rm -rf "$dir"; mkdir -p "$dir" packages
+          if ! gh run download "$RUN_ID" -n "accretion-ipa-$HEAD_SHA" -D "$dir"; then
+            echo "The pull request build has expired; compiling."; exit 0
+          fi
+          keyfile="$RUNNER_TEMP/pr-build.key"
+          ( umask 077; printf '%s\n' "$PR_BUILD_KEY" > "$keyfile" )
+          if ! FILE_KEY=$(openssl pkeyutl -decrypt -inkey "$keyfile" -pkeyopt rsa_padding_mode:oaep \
+               -pkeyopt rsa_oaep_md:sha256 -in "$dir/Accretion.key.enc"); then
+            rm -f "$keyfile"; echo "Couldn't unlock the pull request build; compiling."; exit 0
+          fi
+          rm -f "$keyfile"
+          export FILE_KEY
+          # any failure from here on means: throw the copy away and compile
+          if ! (
+            set -euo pipefail
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:FILE_KEY \
+              -in "$dir/Accretion.ipa.enc" -out packages/Accretion.ipa
+            unzip -tq packages/Accretion.ipa
+            # the build number is the commit, as on a build compiled here
+            WORK="$RUNNER_TEMP/ipa"
+            rm -rf "$WORK"; mkdir -p "$WORK"
+            ditto -x -k packages/Accretion.ipa "$WORK"
+            find "$WORK/Payload" -name Info.plist -print0 | while IFS= read -r -d '' plist; do
+              current=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$plist" 2>/dev/null || true)
+              if [ "$current" = "$HEAD_SHA" ]; then
+                /usr/libexec/PlistBuddy -c "Set CFBundleVersion $GITHUB_SHA" "$plist"
+              fi
+            done
+            rm packages/Accretion.ipa
+            ditto -c -k --sequesterRsrc --keepParent "$WORK/Payload" packages/Accretion.ipa
+            unzip -tq packages/Accretion.ipa
+            unzip -p packages/Accretion.ipa Payload/Accretion.app/Info.plist > "$RUNNER_TEMP/check.plist"
+            check=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$RUNNER_TEMP/check.plist")
+            [ "$check" = "$GITHUB_SHA" ]
+          ); then
+            rm -f packages/Accretion.ipa
+            echo "::warning::The pull request build didn't check out; compiling."
+            exit 0
+          fi
+          echo "done=true" >> "$GITHUB_OUTPUT"
+          echo "Reused pull request build $HEAD_SHA (run $RUN_ID): same code, compiled once" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Xcode and Swift packages
         id: xcode-setup
-        if: steps.stamp-version.outputs.done != 'true'
+        if: steps.stamp-version.outputs.done != 'true' && steps.restore-pr-build.outputs.done != 'true'
         uses: ./.github/actions/xcode
 
       - name: Build
         id: build
-        if: steps.stamp-version.outputs.done != 'true'
+        if: steps.stamp-version.outputs.done != 'true' && steps.restore-pr-build.outputs.done != 'true'
         run: |
           agvtool new-version -all $(git rev-parse HEAD)
           make
@@ -260,6 +342,7 @@ jobs:
           REF: ${{ github.ref_name }}
           IS_TAG: ${{ startsWith(github.ref, 'refs/tags/accretion-v') }}
           REUSED: ${{ steps.stamp-version.outputs.done }}
+          REUSED_PR: ${{ steps.restore-pr-build.outputs.done }}
         run: |
           failed=$(jq -r 'to_entries | map(select(.value.conclusion == "failure") | .key | gsub("-"; " ")) | join(", ")' <<< "$STEPS")
           {
@@ -278,7 +361,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Version | ${VERSION:-not built} |"
             echo "| Beta | ${BETA:-no} |"
-            echo "| Build | $([ "$REUSED" = true ] && echo "reused the build from main" || echo compiled) |"
+            echo "| Build | $([ "$REUSED" = true ] && echo "reused the build from main" || { [ "$REUSED_PR" = true ] && echo "reused the pull request build"; } || echo compiled) |"
             echo "| Source | $REF |"
             if [ "$IS_TAG" = true ]; then echo "| Release | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$REF |"; fi
           } >> "$GITHUB_STEP_SUMMARY"

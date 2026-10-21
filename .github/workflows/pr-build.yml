@@ -31,7 +31,40 @@ jobs:
 
       - name: Build
         id: build
-        run: make
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          agvtool new-version -all "$HEAD_SHA"
+          make
+
+      # main reuses this build when the merge has exactly this code (release.yml, "Restore the pull
+      # request build"), so a change compiles once. The .ipa is private and this job has no secrets:
+      # it's encrypted to the public key .github/pr-build.pub; only release.yml holds the private key
+      # (secret PR_BUILD_KEY). Pull requests from forks are never reused.
+      - name: Encrypt this build for main
+        id: encrypt-build
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/pr-build"
+          mkdir -p "$out"
+          FILE_KEY=$(openssl rand -hex 32)
+          export FILE_KEY
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:FILE_KEY \
+            -in packages/Accretion.ipa -out "$out/Accretion.ipa.enc"
+          printf '%s' "$FILE_KEY" | openssl pkeyutl -encrypt -pubin -inkey .github/pr-build.pub \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -out "$out/Accretion.key.enc"
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Keep this build for main
+        id: keep-build
+        if: steps.encrypt-build.outputs.dir != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: accretion-ipa-${{ github.event.pull_request.head.sha }}
+          path: ${{ steps.encrypt-build.outputs.dir }}
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Summary
         if: always()

@@ -45,7 +45,16 @@ enum JITLauncher {
 
 	@MainActor
 	private static func _enableHere(_ bundleID: String) {
-		guard JITEnabler.tunnelReachable() else {
+		Task.detached(priority: .userInitiated) {
+			let reachable = JITEnabler.tunnelReachable()
+			await MainActor.run { _enableHere(bundleID, tunnelReachable: reachable) }
+		}
+	}
+
+	/// The socket check above runs off the main thread; everything from here runs on it.
+	@MainActor
+	private static func _enableHere(_ bundleID: String, tunnelReachable: Bool) {
+		guard tunnelReachable else {
 			UIAlertController.showAlertWithCancel(
 				title: String.localized("Connect LocalDevVPN first"),
 				message: String.localized("Open with JIT reaches the phone's own developer services through LocalDevVPN. Connect it (stay on Wi-Fi or Airplane Mode), then try again."),

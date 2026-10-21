@@ -14,6 +14,7 @@ struct AccretionSettingsView: View {
 	@AppStorage(UpdateManager.autoCheckKey) private var _autoUpdateCheck: Bool = true
 	@AppStorage(UpdateManager.autoInstallKey) private var _autoInstallUpdates: Bool = false
 	@AppStorage(UpdateManager.betaKey) private var _betaUpdates: Bool = false
+	@ObservedObject private var _selfUpdate = AccretionSelfUpdate.shared // Accretion: Get Update row
 
 	@FetchRequest(
 		entity: CertificatePair.entity(),
@@ -30,7 +31,12 @@ struct AccretionSettingsView: View {
 			ScrollView {
 				VStack(alignment: .leading, spacing: 22) {
 					_header()
-					
+						// the newest version is read again each time Settings opens or Beta Updates changes
+						.task(id: _betaUpdates) { await _selfUpdate.refresh() }
+					if let latest = _selfUpdate.latest {
+						_updateRow(latest)
+					}
+
 					_group(String.localized("Account")) {
 						_link(
 							String.localized("Accretion Account"),
@@ -124,6 +130,31 @@ struct AccretionSettingsView: View {
 		.padding(16)
 		.accretionCard()
 		.padding(.top, 12)
+	}
+
+	/// Stays while a newer Accretion is available (the alert shows only once per version)
+	private func _updateRow(_ latest: String) -> some View {
+		HStack(spacing: 12) {
+			Image(systemName: "arrow.down.circle.fill")
+				.font(.title2)
+				.foregroundStyle(AccretionTheme.accent)
+				.accessibilityHidden(true)
+			VStack(alignment: .leading, spacing: 2) {
+				Text(verbatim: String.localized("Accretion %@ is available", arguments: latest))
+					.accretionFont(15, weight: .semibold)
+					.foregroundStyle(AccretionTheme.fg)
+				Text(verbatim: String.localized("You have %@", arguments: Bundle.main.version))
+					.accretionFont(13)
+					.foregroundStyle(AccretionTheme.muted)
+			}
+			Spacer(minLength: 8)
+			Button(String.localized("Get Update")) {
+				Task { await AppPolicy.shared.getUpdate() }
+			}
+			.buttonStyle(AccretionButtonStyle(compact: true))
+		}
+		.padding(14)
+		.accretionCard()
 	}
 
 	private func _group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

@@ -5,10 +5,11 @@
 
 import UIKit
 
-/// Accretion: "Open with JIT". iOS only allows JIT while a debugger is attached; StikDebug attaches
-/// on the iPhone itself (with its pairing file and LocalDevVPN) and launches the app, picking an
-/// iOS 26 script for it when one is needed. The app must be signed with a certificate that allows a
-/// debugger (get-task-allow, which development certificates have).
+/// Accretion: "Open with JIT". iOS only allows JIT while a debugger is attached. With a pairing file
+/// imported (Settings → JIT) Accretion attaches the device's own debugger itself (`JITEnabler`);
+/// otherwise it hands the app to StikDebug, which does the same with its pairing file. Either way the
+/// app must be signed with a certificate that allows a debugger (get-task-allow, which development
+/// certificates have).
 enum JITLauncher {
 	/// nil when unknown (no certificate on record)
 	static func allowsDebugger(_ cert: CertificatePair?) -> Bool? {
@@ -33,6 +34,61 @@ enum JITLauncher {
 
 	@MainActor
 	private static func _launch(_ bundleID: String) {
+		if JITEnabler.canRunHere {
+			_enableHere(bundleID)
+		} else {
+			_openStikDebug(bundleID)
+		}
+	}
+
+	// MARK: - Built in
+
+	@MainActor
+	private static func _enableHere(_ bundleID: String) {
+		Task.detached(priority: .userInitiated) {
+			let reachable = JITEnabler.tunnelReachable()
+			await MainActor.run { _enableHere(bundleID, tunnelReachable: reachable) }
+		}
+	}
+
+	/// The socket check above runs off the main thread; everything from here runs on it.
+	@MainActor
+	private static func _enableHere(_ bundleID: String, tunnelReachable: Bool) {
+		guard tunnelReachable else {
+			UIAlertController.showAlertWithCancel(
+				title: String.localized("Connect LocalDevVPN first"),
+				message: String.localized("Open with JIT reaches the phone's own developer services through LocalDevVPN. Connect it (stay on Wi-Fi or Airplane Mode), then try again."),
+				actions: [
+					UIAlertAction(title: String.localized("Open LocalDevVPN"), style: .default) { _ in
+						UIApplication.open("localdevvpn://enable?scheme=accretion")
+					},
+					UIAlertAction(title: String.localized("Use StikDebug"), style: .default) { _ in _openStikDebug(bundleID) },
+				]
+			)
+			return
+		}
+		Task.detached(priority: .userInitiated) {
+			do {
+				_ = try JITEnabler.enable(bundleID: bundleID)
+				await MainActor.run { UIApplication.openApp(with: bundleID) }
+			} catch {
+				await MainActor.run {
+					UIAlertController.showAlertWithCancel(
+						title: String.localized("JIT didn't turn on"),
+						message: error.localizedDescription,
+						actions: [
+							UIAlertAction(title: String.localized("Use StikDebug"), style: .default) { _ in _openStikDebug(bundleID) },
+						]
+					)
+				}
+			}
+		}
+	}
+
+	// MARK: - StikDebug
+
+	@MainActor
+	private static func _openStikDebug(_ bundleID: String) {
 		var components = URLComponents()
 		components.scheme = "stikjit"
 		components.host = "enable-jit"
@@ -41,8 +97,8 @@ enum JITLauncher {
 		UIApplication.shared.open(url) { opened in
 			guard !opened else { return }
 			UIAlertController.showAlertWithOk(
-				title: String.localized("StikDebug is needed"),
-				message: String.localized("Open with JIT hands the app to StikDebug, which turns JIT on. Install StikDebug, set it up with its pairing file and LocalDevVPN, then try again.")
+				title: String.localized("Set up JIT first"),
+				message: String.localized("Import your pairing file in Settings → JIT and connect LocalDevVPN, and Accretion turns JIT on itself. Or install StikDebug and set it up with the same pairing file.")
 			)
 		}
 	}

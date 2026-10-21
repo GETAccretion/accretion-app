@@ -64,6 +64,9 @@ struct AccretionSettingsView: View {
 					_group(String.localized("Installing")) {
 						_link(String.localized("Installation"), String.localized("Server or idevice, SSL certificates"), "arrow.down.app") { InstallationView() }
 						_divider()
+						// Accretion: built-in JIT (pairing file, LocalDevVPN) for Open with JIT
+						_link(String.localized("JIT"), JITEnabler.canRunHere ? String.localized("Set up: Open with JIT works from here") : String.localized("Pairing file and LocalDevVPN for Open with JIT"), "bolt") { JITSetupView() }
+						_divider()
 						_link(String.localized("Archive & Compression"), String.localized("How IPAs are packed"), "archivebox") { ArchiveView() }
 						_divider()
 						_toggle(String.localized("Check for Updates Automatically"), String.localized("Every source, at most once an hour"), "arrow.triangle.2.circlepath", $_autoUpdateCheck)

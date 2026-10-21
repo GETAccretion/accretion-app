@@ -18,6 +18,7 @@
 		AD0000042F1A00010000AD04 /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = AD0000052F1A00010000AD05 /* GoogleUserMessagingPlatform */; };
 		3346F8492DC6D64800C7D508 /* NimbleJSON in Frameworks */ = {isa = PBXBuildFile; productRef = 3346F8482DC6D64800C7D508 /* NimbleJSON */; };
 		3349E7672DEFB46F00E317ED /* IDeviceSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3349E7662DEFB46F00E317ED /* IDeviceSwift */; };
+		3349E7692DEFB46F00E317ED /* IDevice in Frameworks */ = {isa = PBXBuildFile; productRef = 3349E7682DEFB46F00E317ED /* IDevice */; };
 		33693A082DC8BF5B00730215 /* AltSourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 33693A072DC8BF5B00730215 /* AltSourceKit */; };
 		3371F7322DA9ECDD00281AC6 /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 3371F7312DA9ECDD00281AC6 /* Zip */; };
 		33CF13392DB5ACFB0021D4C5 /* SWCompression in Frameworks */ = {isa = PBXBuildFile; productRef = 33CF13382DB5ACFB0021D4C5 /* SWCompression */; };
@@ -73,6 +74,7 @@
 				3346F8492DC6D64800C7D508 /* NimbleJSON in Frameworks */,
 				330F69012DC03DF500D8C35D /* NimbleExtensions in Frameworks */,
 				3349E7672DEFB46F00E317ED /* IDeviceSwift in Frameworks */,
+				3349E7692DEFB46F00E317ED /* IDevice in Frameworks */,
 				33CF13392DB5ACFB0021D4C5 /* SWCompression in Frameworks */,
 				33693A082DC8BF5B00730215 /* AltSourceKit in Frameworks */,
 				3371F7322DA9ECDD00281AC6 /* Zip in Frameworks */,
@@ -146,6 +148,7 @@
 				3346F8482DC6D64800C7D508 /* NimbleJSON */,
 				33693A072DC8BF5B00730215 /* AltSourceKit */,
 				3349E7662DEFB46F00E317ED /* IDeviceSwift */,
+				3349E7682DEFB46F00E317ED /* IDevice */,
 			);
 			productName = Feather;
 			productReference = 3379C1B92DA869A1004372DA /* Feather.app */;
@@ -620,6 +623,10 @@
 		3349E7662DEFB46F00E317ED /* IDeviceSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = IDeviceSwift;
+		};
+		3349E7682DEFB46F00E317ED /* IDevice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = IDevice;
 		};
 		33693A072DC8BF5B00730215 /* AltSourceKit */ = {
 			isa = XCSwiftPackageProductDependency;

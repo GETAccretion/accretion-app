@@ -135,11 +135,26 @@ final class StoreService: ObservableObject {
 		FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("accretion-store-index.json")
 	}
 
-	private init() {
-		// show the last copy right away, then refresh
-		if let data = try? Data(contentsOf: _cacheFile) {
-			index = try? JSONDecoder().decode(StoreIndex.self, from: data)
+	private init() {}
+
+	/// Shows the last copy before the network answers. Reading and decoding the whole catalogue
+	/// takes a moment, so it happens off the main thread (the opening waits for it, see
+	/// AccretionWarmUp) instead of inside the first screen.
+	func loadCached() async {
+		guard index == nil else { return }
+		// the opening and Discover both ask at launch; decode the file once
+		if _cachedTask == nil {
+			let file = _cacheFile
+			_cachedTask = Task.detached(priority: .userInitiated) { Self._decodeIndex(from: try? Data(contentsOf: file)) }
 		}
+		let cached = await _cachedTask?.value ?? nil
+		if index == nil { index = cached }
+	}
+	private var _cachedTask: Task<StoreIndex?, Never>?
+
+	private nonisolated static func _decodeIndex(from data: Data?) -> StoreIndex? {
+		guard let data else { return nil }
+		return try? JSONDecoder().decode(StoreIndex.self, from: data)
 	}
 
 	// MARK: Loading
@@ -147,9 +162,13 @@ final class StoreService: ObservableObject {
 		if !force, let loaded = _loadedAt, Date().timeIntervalSince(loaded) < 600 { return }
 		isLoading = true
 		defer { isLoading = false }
+		await loadCached()
 		do {
 			let (data, _) = try await URLSession.shared.data(from: Self.base.appendingPathComponent("data/store.json") /* Accretion 1.0.5+: data/index.json now lists only Accretion, for old copies */)
-			index = try JSONDecoder().decode(StoreIndex.self, from: data)
+			guard let fresh = await Task.detached(priority: .userInitiated, operation: { Self._decodeIndex(from: data) }).value else {
+				throw URLError(.cannotParseResponse)
+			}
+			index = fresh
 			try? data.write(to: _cacheFile, options: .atomic)
 			_shards = [:]
 			_loadedAt = Date()
@@ -241,11 +260,16 @@ final class StoreService: ObservableObject {
 		return !UpdateManager.isVersion(minimum, newerThan: UIDevice.current.systemVersion)
 	}
 
-	static func day(_ text: String) -> Date? {
+	/// One formatter for all rows: making one per call cost most of the time building the shelves
+	private static let _dayFormatter: DateFormatter = {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
 		formatter.timeZone = TimeZone(identifier: "UTC")
-		return formatter.date(from: String(text.prefix(10)))
+		return formatter
+	}()
+
+	static func day(_ text: String) -> Date? {
+		_dayFormatter.date(from: String(text.prefix(10)))
 	}
 
 	// MARK: Shelves (the same ones as the web store's home page, site/app.js renderShelves)

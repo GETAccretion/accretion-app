@@ -10,6 +10,8 @@ import SwiftUI
 /// drift in, the rings are pulled into orbit, the star flashes, the name appears, then the whole
 /// thing fades away. About a second; a tap skips it. With Reduce Motion it shows the finished mark
 /// and fades. The launch screen (Launch Screen.storyboard) is the same night sky, so nothing jumps.
+/// The finished mark stays up until the first screen is warmed (AccretionWarmUp, at most 2.5 s
+/// in all), so Discover opens with its data and first icons ready.
 struct AccretionLaunchView: View {
 	var onFinish: () -> Void
 
@@ -42,11 +44,13 @@ struct AccretionLaunchView: View {
 	}
 
 	private func _play() async {
+		async let warmed: Void = AccretionWarmUp.run()
 		if _reduceMotion {
 			var still = Transaction()
 			still.disablesAnimations = true
 			withTransaction(still) { _pulled = true; _lit = true; _named = true }
 			guard await _wait(0.6) else { return }
+			await warmed
 			onFinish()
 			return
 		}
@@ -56,6 +60,7 @@ struct AccretionLaunchView: View {
 		guard await _wait(0.15) else { return }
 		withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { _named = true }
 		guard await _wait(0.4) else { return }
+		await warmed
 		onFinish()
 	}
 

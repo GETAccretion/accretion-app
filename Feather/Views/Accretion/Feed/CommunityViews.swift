@@ -103,6 +103,7 @@ struct PostRow: View {
 					}
 					.buttonStyle(AccretionPressStyle())
 					.accessibilityLabel(String.localized("About %@", arguments: app.n))
+					.prefetchesDetail(app)
 				}
 				_actions()
 			}

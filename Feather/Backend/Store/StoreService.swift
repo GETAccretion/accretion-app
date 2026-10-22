@@ -171,6 +171,8 @@ final class StoreService: ObservableObject {
 			index = fresh
 			try? data.write(to: _cacheFile, options: .atomic)
 			_shards = [:]
+			_shardTasks = [:]
+			_shardGeneration += 1
 			_loadedAt = Date()
 			if let (statsData, _) = try? await URLSession.shared.data(from: Self.base.appendingPathComponent("data/stats.json")) {
 				stats = try? JSONDecoder().decode(StoreStats.self, from: statsData)
@@ -182,20 +184,48 @@ final class StoreService: ObservableObject {
 	}
 
 	func detail(for app: StoreApp) async -> StoreAppDetail? {
-		guard let shards = index?.shards, shards > 0 else { return nil }
-		let shard = Int(Self.fnv1a(app.i) % UInt32(shards))
-		if _shards[shard] == nil {
-			let url = Self.base.appendingPathComponent(String(format: "data/apps/%03d.json", shard))
-			guard
-				let response = try? await URLSession.shared.data(from: url),
-				let decoded = try? JSONDecoder().decode([String: StoreAppDetail].self, from: response.0)
-			else {
-				return nil
-			}
-			_shards[shard] = decoded
-		}
-		return _shards[shard]?[app.i]
+		guard let shard = _shard(of: app) else { return nil }
+		if let loaded = _shards[shard] { return loaded[app.i] }
+		return await _loadShard(shard)?[app.i]
 	}
+
+	/// The app's details when its shard is already here, so its page opens complete
+	func cachedDetail(for app: StoreApp) -> StoreAppDetail? {
+		_shard(of: app).flatMap { _shards[$0]?[app.i] }
+	}
+
+	/// Starts loading the app's details before its page is opened (rows call this as they
+	/// come on screen), so the page's zoom lands on the finished page instead of placeholders
+	func prefetchDetail(for app: StoreApp) {
+		guard let shard = _shard(of: app), _shards[shard] == nil else { return }
+		Task { _ = await _loadShard(shard) }
+	}
+
+	private func _shard(of app: StoreApp) -> Int? {
+		guard let shards = index?.shards, shards > 0 else { return nil }
+		return Int(Self.fnv1a(app.i) % UInt32(shards))
+	}
+
+	/// One download per shard however many rows and pages ask at once; decoded off the main thread.
+	/// A shard that fails is forgotten so the next ask tries again.
+	private func _loadShard(_ shard: Int) async -> [String: StoreAppDetail]? {
+		if let running = _shardTasks[shard] { return await running.value }
+		let url = Self.base.appendingPathComponent(String(format: "data/apps/%03d.json", shard))
+		let generation = _shardGeneration
+		let task = Task.detached(priority: .userInitiated) { () -> [String: StoreAppDetail]? in
+			guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+			return try? JSONDecoder().decode([String: StoreAppDetail].self, from: data)
+		}
+		_shardTasks[shard] = task
+		let decoded = await task.value
+		// a fresh catalogue arrived meanwhile: this shard belongs to the old one
+		guard generation == _shardGeneration else { return decoded }
+		_shardTasks[shard] = nil
+		if let decoded { _shards[shard] = decoded }
+		return decoded
+	}
+	private var _shardTasks: [Int: Task<[String: StoreAppDetail]?, Never>] = [:]
+	private var _shardGeneration = 0
 
 	/// 32-bit FNV-1a; site.py and the web store use the same hash to pick an app's shard.
 	static func fnv1a(_ text: String) -> UInt32 {

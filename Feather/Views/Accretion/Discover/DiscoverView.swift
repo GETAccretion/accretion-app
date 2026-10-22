@@ -195,7 +195,7 @@ struct DiscoverView: View {
 				.background(.ultraThinMaterial)
 				.ignoresSafeArea(edges: .top)
 		}
-		.overlay(alignment: .bottom) { AccretionTheme.line.frame(height: 1) }
+		.overlay(alignment: .bottom) { AccretionFlowLine() }
 	}
 
 	private func _searchField() -> some View {
@@ -222,7 +222,10 @@ struct DiscoverView: View {
 			}
 			.padding(.horizontal, 12)
 			.background(AccretionTheme.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-			.overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+			.overlay {
+				if _searchFocused { AccretionLiveEdge(cornerRadius: 11) }
+				else { RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1) }
+			}
 			// the system search field's Cancel: leaves search and puts the keyboard away
 			if _searchFocused {
 				Button(String.localized("Cancel")) {
@@ -661,7 +664,7 @@ struct StoreAppRow: View {
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
 					HStack(spacing: 6) {
-						if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
+						if _store.isMod(app) { AccretionBadge(text: app.isTweak ? "Accretion Tweak" : "Accretion Mod", color: AccretionTheme.accentText) }
 						Text(verbatim: StoreFormat.meta(app))
 							.font(.accretionMono(12, weight: .regular))
 							.foregroundStyle(AccretionTheme.muted)
@@ -710,7 +713,7 @@ struct StoreAppCard: View {
 						.accretionFont(15, weight: .semibold)
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
-					if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
+					if _store.isMod(app) { AccretionBadge(text: app.isTweak ? "Accretion Tweak" : "Accretion Mod", color: AccretionTheme.accentText) }
 					if _store.hasUpdate(app) {
 						AccretionBadge(text: "update", color: AccretionTheme.link)
 					} else if _store.isNew(app) {

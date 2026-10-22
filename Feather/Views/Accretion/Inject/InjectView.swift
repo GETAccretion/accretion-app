@@ -40,6 +40,8 @@ struct InjectView: View {
 	@State private var _isPickingTweaks = false
 	@State private var _isBrowsingLibrary = false
 	@State private var _downloadError: String?
+	/// A library tweak to start with (an Accretion Tweak's page opens this screen with it), by its id
+	var preselectedTweakID: String? = nil
 
 	private var _problems: [Preflight.Problem] {
 		guard let app = _app else { return [] }
@@ -74,7 +76,10 @@ struct InjectView: View {
 			}
 		}
 		.tint(AccretionTheme.accent)
-		.task { await _catalog.load() }
+		.task {
+			await _catalog.load()
+			if let id = preselectedTweakID, _tweaks.isEmpty, let tweak = _catalog.tweaks.first(where: { $0.id == id }) { _add(tweak) }
+		}
 		.onChange(of: _imported.count) { _ in _pickNewlyImported() }
 		.task(id: _importID) { await _watchImport() }
 		.sheet(isPresented: $_isPickingIPA) {

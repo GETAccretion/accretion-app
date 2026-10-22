@@ -48,6 +48,7 @@ struct StoreAppView: View {
 	/// The installer the Install button uses, remembered like the website's choice
 	@AppStorage("accretion.installer") private var _installerID = "accretion"
 	@State private var _isChoosingInstaller = false
+	@State private var _isInjecting = false
 
 	private var _latest: StoreAppDetail.Version? { _detail?.versions.first }
 	private var _ipa: URL? { _latest.flatMap { URL(string: $0.url) } }
@@ -98,6 +99,9 @@ struct StoreAppView: View {
 			_similar = similar
 		}
 		.task(id: _account.email) { await _loadCommunity() }
+		.sheet(isPresented: $_isInjecting) {
+			InjectView(preselectedTweakID: app.i)
+		}
 		.sheet(isPresented: $_isSigningIn) {
 			AccountSheet()
 		}
@@ -152,6 +156,9 @@ struct StoreAppView: View {
 						}
 						.padding(.top, 8)
 					}
+					if let tweak = _detail?.tweak {
+						_tweakHow(tweak).padding(.top, 14)
+					}
 					if _ipa != nil {
 						CertificateLine().padding(.top, 10)
 						NavigationLink(value: SignGuideRoute()) {
@@ -193,9 +200,41 @@ struct StoreAppView: View {
 		}
 	}
 
-	/// Install, Download IPA, the other installers, Save, Share, Copy IPA link
+	/// One of our own tweaks has no .ipa: it goes into the user's own copy of the game, like the website says
+	private func _tweakHow(_ tweak: StoreAppDetail.Tweak) -> some View {
+		let game = (tweak.game?.isEmpty == false ? tweak.game : nil) ?? String.localized("the game")
+		return VStack(alignment: .leading, spacing: 6) {
+			Text(verbatim: String.localized("How to get it"))
+				.font(.accretionMono(11, weight: .medium))
+				.textCase(.uppercase)
+				.tracking(1.2)
+				.foregroundStyle(AccretionTheme.muted)
+			ForEach(Array([
+				String.localized("Bring your own decrypted copy of %@.", arguments: game),
+				String.localized("Tap Inject into my copy and pick it."),
+				String.localized("Accretion injects %@, then signs and installs %@.", arguments: app.n, game),
+			].enumerated()), id: \.offset) { step in
+				HStack(alignment: .firstTextBaseline, spacing: 8) {
+					Text(verbatim: "\(step.offset + 1)").font(.accretionMono(12, weight: .medium)).foregroundStyle(AccretionTheme.accentText)
+					Text(verbatim: step.element).foregroundStyle(AccretionTheme.fg).fixedSize(horizontal: false, vertical: true)
+				}
+			}
+			if let project = tweak.project.flatMap(URL.init(string:)), project.scheme == "https" {
+				Link(destination: project) { Text(verbatim: String.localized("Source →")).underline() }
+					.accretionFont(13)
+					.foregroundStyle(AccretionTheme.link)
+					.padding(.top, 4)
+			}
+		}
+	}
+
+	/// Install, Download IPA, the other installers, Save, Share, Copy IPA link; for one of our tweaks, Inject
 	private func _actions() -> some View {
 		AccretionFlow(spacing: 8) {
+			if _detail?.tweak != nil && _ipa == nil {
+				Button(String.localized("Inject into my copy")) { _isInjecting = true }
+					.buttonStyle(AccretionButtonStyle())
+			}
 			if let ipa = _ipa {
 				let installer = _Installer.all.first { $0.id == _installerID } ?? _Installer.all[0]
 				Button(installer.id == "accretion" ? String.localized("Install") : String.localized("Install with %@", arguments: installer.name)) {

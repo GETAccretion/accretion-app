@@ -617,3 +617,53 @@ struct AccretionAmbientGlow: View {
 		)
 	}
 }
+
+// MARK: - Live motif
+/// The one live motif, the same on the website, in Mod Studio, Accretion Link and the mod menu: violet into cyan
+/// with a soft light travelling along it every 6 s, on thin edges only. Still with Reduce Motion or Low Power Mode.
+private let _motifColors: [Color] = [AccretionTheme.accent, AccretionTheme.accent2, Color.white.opacity(0.85), // the light
+									 AccretionTheme.accent2, AccretionTheme.accent]
+
+private func _motifStill(_ reduceMotion: Bool) -> Bool {
+	reduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled
+}
+
+/// A 1 pt line with the light travelling along it (under Discover's top bar).
+struct AccretionFlowLine: View {
+	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
+	@State private var _phase: CGFloat = 0
+
+	var body: some View {
+		GeometryReader { geo in
+			let w = max(geo.size.width, 1)
+			LinearGradient(colors: _motifColors + [AccretionTheme.accent2, AccretionTheme.accent], startPoint: .leading, endPoint: .trailing)
+				.frame(width: w * 3)
+				.offset(x: -w * 2 + _phase * w * 2)
+		}
+		.frame(height: 1)
+		.clipped()
+		.opacity(0.85)
+		.accessibilityHidden(true)
+		.onAppear {
+			guard !_motifStill(_reduceMotion) else { return }
+			withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { _phase = 1 }
+		}
+	}
+}
+
+/// The same light going round a rounded edge (the search field while typing).
+struct AccretionLiveEdge: View {
+	var cornerRadius: CGFloat
+	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
+	@State private var _turn: Double = 0
+
+	var body: some View {
+		RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+			.stroke(AngularGradient(colors: _motifColors + [AccretionTheme.accent], center: .center, angle: .degrees(_turn)), lineWidth: 1.5)
+			.accessibilityHidden(true)
+			.onAppear {
+				guard !_motifStill(_reduceMotion) else { return }
+				withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { _turn = 360 }
+			}
+	}
+}

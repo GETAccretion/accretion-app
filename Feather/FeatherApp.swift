@@ -21,6 +21,8 @@ struct FeatherApp: App {
 	@StateObject var policy = AppPolicy.shared // Accretion: minimum supported version
 	let storage = Storage.shared
 	@State private var _showLaunch = true // Accretion: the animated logo on a fresh start
+	/// Accretion: heavy launch jobs (ads SDK, cleanup, source update check) wait for the opening, so its animation stays smooth
+	@State private var _launchDone = false
 
 	var body: some Scene {
 		WindowGroup {
@@ -36,7 +38,7 @@ struct FeatherApp: App {
 			// Accretion: the animated logo plays over the first screen while it loads
 			.overlay {
 				if _showLaunch {
-					AccretionLaunchView { withAnimation(.easeOut(duration: 0.28)) { _showLaunch = false } }
+					AccretionLaunchView { withAnimation(.easeOut(duration: 0.28)) { _showLaunch = false }; _launchDone = true }
 						.transition(.opacity)
 				}
 			}
@@ -47,7 +49,7 @@ struct FeatherApp: App {
 			}
 			// Accretion: check every source for updates at launch and when the app comes back (hourly at most)
 			.onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-				Task { await UpdateManager.shared.checkAutomatically() }
+				if _launchDone { Task { await UpdateManager.shared.checkAutomatically() } }
 				Task { await policy.refresh() }
 			}
 			// Accretion: versions older than the store's minimum can't be used
@@ -55,8 +57,13 @@ struct FeatherApp: App {
 				RequiredUpdateView()
 			}
 			.task { await policy.refresh() }
-			.task { AccretionAds.start() } // Accretion: start the ads SDK
-			.task { TempCleanup.run(); InstallCertificateUpgrade.run(); InstallModeDefaults.run(); LegacyIconReset.run() } // Accretion: leftover working folders, old install certificates
+			// Accretion: after the opening: the ads SDK, the first source update check, leftover working folders, old install certificates
+			.task(id: _launchDone) {
+				guard _launchDone else { return }
+				AccretionAds.start()
+				TempCleanup.run(); InstallCertificateUpgrade.run(); InstallModeDefaults.run(); LegacyIconReset.run()
+				await UpdateManager.shared.checkAutomatically()
+			}
 			.onReceive(NotificationCenter.default.publisher(for: .heartbeatInvalidHost)) { _ in
 				DispatchQueue.main.async {
 					UIAlertController.showAlertWithOk(

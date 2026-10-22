@@ -126,7 +126,8 @@ final class StoreService: ObservableObject {
 	@Published private(set) var saved: [String: String] = UserDefaults.standard.dictionary(forKey: "accretion.saved") as? [String: String] ?? [:] {
 		didSet { _clearCaches() }
 	}
-	@Published private(set) var isLoading = false
+	/// Not published: no screen shows it, and each change redrew Discover and every app row
+	private(set) var isLoading = false
 	@Published private(set) var loadFailed = false
 	private var _shards: [Int: [String: StoreAppDetail]] = [:]
 	private var _loadedAt: Date?
@@ -145,12 +146,21 @@ final class StoreService: ObservableObject {
 		// the opening and Discover both ask at launch; decode the file once
 		if _cachedTask == nil {
 			let file = _cacheFile
-			_cachedTask = Task.detached(priority: .userInitiated) { Self._decodeIndex(from: try? Data(contentsOf: file)) }
+			_cachedTask = Task.detached(priority: .userInitiated) { () -> (StoreIndex, Data)? in
+				guard let data = try? Data(contentsOf: file), let index = Self._decodeIndex(from: data) else { return nil }
+				return (index, data)
+			}
 		}
-		let cached = await _cachedTask?.value ?? nil
-		if index == nil { index = cached }
+		guard let (cached, data) = await _cachedTask?.value ?? nil else { return }
+		if index == nil {
+			index = cached
+			_indexBytes = data
+		}
 	}
-	private var _cachedTask: Task<StoreIndex?, Never>?
+	private var _cachedTask: Task<(StoreIndex, Data)?, Never>?
+	/// The bytes behind `index`: a download that matches them changes nothing, so nothing is redrawn
+	private var _indexBytes: Data?
+	private var _statsBytes: Data?
 
 	private nonisolated static func _decodeIndex(from data: Data?) -> StoreIndex? {
 		guard let data else { return nil }
@@ -175,21 +185,31 @@ final class StoreService: ObservableObject {
 		await loadCached()
 		do {
 			let (data, _) = try await URLSession.shared.data(from: Self.base.appendingPathComponent("data/store.json") /* Accretion 1.0.5+: data/index.json now lists only Accretion, for old copies */)
-			guard let fresh = await Task.detached(priority: .userInitiated, operation: { Self._decodeIndex(from: data) }).value else {
-				throw URLError(.cannotParseResponse)
+			// The catalogue changes a few times a day: when the download is what is already shown,
+			// keep it. Swapping it in clears every cache and redraws Discover, which the opening felt
+			// as a freeze of most of a second (1.0.42's hitch log on an iPhone 17 Pro: 818 ms).
+			if index == nil || data != _indexBytes {
+				guard let fresh = await Task.detached(priority: .userInitiated, operation: { Self._decodeIndex(from: data) }).value else {
+					throw URLError(.cannotParseResponse)
+				}
+				index = fresh
+				_indexBytes = data
+				let file = _cacheFile
+				Task.detached(priority: .utility) { try? data.write(to: file, options: .atomic) }
+				_shards = [:]
+				_shardTasks = [:]
+				_shardGeneration += 1
 			}
-			index = fresh
-			try? data.write(to: _cacheFile, options: .atomic)
-			_shards = [:]
-			_shardTasks = [:]
-			_shardGeneration += 1
 			_loadedAt = Date()
-			if let (statsData, _) = try? await URLSession.shared.data(from: Self.base.appendingPathComponent("data/stats.json")) {
+			if let (statsData, _) = try? await URLSession.shared.data(from: Self.base.appendingPathComponent("data/stats.json")),
+			   statsData != _statsBytes {
 				stats = try? JSONDecoder().decode(StoreStats.self, from: statsData)
+				_statsBytes = statsData
 			}
-			loadFailed = false
+			// published values are only set when they change: every set redraws Discover and each app row
+			if loadFailed { loadFailed = false }
 		} catch {
-			loadFailed = index == nil
+			if loadFailed != (index == nil) { loadFailed = index == nil }
 		}
 	}
 
@@ -297,8 +317,10 @@ final class StoreService: ObservableObject {
 	/// Whether this device can run it (no minimum, or one at or below this iOS).
 	func fits(_ app: StoreApp) -> Bool {
 		guard let minimum = app.m, !minimum.isEmpty else { return true }
-		return !UpdateManager.isVersion(minimum, newerThan: UIDevice.current.systemVersion)
+		return !UpdateManager.isVersion(minimum, newerThan: Self._systemVersion)
 	}
+	/// Read once: asked for every app each time the shelves or the list are built
+	private static let _systemVersion = UIDevice.current.systemVersion
 
 	/// One formatter for all rows: making one per call cost most of the time building the shelves
 	private static let _dayFormatter: DateFormatter = {

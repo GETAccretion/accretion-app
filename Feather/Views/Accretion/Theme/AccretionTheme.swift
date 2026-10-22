@@ -651,6 +651,30 @@ struct AccretionFlowLine: View {
 	}
 }
 
+/// The mod menu template's card edge: the outline in `line`, with a violet-into-cyan light and a bright glint
+/// running round it every 6 s (the app page's header card; the website's `.d-head`). Still with Reduce Motion or Low
+/// Power Mode, where it is the plain outline.
+struct AccretionCardEdge: View {
+	var cornerRadius: CGFloat
+	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
+	@State private var _turn: Double = 0
+
+	var body: some View {
+		let line = AccretionTheme.line
+		RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+			.stroke(AngularGradient(stops: [
+				.init(color: line, location: 0), .init(color: AccretionTheme.accent, location: 0.11),
+				.init(color: AccretionTheme.accent2, location: 0.22), .init(color: Color.white.opacity(0.85), location: 0.26),
+				.init(color: AccretionTheme.accent2, location: 0.31), .init(color: line, location: 0.44), .init(color: line, location: 1),
+			], center: .center, angle: .degrees(_turn)), lineWidth: 1)
+			.accessibilityHidden(true)
+			.onAppear {
+				guard !_motifStill(_reduceMotion) else { return }
+				withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { _turn = 360 }
+			}
+	}
+}
+
 /// The same light going round a rounded edge (the search field while typing).
 struct AccretionLiveEdge: View {
 	var cornerRadius: CGFloat

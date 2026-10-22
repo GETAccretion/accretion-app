@@ -185,7 +185,7 @@ struct StoreAppView: View {
 			}
 		}
 		.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-		.overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1))
+		.overlay(AccretionCardEdge(cornerRadius: 18))  // the mods' moving edge, like the website's app card
 	}
 
 	/// Small ring progress beside the install status: download percentage, then signing

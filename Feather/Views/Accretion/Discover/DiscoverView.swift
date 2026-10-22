@@ -661,7 +661,7 @@ struct StoreAppRow: View {
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
 					HStack(spacing: 6) {
-						if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
+						if _store.isMod(app) { AccretionBadge(text: app.isTweak ? "Accretion Tweak" : "Accretion Mod", color: AccretionTheme.accentText) }
 						Text(verbatim: StoreFormat.meta(app))
 							.font(.accretionMono(12, weight: .regular))
 							.foregroundStyle(AccretionTheme.muted)
@@ -710,7 +710,7 @@ struct StoreAppCard: View {
 						.accretionFont(15, weight: .semibold)
 						.foregroundStyle(AccretionTheme.fg)
 						.lineLimit(1)
-					if _store.isMod(app) { AccretionBadge(text: "Accretion Mod", color: AccretionTheme.accentText) }
+					if _store.isMod(app) { AccretionBadge(text: app.isTweak ? "Accretion Tweak" : "Accretion Mod", color: AccretionTheme.accentText) }
 					if _store.hasUpdate(app) {
 						AccretionBadge(text: "update", color: AccretionTheme.link)
 					} else if _store.isNew(app) {

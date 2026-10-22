@@ -31,9 +31,11 @@ struct StoreApp: Decodable, Identifiable, Hashable {
 	let f: String?        // first seen (yyyy-mm-dd)
 	let p: Double?        // popularity
 	let u: Int?           // 1 when the source gives no date
+	let tw: Int?          // 1 for one of our own tweaks: no .ipa, it goes into the user's own copy of the game
 
 	var id: String { i }
 	var iconURL: URL? { URL(string: ic) }
+	var isTweak: Bool { tw == 1 }
 }
 
 struct StoreIndex: Decodable {
@@ -74,20 +76,28 @@ struct StoreAppDetail: Decodable {
 			self.privacy = (privacy?.allKeys.map(\.stringValue) ?? []).sorted()
 		}
 	}
+	/// One of our own tweaks (the store's "tweak" block): where its .dylib is, its source, the game it is for.
+	struct Tweak: Decodable {
+		let deb: String
+		let project: String?
+		let game: String?
+	}
 	let i: String
 	let desc: String?
 	let tint: String?
 	let shots: [String]?
 	let versions: [Version]
 	let perms: Perms?
+	let tweak: Tweak?
 
-	private enum CodingKeys: String, CodingKey { case i, desc, tint, shots, versions, perms }
+	private enum CodingKeys: String, CodingKey { case i, desc, tint, shots, versions, perms, tweak }
 
 	init(from decoder: Decoder) throws {
 		let container = try decoder.container(keyedBy: CodingKeys.self)
 		i = try container.decode(String.self, forKey: .i)
 		desc = try? container.decode(String.self, forKey: .desc)
 		tint = try? container.decode(String.self, forKey: .tint)
+		tweak = try? container.decode(Tweak.self, forKey: .tweak)
 		shots = try? container.decode([String].self, forKey: .shots)
 		versions = try container.decode([Version].self, forKey: .versions)
 		perms = try? container.decode(Perms.self, forKey: .perms)

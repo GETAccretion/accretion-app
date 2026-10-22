@@ -5,6 +5,7 @@
 
 import SwiftUI
 import UIKit
+import Nuke
 import NukeUI
 
 // MARK: - Discover
@@ -613,6 +614,11 @@ struct StoreAppIcon: View {
 	var size: CGFloat = 60
 	var radius: CGFloat?
 
+	/// List and card icons (up to 64 pt) share one size, so one decoded copy serves them all
+	static func processors(for size: CGFloat) -> [any ImageProcessing] {
+		[ImageProcessors.Resize(width: size > 64 ? 96 : 64)]
+	}
+
 	var body: some View {
 		let shape = RoundedRectangle(cornerRadius: radius ?? size * 0.2333, style: .continuous)
 		LazyImage(url: url) { state in
@@ -622,6 +628,9 @@ struct StoreAppIcon: View {
 				AccretionTheme.raised
 			}
 		}
+		// Accretion: decoded at icon size, not full size (smoother scrolling); the opening
+		// loads the first icons with the same processors (AccretionWarmUp) so they are ready
+		.processors(Self.processors(for: size))
 		.frame(width: size, height: size)
 		.clipShape(shape)
 		.overlay(shape.stroke(AccretionTheme.line, lineWidth: 1))
@@ -670,6 +679,19 @@ struct StoreAppRow: View {
 		}
 		.frame(height: 64)
 		.contentShape(Rectangle())
+		.prefetchesDetail(app)
+	}
+}
+
+extension View {
+	/// Loads the app's page details once its row has stayed on screen for a moment
+	/// (a fast scroll past it loads nothing), so tapping it zooms into a finished page
+	func prefetchesDetail(_ app: StoreApp) -> some View {
+		task(id: app.i) {
+			try? await Task.sleep(nanoseconds: 300_000_000)
+			guard !Task.isCancelled else { return }
+			StoreService.shared.prefetchDetail(for: app)
+		}
 	}
 }
 
@@ -713,6 +735,7 @@ struct StoreAppCard: View {
 		}
 		.padding(13)
 		.accretionCard()
+		.prefetchesDetail(app)
 	}
 }
 

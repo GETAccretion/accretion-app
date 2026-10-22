@@ -126,27 +126,21 @@ extension UpdateManager {
 		let beta = UserDefaults.standard.bool(forKey: betaKey)
 		return URL(string: "https://raw.githubusercontent.com/GETAccretion/accretion-app/main/\(beta ? "app-repo-beta.json" : "app-repo.json")")!
 	}
-	private static var _selfSource: URL { selfSource }
 	
 	/// Accretion can't install over itself with the server method, so a new version is announced
 	/// once with its download link; with the idevice method it can install itself directly.
+	/// Accretion: after the alert, Settings keeps a Get Update row (AccretionSelfUpdate)
 	private func _checkSelfUpdate() async {
 		guard
-			let response = try? await URLSession.shared.data(from: Self._selfSource),
-			let json = try? JSONSerialization.jsonObject(with: response.0) as? [String: Any],
-			let app = (json["apps"] as? [[String: Any]])?.first,
-			let latest = app["version"] as? String,
-			let link = (app["downloadURL"] as? String).flatMap(URL.init(string:)),
-			Self.isVersion(latest, newerThan: Bundle.main.version),
+			let latest = await AccretionSelfUpdate.shared.refresh(),
 			UserDefaults.standard.string(forKey: Self._selfAlertedKey) != latest,
 			UIApplication.topViewController() != nil
 		else {
 			return
 		}
 		UserDefaults.standard.set(latest, forKey: Self._selfAlertedKey)
-		
+
 		// the link goes through the download server with the personal key (AppPolicy)
-		_ = link
 		let installsDirectly = UserDefaults.standard.integer(forKey: "Feather.installationMethod") == 1
 		let actions = [UIAlertAction(title: installsDirectly ? String.localized("Install Now") : String.localized("Get Update"), style: .default) { _ in
 			Task { await AppPolicy.shared.getUpdate() }

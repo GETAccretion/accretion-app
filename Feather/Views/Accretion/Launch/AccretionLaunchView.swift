@@ -3,6 +3,7 @@
 //  Accretion
 //
 
+import QuartzCore
 import SwiftUI
 
 // MARK: - Launch animation
@@ -23,6 +24,12 @@ struct AccretionLaunchView: View {
 	@State private var _lit = false
 	@State private var _named = false
 	@State private var _barShown = false
+	/// What the bar shows: follows the warm-up at most `fillRate` per second, so it always fills smoothly and
+	/// each step's text is readable, even when the warm-up was done before the bar appeared
+	@State private var _shown = 0.0
+
+	private static let fillRate = 0.9
+	private static let tick = 1.0 / 30
 
 	private static let ease = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.75)
 	private static let text = Color(red: 0.957, green: 0.933, blue: 0.996)
@@ -40,7 +47,7 @@ struct AccretionLaunchView: View {
 					.foregroundStyle(Self.text)
 					.opacity(_named ? 1 : 0)
 					.offset(y: _named ? 0 : 8)
-				AccretionLaunchProgress(progress: _warmUp.progress, step: _warmUp.step, animated: !_reduceMotion)
+				AccretionLaunchProgress(progress: _shown, step: _warmUp.step(at: _shown), animated: !_reduceMotion)
 					.opacity(_barShown ? 1 : 0)
 			}
 		}
@@ -66,6 +73,17 @@ struct AccretionLaunchView: View {
 			withAnimation(.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.32)) { _named = true }
 			await _wait(0.2)
 			withAnimation(.easeOut(duration: 0.25)) { _barShown = true }
+		}
+		// the bar catches up with the warm-up at its own pace and ends full
+		var last = CACurrentMediaTime()
+		while _shown < 1 {
+			let now = CACurrentMediaTime()
+			let next = min(_warmUp.progress, _shown + Self.fillRate * min(now - last, 0.1))
+			last = now
+			if next > _shown {
+				if _reduceMotion { _shown = next } else { withAnimation(.linear(duration: Self.tick)) { _shown = next } }
+			}
+			await _wait(Self.tick)
 		}
 		await warmed
 		// let the bar be seen full before the fade
@@ -98,7 +116,6 @@ struct AccretionLaunchProgress: View {
 					.frame(width: max(6, Self.width * progress))
 			}
 			.frame(width: Self.width, height: 5)
-			.animation(animated ? .easeOut(duration: 0.35) : nil, value: progress)
 
 			HStack(spacing: 8) {
 				Text(verbatim: step)

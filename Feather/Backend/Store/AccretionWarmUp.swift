@@ -24,8 +24,16 @@ final class AccretionWarmUp: ObservableObject {
 
 	/// 0...1, for the opening's bar
 	@Published private(set) var progress: Double = 0
-	/// What is being done now, under the bar
+	/// What is being done now (the hitch log files hitches under it)
 	@Published private(set) var step: String = String.localized("Starting")
+	/// Every step with the progress it started at, in order: the opening's bar plays them back at its own
+	/// pace, so each one is seen even when the warm-up finished before the bar appeared
+	private(set) var steps: [(progress: Double, text: String)] = []
+
+	/// The step to show under a bar filled to `shown`
+	func step(at shown: Double) -> String {
+		steps.last { $0.progress <= shown + 0.0001 }?.text ?? String.localized("Starting")
+	}
 
 	/// Returns when the warm-up is done or the cap is reached, whichever is first; the bar ends full either way
 	func run() async {
@@ -39,11 +47,11 @@ final class AccretionWarmUp: ObservableObject {
 	}
 
 	// shares of the bar: saved catalogue, fresh catalogue, shelves, icons
-	private static let shares = (saved: 0.15, fresh: 0.3, shelves: 0.1, icons: 0.45)
+	private static let shares = (saved: 0.2, fresh: 0.25, shelves: 0.15, icons: 0.4)
 
 	private func _warm() async {
 		let store = StoreService.shared
-		_set(0.04, String.localized("Reading the catalogue"))
+		_set(0, String.localized("Reading the catalogue"))
 		await store.loadCached()
 		guard !Task.isCancelled else { return }
 
@@ -86,6 +94,7 @@ final class AccretionWarmUp: ObservableObject {
 	private func _set(_ value: Double, _ text: String) {
 		progress = max(progress, min(value, 1))
 		step = text
+		steps.append((progress, text))
 	}
 
 	/// Runs `work` for at most `seconds`; it keeps going in the background when cut short

@@ -126,7 +126,8 @@ final class StoreService: ObservableObject {
 	@Published private(set) var saved: [String: String] = UserDefaults.standard.dictionary(forKey: "accretion.saved") as? [String: String] ?? [:] {
 		didSet { _clearCaches() }
 	}
-	@Published private(set) var isLoading = false
+	/// Not published: no screen shows it, and each change redrew Discover and every app row
+	private(set) var isLoading = false
 	@Published private(set) var loadFailed = false
 	private var _shards: [Int: [String: StoreAppDetail]] = [:]
 	private var _loadedAt: Date?
@@ -159,6 +160,7 @@ final class StoreService: ObservableObject {
 	private var _cachedTask: Task<(StoreIndex, Data)?, Never>?
 	/// The bytes behind `index`: a download that matches them changes nothing, so nothing is redrawn
 	private var _indexBytes: Data?
+	private var _statsBytes: Data?
 
 	private nonisolated static func _decodeIndex(from data: Data?) -> StoreIndex? {
 		guard let data else { return nil }
@@ -199,12 +201,15 @@ final class StoreService: ObservableObject {
 				_shardGeneration += 1
 			}
 			_loadedAt = Date()
-			if let (statsData, _) = try? await URLSession.shared.data(from: Self.base.appendingPathComponent("data/stats.json")) {
+			if let (statsData, _) = try? await URLSession.shared.data(from: Self.base.appendingPathComponent("data/stats.json")),
+			   statsData != _statsBytes {
 				stats = try? JSONDecoder().decode(StoreStats.self, from: statsData)
+				_statsBytes = statsData
 			}
-			loadFailed = false
+			// published values are only set when they change: every set redraws Discover and each app row
+			if loadFailed { loadFailed = false }
 		} catch {
-			loadFailed = index == nil
+			if loadFailed != (index == nil) { loadFailed = index == nil }
 		}
 	}
 

@@ -158,8 +158,18 @@ final class StoreService: ObservableObject {
 	}
 
 	// MARK: Loading
+	/// The opening and Discover both ask at launch: one download, the second ask waits for the first
 	func load(force: Bool = false) async {
+		if let running = _loadTask { return await running.value }
 		if !force, let loaded = _loadedAt, Date().timeIntervalSince(loaded) < 600 { return }
+		let task = Task { await _load() }
+		_loadTask = task
+		await task.value
+		_loadTask = nil
+	}
+	private var _loadTask: Task<Void, Never>?
+
+	private func _load() async {
 		isLoading = true
 		defer { isLoading = false }
 		await loadCached()

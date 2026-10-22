@@ -18,6 +18,12 @@ struct StoreAppView: View {
 	@Environment(\.openURL) private var _openURL
 	let app: StoreApp
 
+	init(app: StoreApp) {
+		self.app = app
+		// details a row already loaded (prefetchesDetail): the page opens complete, no placeholders
+		self.__detail = State(initialValue: StoreService.shared.cachedDetail(for: app))
+	}
+
 	@State private var _detail: StoreAppDetail?
 	@State private var _detailLoaded = false
 	@State private var _isSigningIn = false
@@ -78,11 +84,18 @@ struct StoreAppView: View {
 		.task {
 			_account.track("view", app: app.i)
 			_store.markSeen(app)
-			let others = _store.index?.apps ?? []
-			_sameDeveloper = Array(others.filter { $0.d == app.d && $0.i != app.i }.sorted { $0.t > $1.t }.prefix(20))
-			_similar = Array(others.filter { $0.c == app.c && $0.i != app.i && $0.d != app.d && $0.c != "other" }.sorted { $0.t > $1.t }.prefix(20))
-			_detail = await _store.detail(for: app)
+			if _detail == nil { _detail = await _store.detail(for: app) }
 			_detailLoaded = true
+		}
+		.task {
+			// filtering every store app takes a moment: off the main thread, so the page's zoom stays smooth
+			let app = app, others = _store.index?.apps ?? []
+			let (sameDeveloper, similar) = await Task.detached(priority: .userInitiated) {
+				(Array(others.filter { $0.d == app.d && $0.i != app.i }.sorted { $0.t > $1.t }.prefix(20)),
+				 Array(others.filter { $0.c == app.c && $0.i != app.i && $0.d != app.d && $0.c != "other" }.sorted { $0.t > $1.t }.prefix(20)))
+			}.value
+			_sameDeveloper = sameDeveloper
+			_similar = similar
 		}
 		.task(id: _account.email) { await _loadCommunity() }
 		.sheet(isPresented: $_isSigningIn) {

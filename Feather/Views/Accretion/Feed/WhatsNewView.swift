@@ -121,6 +121,7 @@ struct AnnouncementCard: View {
 						Text(verbatim: String.localized("Open"))
 					}
 					.buttonStyle(AccretionButtonStyle(prominent: false, ghost: true, compact: true))
+					.prefetchesDetail(app)
 				}
 			}
 		}

@@ -146,18 +146,52 @@ final class StoreService: ObservableObject {
 		// the opening and Discover both ask at launch; decode the file once
 		if _cachedTask == nil {
 			let file = _cacheFile
-			_cachedTask = Task.detached(priority: .userInitiated) { () -> (StoreIndex, Data)? in
+			let view = Self._discoverView()
+			let savedNow = self.saved
+			_cachedTask = Task.detached(priority: .userInitiated) { () -> _Prepared? in
 				guard let data = try? Data(contentsOf: file), let index = Self._decodeIndex(from: data) else { return nil }
-				return (index, data)
+				return Self._prepare(index, data: data, saved: savedNow, view: view)
 			}
 		}
-		guard let (cached, data) = await _cachedTask?.value ?? nil else { return }
-		if index == nil {
-			index = cached
-			_indexBytes = data
-		}
+		guard let prepared = await _cachedTask?.value ?? nil else { return }
+		if index == nil { _install(prepared) }
 	}
-	private var _cachedTask: Task<(StoreIndex, Data)?, Never>?
+	private var _cachedTask: Task<_Prepared?, Never>?
+
+	/// A catalogue with Discover's first shelves and All-apps list already built for it
+	private struct _Prepared {
+		let index: StoreIndex
+		let data: Data
+		let onlyFitting: Bool
+		let sort: Sort
+		let shelves: [Shelf]
+		let list: [StoreApp]
+	}
+
+	/// Discover's filter and sort, as it saves them (DiscoverView's @AppStorage)
+	private static func _discoverView() -> (onlyFitting: Bool, sort: Sort) {
+		let defaults = UserDefaults.standard
+		return (defaults.object(forKey: "accretion.discover.onlyFitting") as? Bool ?? true,
+				Sort(rawValue: defaults.string(forKey: "accretion.discover.sort") ?? "") ?? .updated)
+	}
+
+	private nonisolated static func _prepare(_ index: StoreIndex, data: Data, saved: [String: String], view: (onlyFitting: Bool, sort: Sort)) -> _Prepared {
+		_Prepared(
+			index: index, data: data, onlyFitting: view.onlyFitting, sort: view.sort,
+			shelves: _shelves(of: index, saved: saved, onlyFitting: view.onlyFitting),
+			list: _sorted(index.apps.filter { !view.onlyFitting || _fits($0) }, by: view.sort)
+		)
+	}
+
+	/// Sets the catalogue and fills the caches its first drawing asks for, in one main-thread step
+	private func _install(_ prepared: _Prepared) {
+		index = prepared.index // clears the caches
+		_indexBytes = prepared.data
+		_shelfCache[prepared.onlyFitting] = (Self._today(), prepared.shelves)
+		let key = _SearchKey(query: "", category: nil, onlyFitting: prepared.onlyFitting, sort: prepared.sort)
+		_searchCache[key] = prepared.list
+		_searchOrder.append(key)
+	}
 	/// The bytes behind `index`: a download that matches them changes nothing, so nothing is redrawn
 	private var _indexBytes: Data?
 	private var _statsBytes: Data?
@@ -189,11 +223,14 @@ final class StoreService: ObservableObject {
 			// keep it. Swapping it in clears every cache and redraws Discover, which the opening felt
 			// as a freeze of most of a second (1.0.42's hitch log on an iPhone 17 Pro: 818 ms).
 			if index == nil || data != _indexBytes {
-				guard let fresh = await Task.detached(priority: .userInitiated, operation: { Self._decodeIndex(from: data) }).value else {
+				let view = Self._discoverView()
+				let savedNow = self.saved
+				guard let prepared = await Task.detached(priority: .userInitiated, operation: { () -> _Prepared? in
+					Self._decodeIndex(from: data).map { Self._prepare($0, data: data, saved: savedNow, view: view) }
+				}).value else {
 					throw URLError(.cannotParseResponse)
 				}
-				index = fresh
-				_indexBytes = data
+				_install(prepared)
 				let file = _cacheFile
 				Task.detached(priority: .utility) { try? data.write(to: file, options: .atomic) }
 				_shards = [:]
@@ -309,28 +346,36 @@ final class StoreService: ObservableObject {
 	func isCore(_ app: StoreApp) -> Bool { source(of: app)?.core == true }
 
 	/// Same window as the web store: first seen in the last 30 days.
-	func isNew(_ app: StoreApp) -> Bool {
-		guard let first = app.f, let date = Self.day(first) else { return false }
-		return Date().timeIntervalSince(date) < 30 * 86400
+	func isNew(_ app: StoreApp) -> Bool { Self._isNew(app, now: Date()) }
+
+	nonisolated static func _isNew(_ app: StoreApp, now: Date) -> Bool {
+		guard let first = app.f, let date = day(first) else { return false }
+		return now.timeIntervalSince(date) < 30 * 86400
 	}
 
 	/// Whether this device can run it (no minimum, or one at or below this iOS).
-	func fits(_ app: StoreApp) -> Bool {
+	func fits(_ app: StoreApp) -> Bool { Self._fits(app) }
+
+	nonisolated static func _fits(_ app: StoreApp) -> Bool {
 		guard let minimum = app.m, !minimum.isEmpty else { return true }
-		return !UpdateManager.isVersion(minimum, newerThan: Self._systemVersion)
+		return !UpdateManager.isVersion(minimum, newerThan: _systemVersion)
 	}
-	/// Read once: asked for every app each time the shelves or the list are built
-	private static let _systemVersion = UIDevice.current.systemVersion
+	/// Read once: asked for every app each time the shelves or the list are built (ProcessInfo is safe
+	/// off the main thread, unlike UIDevice)
+	private nonisolated static let _systemVersion: String = {
+		let v = ProcessInfo.processInfo.operatingSystemVersion
+		return v.patchVersion > 0 ? "\(v.majorVersion).\(v.minorVersion).\(v.patchVersion)" : "\(v.majorVersion).\(v.minorVersion)"
+	}()
 
 	/// One formatter for all rows: making one per call cost most of the time building the shelves
-	private static let _dayFormatter: DateFormatter = {
+	nonisolated(unsafe) private static let _dayFormatter: DateFormatter = {
 		let formatter = DateFormatter()
 		formatter.dateFormat = "yyyy-MM-dd"
 		formatter.timeZone = TimeZone(identifier: "UTC")
 		return formatter
 	}()
 
-	static func day(_ text: String) -> Date? {
+	nonisolated static func day(_ text: String) -> Date? {
 		_dayFormatter.date(from: String(text.prefix(10)))
 	}
 
@@ -344,7 +389,7 @@ final class StoreService: ObservableObject {
 		var seeAll: StoreListRoute?
 	}
 
-	static let shelfSize = 20
+	nonisolated static let shelfSize = 20
 
 	// MARK: Caches
 	// Discover and search redraw often; sorting the whole index each time made them lag. Results
@@ -384,16 +429,25 @@ final class StoreService: ObservableObject {
 	}
 
 	private func _makeShelves(onlyFitting: Bool) -> [Shelf] {
-		guard let all = index?.apps else { return [] }
-		let pool = onlyFitting ? all.filter(fits) : all
-		let byUpdated = sorted(pool, by: .updated)
+		guard let index else { return [] }
+		return Self._shelves(of: index, saved: saved, onlyFitting: onlyFitting)
+	}
+
+	/// The shelves of one catalogue. It keeps no state, so the first ones are built off the main thread
+	/// while the opening plays (loadCached): built on it, Discover's first drawing froze the opening for
+	/// over half a second (1.0.43's hitch log on an iPhone 17 Pro: 550-600 ms).
+	nonisolated static func _shelves(of index: StoreIndex, saved: [String: String], onlyFitting: Bool) -> [Shelf] {
+		let all = index.apps
+		func source(_ app: StoreApp) -> StoreSource? { index.sources.indices.contains(app.o) ? index.sources[app.o] : nil }
+		let pool = onlyFitting ? all.filter(_fits) : all
+		let byUpdated = _sorted(pool, by: .updated)
 		let today = Date()
 		let fresh = byUpdated.filter { $0.u == nil && (Self.day($0.t).map { today.timeIntervalSince($0) < 2 * 86400 } ?? false) }
-		let newThisMonth = sorted(pool.filter(isNew), by: .new)
-		let popular = sorted(pool.filter { ($0.p ?? 0) > 0 }, by: .popular)
-		let mods = byUpdated.filter(isMod)
-		let savedUpdates = pool.filter(hasUpdate)
-		let core = byUpdated.filter(isCore)
+		let newThisMonth = _sorted(pool.filter { _isNew($0, now: today) }, by: .new)
+		let popular = _sorted(pool.filter { ($0.p ?? 0) > 0 }, by: .popular)
+		let mods = byUpdated.filter { source($0)?.mod == true }
+		let savedUpdates = pool.filter { app in saved[app.i].map { $0 != app.v } ?? false }
+		let core = byUpdated.filter { source($0)?.core == true }
 		let games = byUpdated.filter { $0.c == "games" }
 		let utilities = byUpdated.filter { $0.c == "utilities" }
 		let n = Self.shelfSize
@@ -426,7 +480,9 @@ final class StoreService: ObservableObject {
 		}
 	}
 
-	func sorted(_ apps: [StoreApp], by sort: Sort) -> [StoreApp] {
+	func sorted(_ apps: [StoreApp], by sort: Sort) -> [StoreApp] { Self._sorted(apps, by: sort) }
+
+	nonisolated static func _sorted(_ apps: [StoreApp], by sort: Sort) -> [StoreApp] {
 		// apps without a date sort last when sorting by update time, like the web store
 		let when: (StoreApp) -> String = { $0.u == nil ? $0.t : "" }
 		switch sort {

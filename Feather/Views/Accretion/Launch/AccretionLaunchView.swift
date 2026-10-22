@@ -18,6 +18,7 @@ struct AccretionLaunchView: View {
 
 	@Environment(\.accessibilityReduceMotion) private var _reduceMotion
 	@StateObject private var _warmUp = AccretionWarmUp()
+	@State private var _hitches = AccretionLaunchHitches()
 	@State private var _pulled = false
 	@State private var _lit = false
 	@State private var _named = false
@@ -50,6 +51,8 @@ struct AccretionLaunchView: View {
 	}
 
 	private func _play() async {
+		let warmUp = _warmUp
+		_hitches.start { warmUp.step }
 		async let warmed: Void = _warmUp.run()
 		if _reduceMotion {
 			var still = Transaction()
@@ -67,6 +70,7 @@ struct AccretionLaunchView: View {
 		await warmed
 		// let the bar be seen full before the fade
 		await _wait(_reduceMotion ? 0.2 : 0.35)
+		_hitches.stop()
 		onFinish()
 	}
 
@@ -92,7 +96,6 @@ struct AccretionLaunchProgress: View {
 				Capsule()
 					.fill(LinearGradient(colors: AccretionMark.ringColors.reversed(), startPoint: .leading, endPoint: .trailing))
 					.frame(width: max(6, Self.width * progress))
-					.shadow(color: AccretionMark.glowColor.opacity(0.45), radius: 6)
 			}
 			.frame(width: Self.width, height: 5)
 			.animation(animated ? .easeOut(duration: 0.35) : nil, value: progress)

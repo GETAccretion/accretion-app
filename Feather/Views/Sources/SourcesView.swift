@@ -17,6 +17,7 @@ struct SourcesView: View {
 		@AppStorage("Feather.shouldStar") private var _shouldStar: Int = 0
 	#endif
 	@StateObject var viewModel = SourcesViewModel.shared
+	@ObservedObject private var _store = StoreService.shared // Accretion: the store's sources
 	@State private var _isAddingPresenting = false
 	@State private var _addingSourceLoading = false
 	@State private var _searchText = ""
@@ -74,6 +75,19 @@ struct SourcesView: View {
 							.buttonStyle(.plain)
 						}
 					}
+					
+					// Accretion: the sources the store merges, in the same list as yours
+					if let count = _store.index?.sources.count, _searchText.isEmpty {
+						NBSection(.localized("Accretion Store")) {
+							NavigationLink(value: StoreSourcesRoute()) {
+								NBTitleWithSubtitleView(
+									title: String.localized("Store Sources"),
+									subtitle: String.localized("The %@ public sources merged into Discover", arguments: count.formatted())
+								)
+							}
+							.buttonStyle(.plain)
+						}
+					}
 				}
 			}
 			.accretionList() // Accretion: store background
@@ -91,12 +105,18 @@ struct SourcesView: View {
 							} label: {
 								NBButton(.localized("Add Source"), style: .text)
 							}
+							// Accretion: the store's sources are here too
+							NavigationLink(value: StoreSourcesRoute()) {
+								NBButton(.localized("Browse Store Sources"), style: .text)
+							}
 						}
 					} else {
 						// Accretion: iOS 16
 						AccretionEmptyState(title: String.localized("No Sources"), message: String.localized("Get started by adding your first source."), systemImage: "globe.desk.fill") {
 							Button(String.localized("Add Source")) { _isAddingPresenting = true }
 								.buttonStyle(AccretionButtonStyle())
+							NavigationLink(value: StoreSourcesRoute()) { Text(verbatim: String.localized("Browse Store Sources")) }
+								.buttonStyle(AccretionButtonStyle(prominent: false))
 						}
 					}
 				}
@@ -117,6 +137,8 @@ struct SourcesView: View {
 			.sheet(isPresented: $_isAddingPresenting) {
 				SourcesAddView()
 			}
+			.accretionStoreDestinations() // Accretion: store sources open store pages
+			.task { await StoreService.shared.load() }
 		}
 		.task(id: Array(_sources)) {
 			await viewModel.fetchSources(_sources)

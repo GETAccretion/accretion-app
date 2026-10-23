@@ -14,6 +14,7 @@ enum TabEnum: String, CaseIterable, Hashable {
 	case library
 	case settings
 	case certificates
+	case search // Accretion: the whole store's search, last in the tab bar
 	
 	var title: String {
 		switch self {
@@ -22,6 +23,7 @@ enum TabEnum: String, CaseIterable, Hashable {
 		case .library: 		return .localized("Library")
 		case .settings: 	return .localized("Settings")
 		case .certificates:	return .localized("Certificates")
+		case .search:		return .localized("Search")
 		}
 	}
 	
@@ -32,6 +34,7 @@ enum TabEnum: String, CaseIterable, Hashable {
 		case .library: 		return "square.grid.2x2"
 		case .settings: 	return "gearshape.2"
 		case .certificates: return "person.text.rectangle"
+		case .search:		return "magnifyingglass"
 		}
 	}
 	
@@ -43,6 +46,7 @@ enum TabEnum: String, CaseIterable, Hashable {
 		case .library: LibraryView()
 		case .settings: AccretionSettingsView() // Accretion: own Settings screen (Feather's SettingsView removed)
 		case .certificates: NBNavigationView(.localized("Certificates")) { CertificatesView() }
+		case .search: SearchView()
 		}
 	}
 	
@@ -51,7 +55,8 @@ enum TabEnum: String, CaseIterable, Hashable {
 			.discover,
 			.library,
 			.sources,
-			.settings
+			.settings,
+			.search
 		]
 	}
 	

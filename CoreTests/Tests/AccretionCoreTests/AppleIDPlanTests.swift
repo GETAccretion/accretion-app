@@ -8,6 +8,17 @@ final class AppleIDPlanTests: XCTestCase {
 
 	// MARK: AnisetteServers
 
+	func testDefaultUsesMacBackedService() {
+		XCTAssertEqual(AnisetteServers.ordered(custom: nil, remote: []).first?.absoluteString,
+			"https://mac-ani.jkcoxson.com")
+	}
+
+	func testCustomServerValidityMatchesRouting() {
+		XCTAssertFalse(AnisetteServers.acceptsCustom("mac-ani.jkcoxson.com"))
+		XCTAssertFalse(AnisetteServers.acceptsCustom("http://example.com"))
+		XCTAssertTrue(AnisetteServers.acceptsCustom(" https://example.com/ "))
+	}
+
 	private func config(_ json: String) -> Data { Data(json.utf8) }
 
 	func testRemoteListReadsStrings() {

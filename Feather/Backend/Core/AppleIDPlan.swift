@@ -3,8 +3,11 @@ import Foundation
 /// Accretion: the pure rules behind free Apple ID (7-day) signing.
 
 enum AnisetteServers {
-	static let own = "https://ani.getaccretion.app"
+	// Mac-backed Anisette v3. State remains isolated by host in AppleIDClient.
+	static let own = "https://mac-ani.jkcoxson.com"
 	static let maxServers = 6
+
+	static func acceptsCustom(_ text: String) -> Bool { normalized(text) != nil }
 
 	/// The "anisetteServers" strings from the app config JSON; anything unexpected gives []
 	static func remoteList(fromAppConfig data: Data) -> [String] {

@@ -5,10 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Our one change to Impactor (anisette v3 server URL, remote only). Applied once; skipped if already in.
-if ! git -C Impactor apply --reverse --check ../patches/omnisette-remote-v3.patch 2>/dev/null; then
-	git -C Impactor apply ../patches/omnisette-remote-v3.patch
-fi
+bash apply-patches.sh
 
 rustup target add aarch64-apple-ios >/dev/null
 export IPHONEOS_DEPLOYMENT_TARGET=16.0

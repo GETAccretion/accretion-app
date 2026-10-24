@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use plume_core::auth::{Account, TwoFactorAction, TwoFactorMethod, TwoFactorRequest};
+use plume_core::auth::anisette_data::AnisetteData;
 use plume_core::developer::DeveloperSession;
 use plume_core::{AnisetteConfiguration, CertificateIdentity};
 use plume_utils::{Bundle, PlistInfoTrait, Signer, SignerAppReal, SignerOptions};
@@ -118,6 +119,9 @@ fn date(value: &plist::Date) -> String {
 }
 
 async fn login(request: LoginRequest, prompt: &Prompt) -> Result<Value, String> {
+    // Only this pre-credential step may request a different Anisette service.
+    let anisette = AnisetteData::new(request.anisette.config()).await
+        .map_err(|_| "Anisette error: could not obtain device data from this service.".to_string())?;
     let email = request.email;
     let password = request.password;
     let credentials = || -> Result<(String, String), String> { Ok((email.clone(), password.clone())) };
@@ -148,13 +152,50 @@ async fn login(request: LoginRequest, prompt: &Prompt) -> Result<Value, String> 
         }
     };
 
-    let account = Account::login(credentials, two_factor, request.anisette.config())
+    let account = Account::login_with_anisette(credentials, two_factor, anisette)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| authentication_error("sign-in", e))?;
     let session = DeveloperSession::using_account(account)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| authentication_error("developer token", e))?;
     Ok(json!({"adsid": session.adsid(), "token": session.xcode_gs_token()}))
+}
+
+fn authentication_error(phase: &str, error: plume_core::Error) -> String {
+    match error {
+        safe @ plume_core::Error::AuthStage { .. } => safe.to_string(),
+        plume_core::Error::AuthSrpWithMessage(0, message)
+            if matches!(message.as_str(), "Failed to get 2FA code: Cancelled" | "Failed to get SMS 2FA code: Cancelled") =>
+                "Sign-in cancelled.".into(),
+        plume_core::Error::AuthSrpWithMessage(code, _) =>
+            format!("Apple authentication failed during {phase} (code {code})"),
+        plume_core::Error::Bad2faCode => "Apple did not accept the verification code.".into(),
+        plume_core::Error::ExtraStep(_) => "Apple requires additional account verification before sign-in can finish.".into(),
+        plume_core::Error::GeneralHttpError { status, .. } =>
+            format!("Apple authentication failed during {phase} (HTTP {status})"),
+        _ => format!("Apple authentication could not complete the request during {phase}."),
+    }
+}
+
+#[cfg(test)]
+mod authentication_tests {
+    #[test]
+    fn two_factor_cancel_is_not_an_apple_rejection() {
+        for source in ["Failed to get 2FA code: Cancelled", "Failed to get SMS 2FA code: Cancelled"] {
+            let message = super::authentication_error("sign-in", plume_core::Error::AuthSrpWithMessage(0, source.into()));
+            assert_eq!(message, "Sign-in cancelled.");
+        }
+    }
+
+    #[test]
+    fn errors_do_not_expose_server_text_or_trigger_credential_retry() {
+        let text = super::authentication_error("sign-in", plume_core::Error::AuthSrpWithMessage(-80046, "SECRET_RESPONSE".into()));
+        assert!(text.contains("-80046"));
+        assert!(!text.contains("SECRET_RESPONSE"));
+        assert!(!text.starts_with("Anisette error"));
+        let text = super::authentication_error("developer token", plume_core::Error::ExtraStep("SECRET_RESPONSE".into()));
+        assert!(!text.contains("SECRET_RESPONSE"));
+    }
 }
 
 async fn call(request: CallRequest, prompt: &Prompt) -> Result<Value, String> {

@@ -71,7 +71,7 @@ enum AppleIDClient {
 
 	static var session: AppleIDKeychain.Session? { AppleIDKeychain.session() }
 
-	/// Anisette servers in order (rules in Core's AnisetteServers): the user's own, ours, then the config's
+	/// Anisette services in order: a valid custom URL, the default Mac service, then configured fallbacks.
 	static var anisetteServers: [URL] {
 		let defaults = UserDefaults.standard
 		return AnisetteServers.ordered(
@@ -232,7 +232,7 @@ enum AppleIDClient {
 	}
 
 	/// Tries each anisette server until one answers. Only anisette failures move on to the next
-	/// server; they happen before anything is sent to Apple.
+	/// server; the bridge emits that prefix only before exchanging Apple credentials.
 	private static func _withAnisette(
 		_ work: ([String: Any]) async throws -> [String: Any]
 	) async throws -> [String: Any] {

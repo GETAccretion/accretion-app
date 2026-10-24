@@ -8,6 +8,17 @@ final class AppleIDPlanTests: XCTestCase {
 
 	// MARK: AnisetteServers
 
+	func testDefaultUsesMacBackedService() {
+		XCTAssertEqual(AnisetteServers.ordered(custom: nil, remote: []).first?.absoluteString,
+			"https://mac-ani.jkcoxson.com")
+	}
+
+	func testCustomServerValidityMatchesRouting() {
+		XCTAssertFalse(AnisetteServers.acceptsCustom("mac-ani.jkcoxson.com"))
+		XCTAssertFalse(AnisetteServers.acceptsCustom("http://example.com"))
+		XCTAssertTrue(AnisetteServers.acceptsCustom(" https://example.com/ "))
+	}
+
 	private func config(_ json: String) -> Data { Data(json.utf8) }
 
 	func testRemoteListReadsStrings() {
@@ -64,8 +75,8 @@ final class AppleIDPlanTests: XCTestCase {
 	}
 
 	func testDuplicatesAreRemovedIgnoringCaseAndSlash() {
-		let remote = ["HTTPS://ANI.GetAccretion.app/", "https://ani.getaccretion.app", "https://x.example", "https://X.example/"]
-		let urls = AnisetteServers.ordered(custom: "https://Ani.getaccretion.app//", remote: remote)
+		let remote = [AnisetteServers.own.uppercased() + "/", AnisetteServers.own, "https://x.example", "https://X.example/"]
+		let urls = AnisetteServers.ordered(custom: AnisetteServers.own.uppercased() + "//", remote: remote)
 		XCTAssertEqual(urls.map(\.absoluteString), [AnisetteServers.own, "https://x.example"])
 	}
 

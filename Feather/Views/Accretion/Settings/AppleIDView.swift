@@ -273,7 +273,12 @@ struct AppleIDView: View {
 				.autocorrectionDisabled()
 				.padding(12)
 				.accretionCard()
-			Text(verbatim: String.localized("Apple needs device details from an anisette server for every sign-in. Leave this empty to use Accretion's. It never sees your password. Tried in this order:"))
+			if !_customAnisette.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !AnisetteServers.acceptsCustom(_customAnisette) {
+				Text(verbatim: String.localized("This entry is not a full HTTPS URL and is ignored. The default service is used instead."))
+					.font(.caption)
+					.foregroundStyle(AccretionTheme.muted)
+			}
+			Text(verbatim: String.localized("Apple needs device details from an anisette service for sign-in. The default is a third-party Mac Anisette service. It receives device-provisioning data, never your Apple ID, password or verification code. Tried in this order:"))
 				.font(.caption)
 				.foregroundStyle(AccretionTheme.muted)
 			ForEach(Array(AppleIDClient.anisetteServers.enumerated()), id: \.offset) { index, server in

@@ -20,6 +20,7 @@ CoreTests/.build/
 
 # Apple ID signing framework build output (AppleIDBridge/build-ios.sh)
 AppleIDBridge/target/
+AppleIDBridge/target-auth-tests/
 AppleIDBridge/build/
 
 # Python workflow checks

@@ -193,7 +193,19 @@ struct InstallPreviewView: View {
 			}
 		}
 		.onAppear(perform: _install)
-		
+		// Accretion: Mod Studio's check after an install: the app must be on this iPhone
+		.onReceive(viewModel.$status) { newStatus in
+			guard !isSharing, case .completed(.success(_)) = newStatus,
+				  let id = app.identifier, id != Bundle.main.bundleIdentifier else { return }
+			Task {
+				if await InstalledApps.landed(id) == false {
+					await MainActor.run { viewModel.status = .broken(InstalledApps.NotInstalled(bundleID: id)) }
+				} else {
+					InstalledApps.remember(id)
+				}
+			}
+		}
+
 		#if !targetEnvironment(macCatalyst)
 		.onAppear {
 			BackgroundAudioManager.shared.start()
@@ -297,7 +309,23 @@ struct InstallPreviewView: View {
 			)
 			return
 		}
-				
+		// Accretion: Mod Studio's rule: an app under this ID that Accretion didn't install (the App Store
+		// version, for one) is replaced only when the user says so
+		if !isSharing, let id = app.identifier, InstalledApps.replacesOriginal(id) {
+			UIAlertController.showAlert(
+				title: .localized("Replace the app on this iPhone?"),
+				message: .localized("An app with the ID %@ is already on this iPhone and Accretion didn't install it (often the App Store version). Installing this copy replaces it, and its data may be replaced too.\n\nTo keep both, cancel and give this copy another bundle ID in its signing options.", arguments: id),
+				actions: [
+					UIAlertAction(title: .localized("Replace"), style: .destructive) { _ in _startInstall() },
+					UIAlertAction(title: .localized("Cancel"), style: .cancel) { _ in dismiss() },
+				]
+			)
+			return
+		}
+		_startInstall()
+	}
+
+	private func _startInstall() {
 		Task.detached {
 			do {
 				let handler = await ArchiveHandler(app: app, viewModel: viewModel)

@@ -29,6 +29,16 @@ runs:
       run: |
         set -euo pipefail
         title="Scheduled run failed: $WORKFLOW"
+        # with issues turned off for the repository, the red run (and GitHub's failed-run email) is the alert
+        if [ "$(gh api "repos/$REPO" --jq '.has_issues')" != "true" ]; then
+          echo "Issues are turned off for $REPO, so no issue is opened or closed." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$STATUS" = "failure" ]; then
+            echo "::error::The scheduled run of $WORKFLOW failed. $HINT"
+            exit 1
+          fi
+          echo "The run ended as $STATUS; nothing to do."
+          exit 0
+        fi
         number=$(gh issue list -R "$REPO" --state open --limit 200 --json number,title \
           | jq -r --arg t "$title" 'map(select(.title == $t)) | first | .number // empty')
         case "$STATUS" in

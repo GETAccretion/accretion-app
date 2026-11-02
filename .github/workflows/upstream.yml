@@ -104,5 +104,6 @@ jobs:
       - name: Open or close the failure issue
         uses: ./.github/actions/alert
         with:
-          status: ${{ contains(needs.*.result, 'failure') && 'failure' || contains(needs.*.result, 'cancelled') && 'cancelled' || 'success' }}
+          # a job that never got a runner is neither success nor cancelled: count it as a failure
+          status: ${{ needs.check.result == 'success' && 'success' || needs.check.result == 'cancelled' && 'cancelled' || 'failure' }}
           workflow: "App: Feather updates"

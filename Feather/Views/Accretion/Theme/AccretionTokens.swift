@@ -30,7 +30,7 @@ enum AccretionTokens {
 	static let roseFill: (dark: UInt32, light: UInt32) = (0xE11D48, 0xE11D48)
 	static let star: (dark: UInt32, light: UInt32) = (0xF5B83B, 0xB87F09)
 	static let avatarInk: (dark: UInt32, light: UInt32) = (0x12111C, 0x12111C)
-	static let glow: (dark: Double, light: Double) = (0.0, 0.0)
+	static let glow: (dark: Double, light: Double) = (0.1, 0.06)
 	static let gridLineDark: UInt32 = 0xFFFFFF
 	static let gridAlphaDark: CGFloat = 0.035
 	static let gridLineLight: UInt32 = 0x181430

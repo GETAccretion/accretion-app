@@ -422,8 +422,11 @@ extension SigningView {
 		// profile this app will actually be signed with when the certificate has several.
 		let cert = _signsWithAppleID ? nil : _selectedCert() // Accretion: Apple ID signing needs no certificate
 		_useAppProfile(cert)
-		let problems = Preflight.problems(for: app, certificate: cert, options: _temporaryOptions)
+		var problems = Preflight.problems(for: app, certificate: cert, options: _temporaryOptions)
 		if let cert { ProfileOverride.set(nil, for: cert) }
+		// Apple ID signing goes straight on, like the automatic installs: no "Before you sign" warnings,
+		// only blocking problems stop it (owner's call, 2026-11-03)
+		if _signsWithAppleID { problems = problems.filter(\.isBlocking) }
 		Preflight.confirm(problems) {
 			_sign()
 		}

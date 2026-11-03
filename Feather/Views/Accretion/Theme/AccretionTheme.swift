@@ -575,8 +575,15 @@ struct AccretionAmbientGlow: View {
 	@State private var _lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 
 	var body: some View {
+		// the tokens set the glow to 0 (the quieter look of 2026-11-03): then nothing is drawn or redrawn
+		if (_colorScheme == .dark ? AccretionTokens.glow.dark : AccretionTokens.glow.light) > 0 {
+			_drifting
+		}
+	}
+
+	private var _drifting: some View {
 		let still = _reduceMotion || _lowPower
-		TimelineView(.animation(minimumInterval: 1.0 / 15, paused: still)) { context in
+		return TimelineView(.animation(minimumInterval: 1.0 / 15, paused: still)) { context in
 			Canvas { canvas, size in
 				let vmax = max(size.width, size.height)
 				let drift = still ? .zero : AccretionDrift.offset(at: context.date.timeIntervalSinceReferenceDate, vmax: vmax)

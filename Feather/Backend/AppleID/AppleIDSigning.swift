@@ -88,6 +88,12 @@ enum AppleIDSigning {
 		return records.contains { $0.signedUUID == uuid }
 	}
 
+	/// When the Apple ID's profile for this Library entry runs out (nil: not Apple ID signed, or no date)
+	static func expires(uuid: String?) -> Date? {
+		guard let uuid else { return nil }
+		return records.first { $0.signedUUID == uuid }?.expires
+	}
+
 	/// Records whose Library entry still exists (the rest were deleted or re-signed)
 	static func prune(keeping signedUUIDs: Set<String>) {
 		records = records.filter { signedUUIDs.contains($0.signedUUID) }

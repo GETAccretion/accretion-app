@@ -307,9 +307,13 @@ enum AppleIDClient {
 		return strdup(answer)
 	}
 
+	/// The bridge writes RFC 3339 dates, with fractional seconds when the date has them
 	private static func _date(_ value: Any?) -> Date? {
 		guard let text = value as? String else { return nil }
-		return ISO8601DateFormatter().date(from: text)
+		if let date = ISO8601DateFormatter().date(from: text) { return date }
+		let fractional = ISO8601DateFormatter()
+		fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+		return fractional.date(from: text)
 	}
 }
 

@@ -18,7 +18,11 @@ struct LibraryCellView: View {
 	@State private var _isSignedUpdateConfirmationPresented = false
 
 	var certInfo: Date.ExpirationInfo? {
-		Storage.shared.getCertificate(from: app)?.expiration?.expirationInfo()
+		if let cert = Storage.shared.getCertificate(from: app) {
+			return cert.expiration?.expirationInfo()
+		}
+		// Accretion: an Apple ID-signed app has no certificate here; its profile's date is in the Apple ID record
+		return AppleIDSigning.expires(uuid: app.uuid)?.expirationInfo()
 	}
 	
 	var certRevoked: Bool {

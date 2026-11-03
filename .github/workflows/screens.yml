@@ -4,8 +4,15 @@ name: "App: screenshots vs website"
 # Simulator, screenshots Discover, screenshots getaccretion.github.io at the same size, and keeps
 # both (plus one side-by-side image) as a run artifact. Report only: it never blocks a build or a
 # release. Run it from Actions -> App: screenshots vs website -> Run workflow, or it runs on Mondays.
+# Duo (experimental, manual only): builds with Xcode 27.1 on the xcode-27 preview runner and
+# screenshots the iPhone Duo Simulator instead; release builds stay on the pinned Xcode.
 on:
   workflow_dispatch:
+    inputs:
+      duo:
+        description: "iPhone Duo (experimental: Xcode 27.1, iPhone Duo Simulator)"
+        type: boolean
+        default: false
   schedule:
     - cron: "17 6 * * 1"
 
@@ -18,7 +25,7 @@ concurrency:
 
 jobs:
   screens:
-    runs-on: ${{ vars.MAC_RUNNER || 'macos-26' }}
+    runs-on: ${{ inputs.duo && 'xcode-27' || vars.MAC_RUNNER || 'macos-26' }}
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -28,9 +35,18 @@ jobs:
 
       - name: Xcode and Swift packages
         uses: ./.github/actions/xcode
+        with:
+          xcode: ${{ inputs.duo && '/Applications/Xcode_27.1.app' || '' }}
 
       - name: Pick the Simulator
+        env:
+          DUO: ${{ inputs.duo && 'true' || 'false' }}
         run: |
+          if [ "$DUO" = true ]; then
+            echo "DEVICE=iPhone Duo" >> "$GITHUB_ENV"
+            echo "Simulator: iPhone Duo"
+            exit 0
+          fi
           # the first available iPhone Pro (not Max) Simulator on this runner
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["name"] for r in sorted(d, reverse=True) if "iOS" in r for x in d[r] if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]))')
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
@@ -69,15 +85,32 @@ jobs:
           xcrun simctl install "$DEVICE" "$APP"
           xcrun simctl launch "$DEVICE" "$BUNDLE"
           sleep 25 # the store index loads from the network
-          xcrun simctl io "$DEVICE" screenshot screens/app.png
+          if [ "$DEVICE" = "iPhone Duo" ]; then
+            # two screens: simctl names them only when asked without --display; the larger one is the
+            # inner screen (app.png, which the website is sized to), the other the outer (app-outer.png)
+            DISPLAYS=$(xcrun simctl io "$DEVICE" screenshot /tmp/probe.png 2>&1 | grep -oE -- '--display=[0-9]+ .* [0-9]+x[0-9]+' || true)
+            echo "$DISPLAYS"
+            INNER=$(echo "$DISPLAYS" | awk '{split($NF, s, "x"); print s[1]*s[2], $1}' | sort -rn | head -1 | cut -d' ' -f2)
+            OUTER=$(echo "$DISPLAYS" | awk '{split($NF, s, "x"); print s[1]*s[2], $1}' | sort -n | head -1 | cut -d' ' -f2)
+            xcrun simctl io "$DEVICE" screenshot "$INNER" screens/app.png
+            xcrun simctl io "$DEVICE" screenshot "$OUTER" screens/app-outer.png
+          else
+            xcrun simctl io "$DEVICE" screenshot screens/app.png
+          fi
 
       - name: Screenshot the website
         run: |
           set -euo pipefail
-          # the same size in points as an iPhone Pro screen, dark mode (1x pixels)
+          # the same size in points as an iPhone Pro screen, dark mode (1x pixels); on the Duo, the
+          # Simulator screenshot's size at 3x (Apple publishes no point size for it yet)
+          VIEW="402,874"
+          if [ "$DEVICE" = "iPhone Duo" ]; then
+            VIEW=$(sips -g pixelWidth -g pixelHeight screens/app.png | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{printf "%d,%d", w/3, h/3}')
+          fi
+          echo "Website viewport: $VIEW"
           npx --yes playwright@1.56.1 install chromium > /dev/null
           npx --yes playwright@1.56.1 screenshot --browser chromium --color-scheme dark \
-            --viewport-size "402,874" --wait-for-timeout 8000 \
+            --viewport-size "$VIEW" --wait-for-timeout 8000 \
             https://getaccretion.github.io/ screens/web.png
 
       - name: Summary

@@ -79,7 +79,23 @@ extension LibraryInfoView {
 					cert: cert
 				)
 			}
+		} else if AppleIDSigning.isAppleIDSigned(uuid: app.uuid) {
+			// Accretion: Apple ID-signed apps have no certificate; show when the Apple ID's signing runs out
+			NBSection(.localized("Apple ID")) {
+				_infoCell(.localized("Signing"), desc: _appleIDExpiry(for: app))
+			}
 		}
+	}
+
+	private func _appleIDExpiry(for app: AppInfoPresentable) -> String {
+		guard let expires = AppleIDSigning.expires(uuid: app.uuid) else { return .localized("Unknown") }
+		let now = Date()
+		if ProfileExpiry.status(expires: expires, now: now) == .expired { return .localized("Expired") }
+		return .localized(
+			"%@ days left, until %@",
+			arguments: String(ProfileExpiry.daysLeft(expires: expires, now: now)),
+			expires.formatted(date: .abbreviated, time: .shortened)
+		)
 	}
 	
 	@ViewBuilder

@@ -41,15 +41,8 @@ enum AccretionTheme {
 
 	static let radius: CGFloat = AccretionTokens.radius
 
-	/// The store's headline and stat numbers: text fading from the foreground into the accents
-	static let headline = LinearGradient(
-		stops: [
-			.init(color: fg, location: 0.3),
-			.init(color: _dynamic(dark: 0x6C86F3, light: 0x5251D6), location: 1),
-		],
-		startPoint: .leading,
-		endPoint: .trailing
-	)
+	/// The store's headline and stat numbers: solid text, like the website (no gradient text)
+	static let headline = fg
 
 	private static func _dynamic(dark: UInt32, light: UInt32) -> Color {
 		Color(uiDynamic(dark: dark, light: light))
@@ -207,19 +200,24 @@ extension View {
 }
 
 // MARK: - Pieces
-/// Small uppercase pill: "new", "update", "Accretion Mod", "core"
+extension String {
+	/// Sentence case for labels and badges ("core" → "Core"), like the website: only the first letter changes,
+	/// and a version ("v1.0.47") stays as written
+	var accretionSentenceCase: String {
+		guard let first = first, first.isLetter, !(first == "v" && dropFirst().first?.isNumber == true) else { return self }
+		return first.uppercased() + dropFirst()
+	}
+}
+
+/// Quiet label in its colour, sentence case: "New", "Update", "Accretion Mod", "Core" (the site's .badge)
 struct AccretionBadge: View {
 	let text: String
 	var color: Color = AccretionTheme.good
 
 	var body: some View {
-		Text(verbatim: text.uppercased())
-			.font(.accretionMono(10))
-			.tracking(0.6)
-			.padding(.horizontal, 6)
-			.padding(.vertical, 2)
+		Text(verbatim: text.accretionSentenceCase)
+			.font(.accretionMono(11, weight: .medium))
 			.foregroundStyle(color)
-			.background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
 	}
 }
 
@@ -289,16 +287,16 @@ struct AccretionButtonStyle: ButtonStyle {
 	var compact = false
 
 	func makeBody(configuration: Configuration) -> some View {
-		let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+		let shape = Capsule(style: .continuous)
 		configuration.label
 			.accretionFont(compact ? 13 : 14, weight: .semibold)
 			.lineLimit(1)
-			.padding(.horizontal, compact ? 12 : 14)
-			.frame(minHeight: compact ? 34 : 40)
+			.padding(.horizontal, compact ? 14 : 16)
+			.frame(minHeight: compact ? 34 : 44)
 			.foregroundStyle(prominent ? Color.white : on ? AccretionTheme.good : AccretionTheme.fg)
 			.background {
 				if prominent {
-					shape.fill(LinearGradient(colors: [AccretionTheme.accentFill, AccretionTheme.accentFillEnd], startPoint: .topLeading, endPoint: .bottomTrailing))
+					shape.fill(AccretionTheme.accentFill)
 				} else if !ghost {
 					shape.fill(AccretionTheme.raised)
 				}
@@ -345,9 +343,8 @@ struct AccretionSection<Content: View>: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 10) {
 			if let title {
-				Text(verbatim: title.uppercased())
-					.font(.accretionMono(11, weight: .medium))
-					.tracking(1.1)
+				Text(verbatim: title.accretionSentenceCase)
+					.font(.accretionMono(12, weight: .medium))
 					.foregroundStyle(AccretionTheme.muted)
 			}
 			content
@@ -366,9 +363,8 @@ struct AccretionFact: View {
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 3) {
-			Text(verbatim: label.uppercased())
-				.font(.accretionMono(10.5, weight: .regular))
-				.tracking(1)
+			Text(verbatim: label.accretionSentenceCase)
+				.font(.accretionMono(12, weight: .regular))
 				.foregroundStyle(AccretionTheme.muted)
 			Text(verbatim: value.isEmpty ? "–" : value)
 				.accretionFont(15, weight: .semibold)

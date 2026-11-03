@@ -205,9 +205,7 @@ struct StoreAppView: View {
 		let game = (tweak.game?.isEmpty == false ? tweak.game : nil) ?? String.localized("the game")
 		return VStack(alignment: .leading, spacing: 6) {
 			Text(verbatim: String.localized("How to get it"))
-				.font(.accretionMono(11, weight: .medium))
-				.textCase(.uppercase)
-				.tracking(1.2)
+				.font(.accretionMono(12, weight: .medium))
 				.foregroundStyle(AccretionTheme.muted)
 			ForEach(Array([
 				String.localized("Bring your own decrypted copy of %@.", arguments: game),

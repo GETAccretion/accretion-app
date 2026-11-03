@@ -133,7 +133,7 @@ struct AccretionAboutView: View {
 			Text(verbatim: Bundle.main.name)
 				.font(.accretionDisplay(30, weight: .heavy))
 				.foregroundStyle(AccretionTheme.fg)
-			Text(verbatim: String.localized("Every source, pulled into one."))
+			Text(verbatim: String.localized("Every source, pulled into one"))
 				.font(.subheadline)
 				.foregroundStyle(AccretionTheme.muted)
 			HStack(spacing: 6) {
@@ -202,9 +202,8 @@ struct AccretionAboutView: View {
 
 	private func _group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
 		VStack(alignment: .leading, spacing: 8) {
-			Text(verbatim: title.uppercased())
-				.font(.accretionMono(11))
-				.tracking(1)
+			Text(verbatim: title.accretionSentenceCase)
+				.font(.accretionMono(12))
 				.foregroundStyle(AccretionTheme.muted)
 				.padding(.leading, 4)
 			VStack(spacing: 0) { content() }

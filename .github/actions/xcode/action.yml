@@ -7,9 +7,9 @@ description: >-
 
 inputs:
   xcode:
-    description: Xcode to select (the pinned one unless a workflow asks for another, like Screens' Duo run)
+    description: Xcode to select; empty means the pinned one (others for the experimental iPhone Duo builds)
     required: false
-    default: /Applications/Xcode_26.3.0.app
+    default: ""
 
 runs:
   using: composite
@@ -17,7 +17,7 @@ runs:
     - name: Select Xcode
       shell: bash
       env:
-        XCODE_APP: ${{ inputs.xcode }}
+        XCODE_APP: ${{ inputs.xcode || '/Applications/Xcode_26.3.0.app' }}
       run: |
         sudo xcode-select -s "$XCODE_APP"
         xcodebuild -version

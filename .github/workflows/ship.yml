@@ -17,6 +17,10 @@ on:
         description: "Beta (test build for Beta Updates only)"
         type: boolean
         default: false
+      xcode27:
+        description: "Build with Xcode 27.1 (experimental, for the iPhone Duo; beta only)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -61,8 +65,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           INPUT_VERSION: ${{ inputs.version }}
           BETA: ${{ inputs.beta }}
+          XCODE27: ${{ inputs.xcode27 }}
         run: |
           set -euo pipefail
+          if [ "$XCODE27" = true ] && [ "$BETA" != true ]; then
+            echo "::error::Xcode 27.1 builds are experimental: turn Beta on too."
+            exit 1
+          fi
           current=$(sed -n 's/^FEATHER_PROJECT_VERSION=//p' Feather.xcconfig)
           # the last release: a beta's version (1.0.25.2) belongs to release 1.0.25
           IFS=. read -r major minor patch _ <<< "$current"
@@ -92,6 +101,6 @@ jobs:
           git tag "accretion-v$next"
           git push -q origin "refs/tags/accretion-v$next"
           # pushes made with this token don't start workflows; a dispatch does
-          gh workflow run release.yml --ref "accretion-v$next"
-          echo "### Shipping Accretion $next$([ "$BETA" = true ] && echo ' (beta)')" >> "$GITHUB_STEP_SUMMARY"
+          gh workflow run release.yml --ref "accretion-v$next" -f xcode27="$XCODE27"
+          echo "### Shipping Accretion $next$([ "$BETA" = true ] && echo ' (beta)')$([ "$XCODE27" = true ] && echo ', built with Xcode 27.1')" >> "$GITHUB_STEP_SUMMARY"
           echo "Follow the **App: build and release** run for \`accretion-v$next\`. It reuses main's build (a few minutes), or compiles again if that build isn't cached (about 10 minutes)." >> "$GITHUB_STEP_SUMMARY"

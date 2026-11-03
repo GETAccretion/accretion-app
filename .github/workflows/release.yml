@@ -30,6 +30,12 @@ on:
     tags:
       - accretion-v*
   workflow_dispatch:
+    inputs:
+      xcode27:
+        # set by Ship for an experimental beta: compile with Xcode 27.1 (iPhone Duo) instead of reusing a build
+        description: "Compile with Xcode 27.1 on the xcode-27 preview runner (experimental)"
+        type: boolean
+        default: false
 
 permissions:
   actions: write
@@ -42,8 +48,9 @@ concurrency:
 
 jobs:
   build:
-    # repo variable MAC_RUNNER (e.g. macos-26-intel) when GitHub has no Apple silicon Macs free
-    runs-on: ${{ vars.MAC_RUNNER || 'macos-26' }}
+    # repo variable MAC_RUNNER (e.g. macos-26-intel) when GitHub has no Apple silicon Macs free;
+    # the xcode-27 preview image for an experimental Xcode 27.1 beta
+    runs-on: ${{ inputs.xcode27 && 'xcode-27' || vars.MAC_RUNNER || 'macos-26' }}
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -80,7 +87,8 @@ jobs:
       # stamps the new version into it. If that build isn't cached, the release compiles as before.
       - name: Find main's build of this code
         id: find-main-build
-        if: startsWith(github.ref, 'refs/tags/accretion-v') || startsWith(github.ref, 'refs/heads/automation/checked-')
+        # an Xcode 27.1 beta compiles: main's build was made with the pinned Xcode
+        if: (startsWith(github.ref, 'refs/tags/accretion-v') || startsWith(github.ref, 'refs/heads/automation/checked-')) && !inputs.xcode27
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -221,6 +229,8 @@ jobs:
         id: xcode-setup
         if: steps.stamp-version.outputs.done != 'true' && steps.restore-pr-build.outputs.done != 'true'
         uses: ./.github/actions/xcode
+        with:
+          xcode: ${{ inputs.xcode27 && '/Applications/Xcode_27.1.app' || '' }}
 
       - name: Build
         id: build

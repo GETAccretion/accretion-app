@@ -36,7 +36,7 @@ jobs:
       - name: Xcode and Swift packages
         uses: ./.github/actions/xcode
         with:
-          xcode: ${{ inputs.duo && '/Applications/Xcode_27.1.app' || '/Applications/Xcode_26.3.0.app' }}
+          xcode: ${{ inputs.duo && '/Applications/Xcode_27.1.app' || '' }}
 
       - name: Pick the Simulator
         env:

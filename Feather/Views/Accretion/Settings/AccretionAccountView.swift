@@ -145,9 +145,8 @@ struct AccretionAccountView: View {
 		.buttonStyle(AccretionButtonStyle())
 		.disabled(_certificates.isEmpty)
 
-		Text(verbatim: String.localized("BACKUPS"))
-			.font(.accretionMono(11))
-			.tracking(1)
+		Text(verbatim: String.localized("Backups"))
+			.font(.accretionMono(12))
 			.foregroundStyle(AccretionTheme.muted)
 
 		if _backups.isEmpty {

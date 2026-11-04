@@ -220,11 +220,12 @@ struct DiscoverView: View {
 						.accessibilityLabel(String.localized("Clear search"))
 				}
 			}
-			.padding(.horizontal, 12)
-			.background(AccretionTheme.surface, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+			.padding(.horizontal, 16)
+			// a capsule, like iOS's search fields and the website's
+			.background(AccretionTheme.surface, in: Capsule(style: .continuous))
 			.overlay {
-				if _searchFocused { AccretionLiveEdge(cornerRadius: 11) }
-				else { RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(AccretionTheme.line, lineWidth: 1) }
+				if _searchFocused { AccretionLiveEdge(cornerRadius: 22) }
+				else { Capsule(style: .continuous).stroke(AccretionTheme.line, lineWidth: 1) }
 			}
 			// the system search field's Cancel: leaves search and puts the keyboard away
 			if _searchFocused {
@@ -307,18 +308,18 @@ struct DiscoverView: View {
 		VStack(alignment: .leading, spacing: 0) {
 			HStack(spacing: 8) {
 				LiveDot(tone: .freshness(stats?.updated))
-				Text(verbatim: (String.localized("Live index") + " · " + (stats?.updated.map { String.localized("built %@", arguments: $0) } ?? String.localized("live"))).uppercased())
+				Text(verbatim: String.localized("Index") + " · " + (stats?.updated.map { String.localized("built %@", arguments: $0) } ?? String.localized("rebuilt every 6 hours")))
 					.font(.accretionMono(12, weight: .regular))
-					.tracking(1)
 					.foregroundStyle(AccretionTheme.muted)
 					.lineLimit(1)
 					.minimumScaleFactor(0.8)
 			}
 			.padding(.bottom, 10)
-			// the website balances the two lines (text-wrap: balance): "Every source, / pulled into one."
-			Text(verbatim: String.localized("Every source,") + "\n" + String.localized("pulled into one."))
+			// the website balances the two lines (text-wrap: balance): "Every source, / pulled into one", the
+			// second line in the accent (the site's h1 em)
+			(Text(verbatim: String.localized("Every source,") + "\n").foregroundColor(AccretionTheme.fg)
+			 + Text(verbatim: String.localized("pulled into one")).foregroundColor(AccretionTheme.accentText))
 				.font(.accretionDisplay(28)) // h1 on a phone: clamp(28px, 4.6vw, 46px)
-				.foregroundStyle(AccretionTheme.headline)
 				.fixedSize(horizontal: false, vertical: true)
 				.padding(.bottom, 12)
 			(Text(verbatim: String.localized("Apps from") + " ")
@@ -328,19 +329,23 @@ struct DiscoverView: View {
 				.foregroundStyle(AccretionTheme.muted)
 				.fixedSize(horizontal: false, vertical: true)
 			NavigationLink(value: SignGuideRoute()) {
-				Text(verbatim: "✍️ " + String.localized("Sign your own apps"))
+				Label {
+					Text(verbatim: String.localized("Sign your own apps"))
+				} icon: {
+					Image(systemName: "pencil.line").foregroundStyle(AccretionTheme.muted)
+				}
 			}
 			.buttonStyle(AccretionButtonStyle(prominent: false))
 			.padding(.top, 14)
 
 			Grid(horizontalSpacing: 10, verticalSpacing: 10) {
 				GridRow {
-					_stat(String.localized("apps"), stats?.apps ?? index?.apps.count)
-					_stat(String.localized("sources"), stats?.sources ?? index?.sources.count)
+					_stat(String.localized("Apps"), stats?.apps ?? index?.apps.count)
+					_stat(String.localized("Sources"), stats?.sources ?? index?.sources.count)
 				}
 				GridRow {
-					_stat(String.localized("updated 7d"), stats?.updated_7d)
-					_stat(String.localized("new 30d"), stats?.new_30d ?? index?.apps.filter(_store.isNew).count)
+					_stat(String.localized("Updated 7d"), stats?.updated_7d)
+					_stat(String.localized("New 30d"), stats?.new_30d ?? index?.apps.filter(_store.isNew).count)
 				}
 			}
 			.padding(.top, 24)
@@ -359,9 +364,8 @@ struct DiscoverView: View {
 
 	private func _stat(_ label: String, _ value: Int?) -> some View {
 		VStack(alignment: .leading, spacing: 2) {
-			Text(verbatim: label.uppercased())
-				.font(.accretionMono(11, weight: .regular))
-				.tracking(1.1)
+			Text(verbatim: label)
+				.font(.accretionMono(12, weight: .regular))
 				.foregroundStyle(AccretionTheme.muted)
 			Text(verbatim: value.map { $0.formatted() } ?? "–")
 				.font(.accretionDisplay(26))

@@ -206,9 +206,8 @@ struct InjectView: View {
 			}
 			let suggested = _catalog.suggested(for: _app?.identifier)
 			if !suggested.isEmpty {
-				Text(verbatim: String.localized("Suggested for this app").uppercased())
-					.font(.accretionMono(10.5, weight: .regular))
-					.tracking(1)
+				Text(verbatim: String.localized("Suggested for this app"))
+					.font(.accretionMono(12, weight: .regular))
 					.foregroundStyle(AccretionTheme.muted)
 					.padding(.top, 4)
 				ForEach(suggested) { tweak in _catalogRow(tweak) }

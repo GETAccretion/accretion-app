@@ -152,9 +152,8 @@ struct AppleIDView: View {
 	// MARK: This iPhone
 	@ViewBuilder
 	private func _device() -> some View {
-		Text(verbatim: String.localized("THIS IPHONE"))
-			.font(.accretionMono(11))
-			.tracking(1)
+		Text(verbatim: String.localized("This iPhone"))
+			.font(.accretionMono(12))
 			.foregroundStyle(AccretionTheme.muted)
 		VStack(alignment: .leading, spacing: 10) {
 			if let udid = _udid {
@@ -197,9 +196,8 @@ struct AppleIDView: View {
 	// MARK: Signed apps
 	@ViewBuilder
 	private func _signedApps() -> some View {
-		Text(verbatim: String.localized("SIGNED WITH THIS APPLE ID"))
-			.font(.accretionMono(11))
-			.tracking(1)
+		Text(verbatim: String.localized("Signed with this Apple ID"))
+			.font(.accretionMono(12))
 			.foregroundStyle(AccretionTheme.muted)
 		VStack(alignment: .leading, spacing: 10) {
 			if _records.isEmpty {
@@ -246,9 +244,8 @@ struct AppleIDView: View {
 	// MARK: Limits and anisette
 	private func _limits() -> some View {
 		VStack(alignment: .leading, spacing: 6) {
-			Text(verbatim: String.localized("FREE APPLE ID LIMITS"))
-				.font(.accretionMono(11))
-				.tracking(1)
+			Text(verbatim: String.localized("Free Apple ID limits"))
+				.font(.accretionMono(12))
 				.foregroundStyle(AccretionTheme.muted)
 			Text(verbatim: String.localized(
 				"Apps last %@ days. At most %@ apps signed this way on this iPhone at a time, and %@ new App IDs a week. App extensions are removed so they don't use App IDs.",
@@ -263,9 +260,8 @@ struct AppleIDView: View {
 
 	private func _anisette() -> some View {
 		VStack(alignment: .leading, spacing: 8) {
-			Text(verbatim: String.localized("ANISETTE SERVER"))
-				.font(.accretionMono(11))
-				.tracking(1)
+			Text(verbatim: String.localized("Anisette server"))
+				.font(.accretionMono(12))
 				.foregroundStyle(AccretionTheme.muted)
 			TextField(String.localized("Your own server (https://…)"), text: $_customAnisette)
 				.keyboardType(.URL)

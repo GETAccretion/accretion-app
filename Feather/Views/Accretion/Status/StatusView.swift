@@ -90,9 +90,8 @@ struct StatusView: View {
 		let total = s.sources_total ?? 0
 		HStack(spacing: 8) {
 			LiveDot(tone: .freshness(s.updated))
-			Text(verbatim: (String.localized("Live index") + " · " + String.localized("build %@", arguments: s.updated ?? "")).uppercased())
+			Text(verbatim: String.localized("Index") + " · " + String.localized("built %@", arguments: s.updated ?? ""))
 				.font(.accretionMono(12, weight: .regular))
-				.tracking(1)
 				.foregroundStyle(AccretionTheme.muted)
 				.lineLimit(1)
 				.minimumScaleFactor(0.8)
@@ -193,9 +192,8 @@ struct StatusView: View {
 
 	private func _tile(_ label: String, _ value: Int?, _ note: String?, tone: Color? = nil, text: String? = nil) -> some View {
 		VStack(alignment: .leading, spacing: 4) {
-			Text(verbatim: label.uppercased())
-				.font(.accretionMono(10.5, weight: .regular))
-				.tracking(1)
+			Text(verbatim: label.accretionSentenceCase)
+				.font(.accretionMono(12, weight: .regular))
 				.foregroundStyle(AccretionTheme.muted)
 			Text(verbatim: text ?? value.map { $0.formatted() } ?? "–")
 				.font(.accretionDisplay(24))
@@ -252,9 +250,8 @@ struct StatusView: View {
 	private func _growth(_ s: StoreStatus, down: Int) -> some View {
 		let points = s.timeline ?? []
 		HStack(alignment: .firstTextBaseline) {
-			Text(verbatim: String.localized("Growth").uppercased())
-				.font(.accretionMono(11, weight: .medium))
-				.tracking(1.1)
+			Text(verbatim: String.localized("Growth"))
+				.font(.accretionMono(12, weight: .medium))
 				.foregroundStyle(AccretionTheme.muted)
 			Spacer()
 			Text(verbatim: String.localized("%@ apps", arguments: (s.apps ?? 0).formatted()))

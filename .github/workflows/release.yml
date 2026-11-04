@@ -282,8 +282,14 @@ jobs:
           FN="https://bbcjpinhvlxocjxlyplt.supabase.co/functions/v1/upload"
           SIZE=$(stat -f%z packages/Accretion.ipa)
           SHA=$(shasum -a 256 packages/Accretion.ipa | cut -d' ' -f1)
-          # What's new post: commit titles since the previous release, minus housekeeping
-          PREV=$(git describe --tags --abbrev=0 --match 'accretion-v*' "$GITHUB_SHA^" 2>/dev/null || true)
+          # What's new post: commit titles since the previous release, minus housekeeping. A release counts
+          # from the previous release, not from the betas in between (whose commits it also ships); a beta
+          # counts from the tag before it
+          if [ "$BETA" = true ]; then
+            PREV=$(git describe --tags --abbrev=0 --match 'accretion-v*' "$GITHUB_SHA^" 2>/dev/null || true)
+          else
+            PREV=$(git describe --tags --abbrev=0 --match 'accretion-v*' --exclude 'accretion-v*.*.*.*' "$GITHUB_SHA^" 2>/dev/null || true)
+          fi
           # only commits that change the app itself: not workflows, tests, the store source or version bumps
           NOTES=$(git log --no-merges --format='• %s' ${PREV:+"$PREV..$GITHUB_SHA"} -- . ':!.github' ':!CoreTests' ':!app-repo.json' ':!app-repo-beta.json' ':!Feather.xcconfig' | head -25 || true)
           # betas aren't announced in What's new (announce: false)

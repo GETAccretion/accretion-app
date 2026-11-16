@@ -49,6 +49,9 @@ $(PLATFORMS): deps
 	mkdir -p _build/Payload/Accretion.app/Frameworks # Accretion: embed the Apple ID signing framework
 	cp -R AppleIDBridge/build/AccretionAppleID.framework _build/Payload/Accretion.app/Frameworks/
 	codesign --force --sign - --timestamp=none _build/Payload/Accretion.app/Frameworks/AccretionAppleID.framework
+	# Accretion: OpenSSL arrives with its local symbol names; the app uses only the exported ones
+	xcrun strip -x _build/Payload/Accretion.app/Frameworks/OpenSSL.framework/OpenSSL
+	codesign --force --sign - --timestamp=none _build/Payload/Accretion.app/Frameworks/OpenSSL.framework
 	codesign --force --sign - --timestamp=none _build/Payload/Accretion.app
 	cp deps/* _build/Payload/Accretion.app/ || true
 

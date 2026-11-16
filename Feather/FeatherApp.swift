@@ -62,6 +62,7 @@ struct FeatherApp: App {
 				guard _launchDone else { return }
 				AccretionAds.start()
 				TempCleanup.run(); InstallCertificateUpgrade.run(); InstallModeDefaults.run(); LegacyIconReset.run()
+				InstallCertificateRefresh.run()
 				await UpdateManager.shared.checkAutomatically()
 			}
 			.onReceive(NotificationCenter.default.publisher(for: .heartbeatInvalidHost)) { _ in

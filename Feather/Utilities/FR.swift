@@ -136,6 +136,7 @@ enum FR {
 	
 	static func downloadSSLCertificates(
 		from urlString: String,
+		feedback: Bool = true, // Accretion: off when the app fetches by itself (InstallCertificateRefresh)
 		completion: @escaping (Bool) -> Void
 	) {
 		let generator = UINotificationFeedbackGenerator()
@@ -157,7 +158,7 @@ enum FR {
 					// certificate alone, iOS can't build a trusted chain and rejects the install server.
 					try FileManager.forceWrite(content: pack.cert.trimmingCharacters(in: .whitespacesAndNewlines) + "\n" + pack.ca, to: "server.crt")
 					try FileManager.forceWrite(content: pack.info.domains.commonName, to: "commonName.txt")
-					generator.notificationOccurred(.success)
+					if feedback { generator.notificationOccurred(.success) }
 					completion(true)
 				} catch {
 					completion(false)

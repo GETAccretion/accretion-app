@@ -22,6 +22,8 @@ deps:
 	jq -r '.cert, .ca' cert.json > deps/server.crt # Accretion: full chain, or iOS rejects the install server
 	jq -j '.key1, .key2' cert.json > deps/server.pem # Accretion: joined as-is (key1 ends mid-line)
 	jq -r '.info.domains.commonName' cert.json > deps/commonName.txt
+	# Accretion: say so when the certificate built into this version runs out within 14 days (the app then fetches the current one by itself)
+	@openssl x509 -in deps/server.crt -noout -checkend 1209600 >/dev/null || echo "::warning::The install certificate built into this version runs out within 14 days"
 
 
 $(PLATFORMS): deps

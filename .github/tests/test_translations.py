@@ -55,7 +55,7 @@ class Arguments(unittest.TestCase):
         self.assertIsNone(problem("%@ of %lld", "%2$lld de %1$@"))
         self.assertEqual(problem("%@ apps", "aplicaciones"), "format specifiers differ")
         self.assertEqual(problem("%@ of %lld", "%lld de %@"), "format specifiers differ")
-        self.assertEqual(problem("50% done", "50 hecho"), "a percent sign that is not a format specifier")
+        self.assertEqual(problem("Now at 100%.", "Ahora al 100."), "a percent sign that is not a format specifier")
         self.assertEqual(problem("One\nTwo", "Uno Dos"), "line breaks differ")
         self.assertEqual(problem("[Open](https://a.example/x)", "[Abrir](https://b.example/x)"), "link addresses differ")
         self.assertEqual(problem("Done", " "), "empty")

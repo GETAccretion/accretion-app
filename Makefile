@@ -46,6 +46,8 @@ $(PLATFORMS): deps
 	mkdir -p _build/Payload
 	cp -R _build/Applications/*.app _build/Payload/Accretion.app
 	chmod -R 0755 _build/Payload/Accretion.app
+	# Accretion: the ad SDKs are linked into the app; Xcode also embeds an empty framework for each
+	rm -rf _build/Payload/Accretion.app/Frameworks/GoogleMobileAds.framework _build/Payload/Accretion.app/Frameworks/UserMessagingPlatform.framework
 	mkdir -p _build/Payload/Accretion.app/Frameworks # Accretion: embed the Apple ID signing framework
 	cp -R AppleIDBridge/build/AccretionAppleID.framework _build/Payload/Accretion.app/Frameworks/
 	codesign --force --sign - --timestamp=none _build/Payload/Accretion.app/Frameworks/AccretionAppleID.framework

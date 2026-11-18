@@ -22,7 +22,6 @@
 		33693A082DC8BF5B00730215 /* AltSourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 33693A072DC8BF5B00730215 /* AltSourceKit */; };
 		3371F7322DA9ECDD00281AC6 /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 3371F7312DA9ECDD00281AC6 /* Zip */; };
 		33CF13392DB5ACFB0021D4C5 /* SWCompression in Frameworks */ = {isa = PBXBuildFile; productRef = 33CF13382DB5ACFB0021D4C5 /* SWCompression */; };
-		570920BE2F98A4F0008C4A83 /* Feather.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 570920BD2F98A4F0008C4A83 /* Feather.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -217,7 +216,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				570920BE2F98A4F0008C4A83 /* Feather.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

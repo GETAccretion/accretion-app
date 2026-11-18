@@ -145,20 +145,7 @@
 			</dict>
 		</dict>
 	</array>
-<key>NSAppTransportSecurity</key>
-<dict>
-    <key>NSExceptionDomains</key>
-    <dict>
-        <key>claration.dev</key>
-        <dict>
-            <key>NSIncludesSubdomains</key>
-            <true/>
-            <key>NSTemporaryExceptionAllowsInsecureHTTPLoads</key>
-            <true/>
-        </dict>
-    </dict>
-</dict>
-	<!-- Accretion: Google Mobile Ads. This is Google's TEST app ID; swap in the real one. -->
+	<!-- Accretion: Google Mobile Ads app ID (AdMob); the ad unit is in AccretionAds.swift. -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-1352971207491342~7174720263</string>
 	<key>SKAdNetworkItems</key>

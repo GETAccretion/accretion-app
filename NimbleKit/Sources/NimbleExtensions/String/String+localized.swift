@@ -13,11 +13,14 @@ extension String {
 	// was given permission to use any code from antoine as I like - thank you Serena!~
 	
 	static public func localized(_ name: String) -> String {
-		NSLocalizedString(name, comment: "")
+		// Accretion: its own strings, and the translations Feather's table lacks, are in a second
+		// table (Accretion.xcstrings), read when the first has nothing for this language
+		let text = NSLocalizedString(name, comment: "")
+		return text == name ? NSLocalizedString(name, tableName: "Accretion", comment: "") : text
 	}
-	
+
 	static public func localized(_ name: String, arguments: CVarArg...) -> String {
-		String(format: NSLocalizedString(name, comment: ""), arguments: arguments)
+		String(format: String.localized(name), arguments: arguments)
 	}
 	/// Localizes the current string using the main bundle.
 	///
@@ -29,6 +32,7 @@ extension String {
 
 extension LocalizedStringKey {
 	static public func localized(_ key: String) -> LocalizedStringKey {
-		LocalizedStringKey(key)
+		// Accretion: looked up here, so the second table is read too
+		LocalizedStringKey(String.localized(key))
 	}
 }

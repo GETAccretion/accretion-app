@@ -39,6 +39,41 @@ jobs:
           agvtool new-version -all "$HEAD_SHA"
           make
 
+      # What fills the download, so a change that grows it shows in review. Sizes and counts only;
+      # a failure here never fails the build.
+      - name: Size report
+        id: size-report
+        continue-on-error: true
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import json, os, subprocess, zipfile
+
+          ipa, app = "packages/Accretion.ipa", "_build/Payload/Accretion.app"
+          with zipfile.ZipFile(ipa) as z:
+              files = [i for i in z.infolist() if not i.is_dir()]
+          print("### Download size")
+          print(f"`Accretion.ipa`: {os.path.getsize(ipa):,} bytes, {len(files)} files, "
+                f"{sum(i.file_size for i in files) / 1e6:.1f} MB unpacked\n")
+          print("| File | In the download (KB) | Unpacked (KB) |\n| --- | ---: | ---: |")
+          for i in sorted(files, key=lambda i: -i.compress_size)[:10]:
+              name = i.filename.removeprefix("Payload/Accretion.app/")
+              print(f"| `{name}` | {i.compress_size / 1024:,.0f} | {i.file_size / 1024:,.0f} |")
+
+          exported = subprocess.run(["nm", "-gU", f"{app}/Feather"], capture_output=True, text=True).stdout
+          print(f"\nApp binary: {len(exported.splitlines()):,} exported symbols")
+
+          info = subprocess.run(["xcrun", "--sdk", "iphoneos", "assetutil", "--info", f"{app}/Assets.car"],
+                                capture_output=True, text=True).stdout
+          items = [r for r in json.loads(info) if "SizeOnDisk" in r]
+          print(f"\n`Assets.car`: {len(items)} renditions, {sum(r['SizeOnDisk'] for r in items) / 1024:,.0f} KB\n")
+          print("| Asset | Rendition | Pixels | Idiom | Appearance | KB |\n| --- | --- | --- | --- | --- | ---: |")
+          for r in sorted(items, key=lambda r: -r["SizeOnDisk"])[:12]:
+              appearance = r.get("Appearance", "").removeprefix("NSAppearanceName").removeprefix("UIAppearance")
+              print(f"| {r.get('Name', '')} | {r.get('RenditionName', '')[:28]} | "
+                    f"{r.get('PixelWidth', '')}x{r.get('PixelHeight', '')} | {r.get('Idiom', '')} | "
+                    f"{appearance} | {r['SizeOnDisk'] / 1024:,.0f} |")
+          PY
+
       # main reuses this build when the merge has exactly this code (release.yml, "Restore the pull
       # request build"), so a change compiles once. The .ipa is private and this job has no secrets:
       # it's encrypted to the public key .github/pr-build.pub; only release.yml holds the private key

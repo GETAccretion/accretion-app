@@ -253,7 +253,7 @@ protocol LocalizedDescribable {
 
 extension LocalizedDescribable where Self: RawRepresentable, RawValue == String {
 	var localizedDescription: String {
-		let localized = NSLocalizedString(self.rawValue, comment: "")
+		let localized = String.localized(self.rawValue) // Accretion: reads the second table too
 		return localized == self.rawValue ? self.rawValue : localized
 	}
 }

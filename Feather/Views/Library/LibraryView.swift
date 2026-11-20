@@ -14,6 +14,7 @@ struct LibraryView: View {
 	@StateObject var downloadManager = DownloadManager.shared
 	@StateObject var updateManager = UpdateManager.shared
 	@ObservedObject private var _pipeline = AutoSignPipeline.shared // Accretion
+	@ObservedObject private var _store = StoreService.shared // Accretion: Saved
 	
 	@State private var _selectedInfoAppPresenting: AnyApp?
 	@State private var _selectedSigningAppPresenting: AnyApp?
@@ -74,6 +75,16 @@ struct LibraryView: View {
 	var body: some View {
 		NBNavigationView(.localized("Library")) {
 			NBListAdaptable {
+				// Accretion: apps saved in the store, newest updates first
+				if _showsSaved {
+					Section {
+						NavigationLink(value: StoreListRoute(title: String.localized("Saved"), saved: true)) {
+							_savedRow()
+						}
+						.buttonStyle(.plain)
+					}
+				}
+
 				if
 					!_filteredSignedApps.isEmpty,
 					_selectedScope == .all || _selectedScope == .signed
@@ -127,7 +138,8 @@ struct LibraryView: View {
 			.overlay {
 				if
 					_filteredSignedApps.isEmpty,
-					_filteredImportedApps.isEmpty
+					_filteredImportedApps.isEmpty,
+					!_showsSaved // Accretion
 				{
 					if #available(iOS 17, *) {
 						ContentUnavailableView {
@@ -223,6 +235,8 @@ struct LibraryView: View {
 				}
 			}
 			.environment(\.editMode, $_editMode)
+			.accretionStoreDestinations() // Accretion: Saved opens store pages
+			.task { await StoreService.shared.load() }
 			// Accretion: progress of Update / Update All / Re-sign All
 			.safeAreaInset(edge: .bottom) {
 				if let status = _pipeline.status {
@@ -300,6 +314,29 @@ struct LibraryView: View {
 
 // MARK: - Extension: View
 extension LibraryView {
+	// Accretion: Saved (moved here from Discover's nav), shown while not searching or scoped
+	private var _showsSaved: Bool {
+		_selectedScope == .all && _searchText.isEmpty && _store.savedSummary().count > 0
+	}
+
+	@ViewBuilder
+	private func _savedRow() -> some View {
+		let summary = _store.savedSummary()
+		HStack(spacing: 14) {
+			Image(systemName: "bookmark.fill")
+				.font(.title3)
+				.foregroundStyle(AccretionTheme.accent)
+				.frame(width: 30)
+				.accessibilityHidden(true)
+			NBTitleWithSubtitleView(
+				title: String.localized("Saved"),
+				subtitle: summary.updates > 0
+					? String.localized("%@ apps, %@ with an update", arguments: String(summary.count), String(summary.updates))
+					: String.localized("%@ apps", arguments: String(summary.count))
+			)
+		}
+	}
+
 	@ViewBuilder
 	private func _importActions() -> some View {
 		Button(.localized("Import from Files"), systemImage: "folder") {

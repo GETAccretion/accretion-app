@@ -70,14 +70,8 @@ struct DiscoverView: View {
 				await WhatsNewFeed.shared.load(force: true)
 				AccretionHaptics.refreshed()
 			}
-			.navigationDestination(for: StoreApp.self) { StoreAppView(app: $0).accretionZoomDestination($0.i, in: _zoom) }
-			.navigationDestination(for: StoreListRoute.self) { StoreListView(route: $0) }
-			.navigationDestination(for: SignGuideRoute.self) { _ in SignGuideView() }
-			.navigationDestination(for: StatusRoute.self) { _ in StatusView() }
-			.navigationDestination(for: CommunityFeedRoute.self) { CommunityFeedView(whatsNew: $0.whatsNew) }
-			.navigationDestination(for: NotificationsRoute.self) { _ in NotificationsView() }
+			.accretionStoreDestinations(zoom: _zoom)
 			.environment(\.accretionZoom, _zoom)
-			.navigationDestination(for: StoreSourcesRoute.self) { _ in StoreSourcesView() }
 			.toolbar(.hidden, for: .navigationBar)
 		}
 		.tint(AccretionTheme.accent)

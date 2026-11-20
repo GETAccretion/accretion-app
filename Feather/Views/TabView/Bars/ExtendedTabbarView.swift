@@ -26,14 +26,19 @@ struct ExtendedTabbarView: View {
 		
 	var body: some View {
 		TabView {
-			ForEach(TabEnum.defaultTabs, id: \.hashValue) { tab in
+			ForEach(TabEnum.defaultTabs.filter { $0 != .search }, id: \.hashValue) { tab in
 				Tab(tab.title, systemImage: tab.icon) {
 					TabEnum.view(for: tab)
 				}
 				// Accretion: number of apps with an update waiting (0 hides the badge)
 				.badge(tab == .library ? _updateManager.updates.count : 0)
 			}
-			
+
+			// Accretion: the system's search tab, set apart at the end of the tab bar
+			Tab(TabEnum.search.title, systemImage: TabEnum.search.icon, role: .search) {
+				TabEnum.view(for: .search)
+			}
+
 			ForEach(TabEnum.customizableTabs, id: \.hashValue) { tab in
 				Tab(tab.title, systemImage: tab.icon) {
 					TabEnum.view(for: tab)
